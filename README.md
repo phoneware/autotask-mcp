@@ -1,5 +1,10 @@
 # Autotask MCP Server
 
+[![Release](https://github.com/veeemlab/autotask-mcp/actions/workflows/release.yml/badge.svg)](https://github.com/veeemlab/autotask-mcp/actions/workflows/release.yml)
+[![npm version](https://img.shields.io/npm/v/@veeemlab/autotask-mcp?color=blue&label=npm)](https://www.npmjs.com/package/@veeemlab/autotask-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/@veeemlab/autotask-mcp?color=blue)](https://www.npmjs.com/package/@veeemlab/autotask-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A [Model Context Protocol](https://modelcontextprotocol.io) server for **Kaseya Autotask PSA**. It lets MCP-compatible AI clients (Claude Desktop, Claude Code, and others) read and write Autotask data through a small, AI-safe tool surface.
 
 Instead of hand-coding one tool per Autotask entity, this server exposes a **generic entity layer** (query / get / create / update / delete against any of Autotask's 180+ REST entities) plus **convenience tools** for the entities you touch most: tickets, companies, contacts, projects, tasks and time entries.
