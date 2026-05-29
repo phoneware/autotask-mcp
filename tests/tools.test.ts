@@ -5,7 +5,11 @@ import {
   eqClause,
   containsClause,
   collectClauses,
+  intArg,
+  numberArg,
+  optionalIntArg,
 } from '../src/tools/shared.js';
+import { CONFIRM_REQUIRED_TOOLS, DESTRUCTIVE_TOOLS } from '../src/security.js';
 
 // Mock the API module so tool handlers run without real credentials/network.
 const query = vi.fn();
@@ -56,6 +60,50 @@ describe('shared helpers', () => {
     expect(collectClauses(eqClause('a', '1'), null)).toEqual([
       { op: 'eq', field: 'a', value: '1' },
     ]);
+  });
+
+  it('intArg rejects non-integers and missing values', () => {
+    expect(intArg('companyID', '42')).toBe(42);
+    expect(() => intArg('companyID', 'abc')).toThrow(/companyID must be an integer/);
+    expect(() => intArg('companyID', '1.5')).toThrow(/must be an integer/);
+    expect(() => intArg('companyID', undefined)).toThrow(/companyID is required/);
+  });
+
+  it('numberArg accepts decimals, rejects junk', () => {
+    expect(numberArg('hoursWorked', '1.5')).toBe(1.5);
+    expect(() => numberArg('hoursWorked', 'abc')).toThrow(/must be a number/);
+  });
+
+  it('optionalIntArg returns undefined when absent', () => {
+    expect(optionalIntArg('x', undefined)).toBeUndefined();
+    expect(optionalIntArg('x', '')).toBeUndefined();
+    expect(optionalIntArg('x', '7')).toBe(7);
+    expect(() => optionalIntArg('x', 'no')).toThrow(/must be an integer/);
+  });
+});
+
+describe('security: every mutating tool is confirm-gated', () => {
+  it('all create-/update-/delete- tools require confirm and are destructive', async () => {
+    const { allTools } = await import('../src/tools/index.js');
+    const mutating = allTools.filter((t) => /^(create|update|delete)-/.test(t.name));
+    // Sanity: we actually have mutating tools to check.
+    expect(mutating.length).toBeGreaterThan(0);
+    for (const t of mutating) {
+      expect(DESTRUCTIVE_TOOLS.has(t.name), `${t.name} must be in DESTRUCTIVE_TOOLS`).toBe(true);
+      expect(
+        CONFIRM_REQUIRED_TOOLS.has(t.name),
+        `${t.name} must be in CONFIRM_REQUIRED_TOOLS`,
+      ).toBe(true);
+    }
+  });
+
+  it('no read tool is accidentally marked destructive', async () => {
+    const { allTools } = await import('../src/tools/index.js');
+    for (const t of allTools) {
+      if (DESTRUCTIVE_TOOLS.has(t.name)) {
+        expect(/^(create|update|delete)-/.test(t.name), `${t.name} flagged destructive`).toBe(true);
+      }
+    }
   });
 });
 

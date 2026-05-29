@@ -1,6 +1,13 @@
 import { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
-import { jsonResponse, parseMaxRecords, collectClauses, eqClause } from './shared.js';
+import {
+  jsonResponse,
+  parseMaxRecords,
+  collectClauses,
+  eqClause,
+  intArg,
+  numberArg,
+} from './shared.js';
 
 /** Convenience tools for TimeEntries (labor logged against tickets/tasks). */
 export const timeEntryTools: ToolDefinition[] = [
@@ -47,10 +54,12 @@ export const timeEntryTools: ToolDefinition[] = [
       if ((args.ticketID && args.taskID) || (!args.ticketID && !args.taskID)) {
         throw new Error('Provide exactly one of ticketID or taskID');
       }
-      const body: Record<string, unknown> = { hoursWorked: Number(args.hoursWorked) };
-      if (args.ticketID) body.ticketID = Number(args.ticketID);
-      if (args.taskID) body.taskID = Number(args.taskID);
-      if (args.resourceID) body.resourceID = Number(args.resourceID);
+      const body: Record<string, unknown> = {
+        hoursWorked: numberArg('hoursWorked', args.hoursWorked),
+      };
+      if (args.ticketID) body.ticketID = intArg('ticketID', args.ticketID);
+      if (args.taskID) body.taskID = intArg('taskID', args.taskID);
+      if (args.resourceID) body.resourceID = intArg('resourceID', args.resourceID);
       if (args.summaryNotes) body.summaryNotes = args.summaryNotes;
       if (args.dateWorked) body.dateWorked = args.dateWorked;
       return jsonResponse(await api.create('TimeEntries', body));

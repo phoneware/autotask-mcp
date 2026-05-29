@@ -16,14 +16,12 @@ export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
   'create-ticket-note',
 ]);
 
-// Destructive tools that additionally require an explicit confirm token. These
-// either delete data or perform free-form writes where a mistaken call is
-// expensive to undo. The token forces a deliberate second step from the agent.
-export const CONFIRM_REQUIRED_TOOLS: ReadonlySet<string> = new Set([
-  'delete-entity',
-  'create-entity',
-  'update-entity',
-]);
+// Every mutating tool requires an explicit confirm token. Derived from
+// DESTRUCTIVE_TOOLS so the two sets can never drift: any tool that can write
+// to Autotask is confirm-gated in full mode (and skipped entirely in
+// read-only mode). The token forces a deliberate second step from the agent,
+// preventing accidental single-call creates/updates/deletes on production data.
+export const CONFIRM_REQUIRED_TOOLS: ReadonlySet<string> = DESTRUCTIVE_TOOLS;
 
 /** The token an agent must pass in `confirm` to authorize a destructive tool. */
 export function confirmTokenFor(toolName: string): string {

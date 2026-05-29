@@ -6,6 +6,8 @@ import {
   collectClauses,
   eqClause,
   containsClause,
+  intArg,
+  optionalIntArg,
 } from './shared.js';
 
 /**
@@ -77,13 +79,17 @@ export const ticketTools: ToolDefinition[] = [
     handler: async (args) => {
       const body: Record<string, unknown> = {
         title: args.title,
-        companyID: Number(args.companyID),
+        companyID: intArg('companyID', args.companyID),
       };
       if (args.description) body.description = args.description;
-      if (args.status) body.status = Number(args.status);
-      if (args.priority) body.priority = Number(args.priority);
-      if (args.queueID) body.queueID = Number(args.queueID);
-      if (args.assignedResourceID) body.assignedResourceID = Number(args.assignedResourceID);
+      const status = optionalIntArg('status', args.status);
+      if (status !== undefined) body.status = status;
+      const priority = optionalIntArg('priority', args.priority);
+      if (priority !== undefined) body.priority = priority;
+      const queueID = optionalIntArg('queueID', args.queueID);
+      if (queueID !== undefined) body.queueID = queueID;
+      const assignedResourceID = optionalIntArg('assignedResourceID', args.assignedResourceID);
+      if (assignedResourceID !== undefined) body.assignedResourceID = assignedResourceID;
       return jsonResponse(await api.create('Tickets', body));
     },
   },
@@ -105,13 +111,17 @@ export const ticketTools: ToolDefinition[] = [
       required: ['id'],
     },
     handler: async (args) => {
-      const body: Record<string, unknown> = { id: Number(args.id) };
+      const body: Record<string, unknown> = { id: intArg('id', args.id) };
       if (args.title) body.title = args.title;
       if (args.description) body.description = args.description;
-      if (args.status) body.status = Number(args.status);
-      if (args.priority) body.priority = Number(args.priority);
-      if (args.queueID) body.queueID = Number(args.queueID);
-      if (args.assignedResourceID) body.assignedResourceID = Number(args.assignedResourceID);
+      const status = optionalIntArg('status', args.status);
+      if (status !== undefined) body.status = status;
+      const priority = optionalIntArg('priority', args.priority);
+      if (priority !== undefined) body.priority = priority;
+      const queueID = optionalIntArg('queueID', args.queueID);
+      if (queueID !== undefined) body.queueID = queueID;
+      const assignedResourceID = optionalIntArg('assignedResourceID', args.assignedResourceID);
+      if (assignedResourceID !== undefined) body.assignedResourceID = assignedResourceID;
       return jsonResponse(await api.update('Tickets', body));
     },
   },
@@ -131,17 +141,18 @@ export const ticketTools: ToolDefinition[] = [
       required: ['ticketID', 'description'],
     },
     handler: async (args) => {
+      const ticketID = intArg('ticketID', args.ticketID);
       const body: Record<string, unknown> = {
-        ticketID: Number(args.ticketID),
+        ticketID,
         description: args.description,
       };
       if (args.title) body.title = args.title;
-      if (args.noteType) body.noteType = Number(args.noteType);
-      if (args.publish) body.publish = Number(args.publish);
+      const noteType = optionalIntArg('noteType', args.noteType);
+      if (noteType !== undefined) body.noteType = noteType;
+      const publish = optionalIntArg('publish', args.publish);
+      if (publish !== undefined) body.publish = publish;
       // TicketNotes are created under the parent ticket's child collection.
-      return jsonResponse(
-        await api.create(`Tickets/${encodeURIComponent(args.ticketID)}/Notes`, body),
-      );
+      return jsonResponse(await api.create(`Tickets/${ticketID}/Notes`, body));
     },
   },
 ];

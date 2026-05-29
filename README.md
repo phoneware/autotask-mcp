@@ -16,7 +16,8 @@ Instead of hand-coding one tool per Autotask entity, this server exposes a **gen
 - **Automatic zone detection** — the correct Autotask data-center URL is discovered from your username; no need to know your zone.
 - **AI-safe by design**
   - Read-only mode (`AUTOTASK_READ_ONLY=true`) physically de-registers every write tool.
-  - Destructive generic operations (`create-entity`, `update-entity`, `delete-entity`) require an explicit confirmation token.
+  - Every mutating tool (`create-*`, `update-*`, `delete-*`) requires an explicit confirmation token.
+  - Numeric arguments are validated — bad input is rejected, never sent to Autotask as `null`.
   - Secrets are redacted from all error output.
 - **Resilient transport** — honors `429` rate-limit `Retry-After`, retries idempotent calls on transient `5xx` with backoff.
 - **Two transports** — `stdio` (default, for desktop/CLI clients) and an optional authenticated **HTTP** transport for remote/containerized use.
@@ -125,12 +126,13 @@ Add to `claude_desktop_config.json`:
 
 ## Resources
 
-Read-only `autotask://` resources are also exposed: `autotask://threshold`, `autotask://companies`, `autotask://tickets`, and templated `autotask://{companies,tickets,contacts}/{id}`.
+Read-only `autotask://` resources are also exposed: `autotask://threshold`, `autotask://companies`, `autotask://tickets`, `autotask://contacts`, and templated `autotask://{companies,tickets,contacts}/{id}`.
 
 ## Security model
 
-- **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, write tools are never registered — a misconfigured agent cannot mutate data.
-- **Confirmation tokens**: the generic write tools require a `confirm` argument equal to the upper-snake-cased tool name (e.g. `DELETE_ENTITY`) before they execute.
+- **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, all write tools are never registered (11 of 29 tools) — a misconfigured agent cannot mutate data.
+- **Confirmation tokens**: _every_ mutating tool — generic and convenience alike (`create-*`, `update-*`, `delete-*`) — requires a `confirm` argument equal to the upper-snake-cased tool name (e.g. `CREATE_TICKET`, `DELETE_ENTITY`) before it executes. This blocks accidental single-call writes to production data.
+- **Strict argument validation**: numeric tool arguments are validated; non-numeric input is rejected with a clear error instead of being sent to Autotask as `null`.
 - **Secret redaction**: credentials and tokens are stripped from error messages before they reach the model or logs.
 - **HTTP auth**: the HTTP transport refuses to start without a `>= 16` char bearer token and rejects unauthenticated `/mcp` requests with `401`.
 

@@ -13,6 +13,40 @@ export function parseMaxRecords(raw: string | undefined, fallback = 50, max = 50
   return Math.min(n, max);
 }
 
+/**
+ * Parse a required integer arg, rejecting non-numeric input. Tool args arrive
+ * as strings; without this an agent passing "abc" would silently become NaN and
+ * then `null` in the JSON payload, sending garbage to Autotask.
+ */
+export function intArg(name: string, raw: string | undefined): number {
+  if (raw === undefined || raw === '') {
+    throw new Error(`${name} is required`);
+  }
+  const n = Number(raw);
+  if (!Number.isInteger(n)) {
+    throw new Error(`${name} must be an integer (got "${raw}")`);
+  }
+  return n;
+}
+
+/** Parse a required finite number arg (allows decimals, e.g. hoursWorked). */
+export function numberArg(name: string, raw: string | undefined): number {
+  if (raw === undefined || raw === '') {
+    throw new Error(`${name} is required`);
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    throw new Error(`${name} must be a number (got "${raw}")`);
+  }
+  return n;
+}
+
+/** Like intArg but for optional args: returns undefined when absent. */
+export function optionalIntArg(name: string, raw: string | undefined): number | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  return intArg(name, raw);
+}
+
 export interface FilterClause {
   op: string;
   field: string;

@@ -6,6 +6,7 @@ import {
   collectClauses,
   eqClause,
   containsClause,
+  intArg,
 } from './shared.js';
 
 /** Convenience tools for Contacts (people attached to companies). */
@@ -60,7 +61,7 @@ export const contactTools: ToolDefinition[] = [
     },
     handler: async (args) => {
       const body: Record<string, unknown> = {
-        companyID: Number(args.companyID),
+        companyID: intArg('companyID', args.companyID),
         firstName: args.firstName,
         lastName: args.lastName,
       };
@@ -85,7 +86,7 @@ export const contactTools: ToolDefinition[] = [
       required: ['id'],
     },
     handler: async (args) => {
-      const body: Record<string, unknown> = { id: Number(args.id) };
+      const body: Record<string, unknown> = { id: intArg('id', args.id) };
       if (args.firstName) body.firstName = args.firstName;
       if (args.lastName) body.lastName = args.lastName;
       if (args.emailAddress) body.emailAddress = args.emailAddress;

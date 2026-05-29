@@ -1,6 +1,6 @@
 {
   "name": "@veeemlab/autotask-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Autotask PSA MCP server. Generic entity query/get/create/update across the full REST API plus convenience tools for tickets, companies, contacts, projects, tasks and time entries. AI-safe with readonly mode and destructive-action confirmation. stdio + optional HTTP transport.",
   "type": "module",
   "main": "dist/index.js",

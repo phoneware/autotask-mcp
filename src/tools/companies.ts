@@ -6,6 +6,8 @@ import {
   collectClauses,
   eqClause,
   containsClause,
+  intArg,
+  optionalIntArg,
 } from './shared.js';
 
 /** Convenience tools for Companies (Autotask accounts). */
@@ -64,9 +66,10 @@ export const companyTools: ToolDefinition[] = [
     handler: async (args) => {
       const body: Record<string, unknown> = {
         companyName: args.companyName,
-        companyType: Number(args.companyType),
+        companyType: intArg('companyType', args.companyType),
       };
-      if (args.ownerResourceID) body.ownerResourceID = Number(args.ownerResourceID);
+      const ownerResourceID = optionalIntArg('ownerResourceID', args.ownerResourceID);
+      if (ownerResourceID !== undefined) body.ownerResourceID = ownerResourceID;
       if (args.phone) body.phone = args.phone;
       return jsonResponse(await api.create('Companies', body));
     },
@@ -86,7 +89,7 @@ export const companyTools: ToolDefinition[] = [
       required: ['id'],
     },
     handler: async (args) => {
-      const body: Record<string, unknown> = { id: Number(args.id) };
+      const body: Record<string, unknown> = { id: intArg('id', args.id) };
       if (args.companyName) body.companyName = args.companyName;
       if (args.phone) body.phone = args.phone;
       if (args.isActive === 'true' || args.isActive === 'false') {

@@ -36,6 +36,12 @@ export const staticResources: ResourceDefinition[] = [
     description: 'Recent tickets, up to 50',
     mimeType: 'application/json',
   },
+  {
+    uri: 'autotask://contacts',
+    name: 'Contacts',
+    description: 'Recent contacts, up to 50',
+    mimeType: 'application/json',
+  },
 ];
 
 export const resourceTemplates: ResourceTemplateDefinition[] = [
@@ -68,6 +74,9 @@ export async function handleResource(uri: string): Promise<string> {
   }
   if (uri === 'autotask://tickets') {
     return JSON.stringify(await api.query('Tickets', ALL_FILTER), null, 2);
+  }
+  if (uri === 'autotask://contacts') {
+    return JSON.stringify(await api.query('Contacts', ALL_FILTER), null, 2);
   }
 
   const companyMatch = uri.match(/^autotask:\/\/companies\/([^/]+)$/);
