@@ -1,0 +1,59 @@
+import { ToolDefinition } from '../types.js';
+import { api } from '../autotask-api.js';
+import { jsonResponse, parseMaxRecords, collectClauses, eqClause } from './shared.js';
+
+/** Convenience tools for TimeEntries (labor logged against tickets/tasks). */
+export const timeEntryTools: ToolDefinition[] = [
+  {
+    name: 'search-time-entries',
+    description:
+      'Search time entries. Filters are optional and ANDed; with none, returns entries up to maxRecords. Provide ticketID or taskID to scope to a work item.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticketID: { type: 'string', description: 'Filter by ticket id' },
+        taskID: { type: 'string', description: 'Filter by task id' },
+        resourceID: { type: 'string', description: 'Filter by resource id' },
+        maxRecords: { type: 'string', description: 'Max records to return (default 50, max 500)' },
+      },
+    },
+    handler: async (args) => {
+      const filter = collectClauses(
+        eqClause('ticketID', args.ticketID),
+        eqClause('taskID', args.taskID),
+        eqClause('resourceID', args.resourceID),
+      );
+      const query = { filter, MaxRecords: parseMaxRecords(args.maxRecords) };
+      return jsonResponse(await api.query('TimeEntries', query));
+    },
+  },
+  {
+    name: 'create-time-entry',
+    description:
+      'Log a time entry against a ticket or task. DESTRUCTIVE (write). Provide exactly one of ticketID or taskID. hoursWorked is required; dateWorked is ISO 8601 (defaults to now if omitted by Autotask). For other fields use generic create-entity.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticketID: { type: 'string', description: 'Ticket id to log against (or use taskID)' },
+        taskID: { type: 'string', description: 'Task id to log against (or use ticketID)' },
+        resourceID: { type: 'string', description: 'Resource id performing the work' },
+        hoursWorked: { type: 'string', description: 'Hours worked, e.g. "1.5"' },
+        summaryNotes: { type: 'string', description: 'Description of the work performed' },
+        dateWorked: { type: 'string', description: 'ISO 8601 date/time the work was done' },
+      },
+      required: ['hoursWorked'],
+    },
+    handler: async (args) => {
+      if ((args.ticketID && args.taskID) || (!args.ticketID && !args.taskID)) {
+        throw new Error('Provide exactly one of ticketID or taskID');
+      }
+      const body: Record<string, unknown> = { hoursWorked: Number(args.hoursWorked) };
+      if (args.ticketID) body.ticketID = Number(args.ticketID);
+      if (args.taskID) body.taskID = Number(args.taskID);
+      if (args.resourceID) body.resourceID = Number(args.resourceID);
+      if (args.summaryNotes) body.summaryNotes = args.summaryNotes;
+      if (args.dateWorked) body.dateWorked = args.dateWorked;
+      return jsonResponse(await api.create('TimeEntries', body));
+    },
+  },
+];

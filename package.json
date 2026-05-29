@@ -1,0 +1,71 @@
+{
+  "name": "@veeemlab/autotask-mcp",
+  "version": "0.1.0",
+  "description": "Autotask PSA MCP server. Generic entity query/get/create/update across the full REST API plus convenience tools for tickets, companies, contacts, projects, tasks and time entries. AI-safe with readonly mode and destructive-action confirmation. stdio + optional HTTP transport.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "autotask-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "prepare": "npm run build || echo 'prepare: build skipped'",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "autotask",
+    "psa",
+    "kaseya",
+    "msp",
+    "claude",
+    "ai"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/veeemlab/autotask-mcp.git"
+  },
+  "homepage": "https://github.com/veeemlab/autotask-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/veeemlab/autotask-mcp/issues"
+  },
+  "author": "Vitalii Morgunov",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}
