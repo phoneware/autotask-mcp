@@ -9,6 +9,24 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server for **Kaseya 
 
 Instead of hand-coding one tool per Autotask entity, this server exposes a **generic entity layer** (query / get / create / update / delete against any of Autotask's 180+ REST entities) plus **convenience tools** for the entities you touch most: tickets, companies, contacts, projects, tasks and time entries.
 
+> **Compact, AI-safe Autotask MCP server with full generic REST entity coverage and confirm-gated writes.**
+
+## Why this server?
+
+Most Autotask MCP servers expose many hand-written tools. This one takes a different approach:
+
+- **Compact tool surface** — fewer tools for the model to choose from, so it picks the right one more reliably.
+- **Full REST entity coverage** through generic `query` / `get` / `create` / `update` / `delete` tools — any of Autotask's 180+ entities, not just the ones someone hand-wrote.
+- **Safer writes** — every mutation requires an explicit confirmation token.
+- **Real read-only mode** — write tools are not registered at all, not merely hidden.
+- **Conservative retry policy** — `POST`/`PATCH` are never retried automatically, so a write can't be silently duplicated.
+
+## Design philosophy
+
+This project prioritizes a compact, AI-safe tool surface over exposing one tool per Autotask entity.
+
+Instead of hundreds of entity-specific tools, it exposes a small generic layer that works across Autotask REST entities, plus convenience tools for common workflows. Fewer tools means less for the model to misuse and less code to maintain — the breadth comes from the generic layer, not from tool count.
+
 ## Features
 
 - **Full API coverage via a generic layer** — `query-entity`, `get-entity`, `create-entity`, `update-entity`, `delete-entity` and `describe-entity-fields` work against any Autotask entity by name.
@@ -127,6 +145,56 @@ Add to `claude_desktop_config.json`:
 ## Resources
 
 Read-only `autotask://` resources are also exposed: `autotask://threshold`, `autotask://companies`, `autotask://tickets`, `autotask://contacts`, and templated `autotask://{companies,tickets,contacts}/{id}`.
+
+## Tool safety
+
+**Read-only tools** (18) — never mutate data, always available:
+
+`list-known-entities`, `describe-entity-fields`, `query-entity`, `count-entity`, `get-entity`, `get-threshold-information`, `get-version`, `search-tickets`, `get-ticket`, `search-companies`, `get-company`, `search-contacts`, `get-contact`, `search-projects`, `get-project`, `search-tasks`, `get-task`, `search-time-entries`
+
+**Mutating tools** (11) — require a matching `confirm` token, and are not registered at all in read-only mode:
+
+| Tool                 | Required `confirm`   |
+| -------------------- | -------------------- |
+| `create-entity`      | `CREATE_ENTITY`      |
+| `update-entity`      | `UPDATE_ENTITY`      |
+| `delete-entity`      | `DELETE_ENTITY`      |
+| `create-ticket`      | `CREATE_TICKET`      |
+| `update-ticket`      | `UPDATE_TICKET`      |
+| `create-ticket-note` | `CREATE_TICKET_NOTE` |
+| `create-company`     | `CREATE_COMPANY`     |
+| `update-company`     | `UPDATE_COMPANY`     |
+| `create-contact`     | `CREATE_CONTACT`     |
+| `update-contact`     | `UPDATE_CONTACT`     |
+| `create-time-entry`  | `CREATE_TIME_ENTRY`  |
+
+## Examples
+
+**Query a ticket by number** (`query-entity`):
+
+```json
+{
+  "entity": "Tickets",
+  "query": "{\"filter\":[{\"op\":\"eq\",\"field\":\"ticketNumber\",\"value\":\"T20240101.0001\"}],\"MaxRecords\":1}"
+}
+```
+
+**Create a ticket** (`create-ticket`) — note the required `confirm` token:
+
+```json
+{
+  "title": "VPN issue",
+  "companyID": "123",
+  "description": "User cannot connect to VPN",
+  "confirm": "CREATE_TICKET"
+}
+```
+
+**Run read-only** (no write tools registered):
+
+```bash
+AUTOTASK_READ_ONLY=true npx -y @veeemlab/autotask-mcp
+```
 
 ## Security model
 
