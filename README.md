@@ -18,14 +18,26 @@ Most Autotask MCP servers expose many hand-written tools. This one takes a diffe
 - **Compact tool surface** — fewer tools for the model to choose from, so it picks the right one more reliably.
 - **Full REST entity coverage** through generic `query` / `get` / `create` / `update` / `delete` tools — any of Autotask's 180+ entities, not just the ones someone hand-wrote.
 - **Safer writes** — every mutation requires an explicit confirmation token.
-- **Real read-only mode** — write tools are not registered at all, not merely hidden.
-- **Conservative retry policy** — `POST`/`PATCH` are never retried automatically, so a write can't be silently duplicated.
+- **Real read-only mode** — in read-only mode, write tools are not merely blocked at runtime; they are never registered with the MCP server at all.
+- **Conservative retry policy** — `POST` / `PATCH` are never retried automatically, so a write can't be silently duplicated.
 
 ## Design philosophy
 
 This project prioritizes a compact, AI-safe tool surface over exposing one tool per Autotask entity.
 
 Instead of hundreds of entity-specific tools, it exposes a small generic layer that works across Autotask REST entities, plus convenience tools for common workflows. Fewer tools means less for the model to misuse and less code to maintain — the breadth comes from the generic layer, not from tool count.
+
+## When to use this
+
+Use this server when you want an MCP client to safely inspect or operate Autotask data without exposing hundreds of entity-specific tools to the model.
+
+It is especially suited for:
+
+- ticket lookup and triage
+- company / contact search
+- read-only Autotask assistants
+- controlled ticket creation / update workflows
+- containerized MCP deployments
 
 ## Features
 
@@ -150,7 +162,12 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 
 **Read-only tools** (18) — never mutate data, always available:
 
-`list-known-entities`, `describe-entity-fields`, `query-entity`, `count-entity`, `get-entity`, `get-threshold-information`, `get-version`, `search-tickets`, `get-ticket`, `search-companies`, `get-company`, `search-contacts`, `get-contact`, `search-projects`, `get-project`, `search-tasks`, `get-task`, `search-time-entries`
+- **Generic**: `list-known-entities`, `describe-entity-fields`, `query-entity`, `count-entity`, `get-entity`, `get-threshold-information`, `get-version`
+- **Tickets**: `search-tickets`, `get-ticket`
+- **Companies**: `search-companies`, `get-company`
+- **Contacts**: `search-contacts`, `get-contact`
+- **Projects & Tasks**: `search-projects`, `get-project`, `search-tasks`, `get-task`
+- **Time entries**: `search-time-entries`
 
 **Mutating tools** (11) — require a matching `confirm` token, and are not registered at all in read-only mode:
 
@@ -196,13 +213,23 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 AUTOTASK_READ_ONLY=true npx -y @veeemlab/autotask-mcp
 ```
 
+**HTTP transport** — unauthenticated health check and bearer-gated MCP endpoint:
+
+```bash
+# Liveness/readiness — no auth, safe for orchestrators
+curl http://127.0.0.1:3000/health
+
+# MCP endpoint — requires the bearer token
+curl -H "Authorization: Bearer $AUTOTASK_HTTP_TOKEN" http://127.0.0.1:3000/mcp
+```
+
 ## Security model
 
 - **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, all write tools are never registered (11 of 29 tools) — a misconfigured agent cannot mutate data.
 - **Confirmation tokens**: _every_ mutating tool — generic and convenience alike (`create-*`, `update-*`, `delete-*`) — requires a `confirm` argument equal to the upper-snake-cased tool name (e.g. `CREATE_TICKET`, `DELETE_ENTITY`) before it executes. This blocks accidental single-call writes to production data.
 - **Strict argument validation**: numeric tool arguments are validated; non-numeric input is rejected with a clear error instead of being sent to Autotask as `null`.
 - **Secret redaction**: credentials and tokens are stripped from error messages before they reach the model or logs.
-- **HTTP auth**: the HTTP transport refuses to start without a `>= 16` char bearer token and rejects unauthenticated `/mcp` requests with `401`.
+- **HTTP auth**: the HTTP transport refuses to start without a `>= 16` char bearer token. `/mcp` requires `Authorization: Bearer <AUTOTASK_HTTP_TOKEN>` (constant-time compared) and returns `401` otherwise. `/health` is intentionally unauthenticated, for container/orchestrator health checks only. Default bind host is `127.0.0.1`; expose beyond localhost (e.g. `0.0.0.0` in Docker) only behind your own network controls.
 
 ## Development
 
