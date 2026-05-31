@@ -29,6 +29,10 @@ jobs:
       - run: npm run build
       - run: npm audit --audit-level=moderate
 
+      # QEMU enables cross-building the arm64 image on the amd64 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       # buildx with the docker-container driver is required for provenance
       # attestations (the default docker driver does not support them).
       - name: Set up Docker Buildx
@@ -56,6 +60,7 @@ jobs:
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: true
