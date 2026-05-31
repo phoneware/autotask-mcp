@@ -1,0 +1,33 @@
+# HTTP-transport deployment. For stdio (Claude Desktop/Code) run the image
+# directly with `docker run -i` instead — stdio needs an attached stdin/stdout
+# and is not a long-running service.
+services:
+  autotask-mcp:
+    build: .
+    image: ghcr.io/veeemlab/autotask-mcp:latest
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      AUTOTASK_TRANSPORT: http
+      # Bind to all interfaces inside the container so the published port works.
+      AUTOTASK_HTTP_HOST: 0.0.0.0
+      PORT: '3000'
+      # Provide these via a .env file or your secrets manager:
+      AUTOTASK_USERNAME: ${AUTOTASK_USERNAME}
+      AUTOTASK_SECRET: ${AUTOTASK_SECRET}
+      AUTOTASK_INTEGRATION_CODE: ${AUTOTASK_INTEGRATION_CODE}
+      AUTOTASK_HTTP_TOKEN: ${AUTOTASK_HTTP_TOKEN}
+      # AUTOTASK_READ_ONLY: 'true'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

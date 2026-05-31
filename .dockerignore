@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+.git
+.github
+tests
+*.md
+!README.md
+.env
+.env.*
+!.env.example
+BLUEPRINT.md
+npm-debug.log*

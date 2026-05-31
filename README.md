@@ -4,6 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/@veeemlab/autotask-mcp?color=blue&label=npm)](https://www.npmjs.com/package/@veeemlab/autotask-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/@veeemlab/autotask-mcp?color=blue)](https://www.npmjs.com/package/@veeemlab/autotask-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker Publish](https://github.com/veeemlab/autotask-mcp/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/veeemlab/autotask-mcp/pkgs/container/autotask-mcp)
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for **Kaseya Autotask PSA**. It lets MCP-compatible AI clients (Claude Desktop, Claude Code, and others) read and write Autotask data through a small, AI-safe tool surface.
 
@@ -109,6 +110,41 @@ Add to `claude_desktop_config.json`:
     }
   }
 }
+```
+
+## Run with Docker
+
+Pre-built images are published to GitHub Container Registry on every release.
+
+**stdio** (for a local MCP client that launches the container):
+
+```bash
+docker run --rm -i \
+  -e AUTOTASK_USERNAME=apiuser@example.com \
+  -e AUTOTASK_SECRET=your-secret \
+  -e AUTOTASK_INTEGRATION_CODE=your-code \
+  ghcr.io/veeemlab/autotask-mcp
+```
+
+**HTTP** (remote / containerized):
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e AUTOTASK_TRANSPORT=http \
+  -e AUTOTASK_HTTP_TOKEN=change-this-long-token \
+  -e AUTOTASK_HTTP_HOST=0.0.0.0 \
+  -e AUTOTASK_USERNAME=apiuser@example.com \
+  -e AUTOTASK_SECRET=your-secret \
+  -e AUTOTASK_INTEGRATION_CODE=your-code \
+  ghcr.io/veeemlab/autotask-mcp
+```
+
+> The default HTTP bind host is `127.0.0.1`. Inside a container you must set `AUTOTASK_HTTP_HOST=0.0.0.0` for the published port to be reachable — only do so behind your own network controls, and always with a strong `AUTOTASK_HTTP_TOKEN`.
+
+Or use `docker compose` (HTTP service with a `/health` healthcheck) — supply the credentials via a `.env` file:
+
+```bash
+docker compose up -d
 ```
 
 ## Configuration
