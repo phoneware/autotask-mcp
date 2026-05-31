@@ -43,6 +43,21 @@ describe('AutotaskApi', () => {
     vi.unstubAllGlobals();
   });
 
+  it('detects the zone when AUTOTASK_API_URL is not pinned', async () => {
+    const saved = process.env.AUTOTASK_API_URL;
+    delete process.env.AUTOTASK_API_URL;
+    fetchMock
+      .mockResolvedValueOnce(jsonResp({ url: 'https://webservices5.autotask.net/atservicesrest/' }))
+      .mockResolvedValueOnce(jsonResp({ version: '1.0' }));
+    const api = new AutotaskApi();
+    await api.version();
+    expect(fetchMock.mock.calls[0][0]).toContain('zoneInformation?user=apiuser%40example.com');
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      'https://webservices5.autotask.net/atservicesrest/V1.0/Version',
+    );
+    process.env.AUTOTASK_API_URL = saved;
+  });
+
   it('uses pinned base URL and sends the three auth headers', async () => {
     fetchMock.mockResolvedValueOnce(jsonResp({ items: [], pageDetails: {} }));
     const api = new AutotaskApi();

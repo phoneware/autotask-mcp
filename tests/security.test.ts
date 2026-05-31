@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   confirmTokenFor,
+  assertConfirmToken,
   isReadonly,
   parseJsonBody,
   querySchema,
@@ -14,6 +15,24 @@ describe('confirmTokenFor', () => {
   it('uppercases and replaces dashes', () => {
     expect(confirmTokenFor('delete-entity')).toBe('DELETE_ENTITY');
     expect(confirmTokenFor('create-ticket')).toBe('CREATE_TICKET');
+  });
+});
+
+describe('assertConfirmToken', () => {
+  it('passes when the token matches', () => {
+    expect(() =>
+      assertConfirmToken('create-ticket', 'CREATE_TICKET', 'CREATE_TICKET'),
+    ).not.toThrow();
+  });
+  it('throws when the token is missing', () => {
+    expect(() => assertConfirmToken('create-ticket', 'CREATE_TICKET', undefined)).toThrow(
+      /requires confirm: "CREATE_TICKET".*missing/,
+    );
+  });
+  it('throws when the token is wrong', () => {
+    expect(() => assertConfirmToken('create-ticket', 'CREATE_TICKET', 'nope')).toThrow(
+      /requires confirm: "CREATE_TICKET".*"nope"/,
+    );
   });
 });
 

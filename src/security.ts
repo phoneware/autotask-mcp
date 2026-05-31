@@ -28,6 +28,24 @@ export function confirmTokenFor(toolName: string): string {
   return toolName.toUpperCase().replace(/-/g, '_');
 }
 
+/**
+ * Throw unless the agent supplied the exact confirm token for a destructive
+ * tool. Centralizes the gate so it is unit-testable and consistent.
+ */
+export function assertConfirmToken(
+  toolName: string,
+  expected: string,
+  given: string | undefined,
+): void {
+  if (given !== expected) {
+    throw new Error(
+      `Destructive tool "${toolName}" requires confirm: "${expected}" (got: ${
+        given ? `"${given}"` : 'missing'
+      })`,
+    );
+  }
+}
+
 export function isReadonly(): boolean {
   return (process.env.AUTOTASK_READ_ONLY || '').toLowerCase() === 'true';
 }
