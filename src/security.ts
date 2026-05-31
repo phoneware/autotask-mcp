@@ -29,6 +29,27 @@ export function confirmTokenFor(toolName: string): string {
 }
 
 /**
+ * Validate an entity name before it is interpolated into a REST path. Autotask
+ * entity names are simple identifiers (Tickets, TicketNotes, ConfigurationItems).
+ * Rejecting anything else blocks path traversal / path confusion such as
+ * "..", "../ThresholdInformation" or "Tickets/../Companies".
+ */
+export function assertSafeEntityName(value: string, label: string): string {
+  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(value)) {
+    throw new Error(`${label} must be a safe Autotask entity name (got: ${JSON.stringify(value)})`);
+  }
+  return value;
+}
+
+/** Validate a value that must be a bare numeric id before it enters a path. */
+export function assertSafeNumericId(value: string, label: string): string {
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`${label} must be a numeric id (got: ${JSON.stringify(value)})`);
+  }
+  return value;
+}
+
+/**
  * Throw unless the agent supplied the exact confirm token for a destructive
  * tool. Centralizes the gate so it is unit-testable and consistent.
  */

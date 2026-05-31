@@ -17,6 +17,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Quality gate: never publish an image that fails lint/format/test/build.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=moderate
+
       # buildx with the docker-container driver is required for provenance
       # attestations (the default docker driver does not support them).
       - name: Set up Docker Buildx

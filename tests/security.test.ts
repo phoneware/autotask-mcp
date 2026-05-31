@@ -2,6 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import {
   confirmTokenFor,
   assertConfirmToken,
+  assertSafeEntityName,
+  assertSafeNumericId,
   isReadonly,
   parseJsonBody,
   querySchema,
@@ -10,6 +12,39 @@ import {
   DESTRUCTIVE_TOOLS,
   CONFIRM_REQUIRED_TOOLS,
 } from '../src/security.js';
+
+describe('assertSafeEntityName', () => {
+  it('accepts bare identifiers', () => {
+    for (const ok of ['Tickets', 'TicketNotes', 'ConfigurationItems', 'A1_b']) {
+      expect(assertSafeEntityName(ok, 'entity')).toBe(ok);
+    }
+  });
+  it('rejects traversal / path injection / empty', () => {
+    for (const bad of [
+      '',
+      '..',
+      '../X',
+      'Tickets/../Companies',
+      'Tickets/query',
+      'a b',
+      '1Tickets',
+      'Tickets/123/Notes',
+    ]) {
+      expect(() => assertSafeEntityName(bad, 'entity')).toThrow(/safe Autotask entity name/);
+    }
+  });
+});
+
+describe('assertSafeNumericId', () => {
+  it('accepts digit strings', () => {
+    expect(assertSafeNumericId('123', 'id')).toBe('123');
+  });
+  it('rejects non-numeric / traversal', () => {
+    for (const bad of ['', '../1', '1.5', '1a', 'abc', '-1']) {
+      expect(() => assertSafeNumericId(bad, 'id')).toThrow(/numeric id/);
+    }
+  });
+});
 
 describe('confirmTokenFor', () => {
   it('uppercases and replaces dashes', () => {

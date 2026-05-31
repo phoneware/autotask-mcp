@@ -17,13 +17,26 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** Strip credential-like values from text before it reaches logs or tool output. */
 export function redactSecrets(text: string): string {
   if (!text) return text;
+  // 1) key:value / key=value style leaks.
   let out = text.replace(
     /("?(?:secret|password|apiintegrationcode|integration[_-]?code|username|api[_-]?key|token|authorization)"?\s*[:=]\s*"?)([^"\s,}]+)/gi,
     `$1${REDACT_PLACEHOLDER}`,
   );
+  // 2) Exact current credential values, wherever they appear (free-text leaks
+  //    like "invalid secret <value>" that the key:value pattern would miss).
+  for (const envName of ['AUTOTASK_SECRET', 'AUTOTASK_INTEGRATION_CODE', 'AUTOTASK_HTTP_TOKEN']) {
+    const value = process.env[envName];
+    if (value && value.length >= 4) {
+      out = out.replace(new RegExp(escapeRegExp(value), 'g'), REDACT_PLACEHOLDER);
+    }
+  }
   if (out.length > ERROR_BODY_MAX_LEN) {
     out = out.slice(0, ERROR_BODY_MAX_LEN) + '…[truncated]';
   }

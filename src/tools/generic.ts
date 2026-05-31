@@ -1,21 +1,34 @@
 import { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
-import { parseJsonBody, querySchema, recordBodySchema, updateBodySchema } from '../security.js';
+import {
+  parseJsonBody,
+  querySchema,
+  recordBodySchema,
+  updateBodySchema,
+  assertSafeEntityName,
+  assertSafeNumericId,
+} from '../security.js';
 import { jsonResponse } from './shared.js';
 
 /**
  * Resolve the entity path, supporting parent-scoped child collections such as
- * Tickets/{id}/Notes or Companies/{id}/Attachments. Many Autotask child
- * entities can only be queried/created under their parent.
+ * Tickets/{id}/Notes or Companies/{id}/Attachments. Every segment is validated
+ * (entity names must be bare identifiers, parent ids must be numeric) so that
+ * agent-supplied input cannot inject extra path segments or traverse the path
+ * (e.g. "..", "../ThresholdInformation", "Tickets/../Companies").
  */
 function resolveEntity(entity: string, parentEntity?: string, parentId?: string): string {
+  const safeEntity = assertSafeEntityName(entity, 'entity');
+
   if (parentEntity && parentId) {
-    return `${parentEntity}/${parentId}/${entity}`;
+    const safeParentEntity = assertSafeEntityName(parentEntity, 'parentEntity');
+    const safeParentId = assertSafeNumericId(parentId, 'parentId');
+    return `${safeParentEntity}/${safeParentId}/${safeEntity}`;
   }
   if (parentEntity || parentId) {
     throw new Error('parentEntity and parentId must be provided together');
   }
-  return entity;
+  return safeEntity;
 }
 
 const PARENT_PROPS = {
@@ -75,7 +88,7 @@ export const genericTools: ToolDefinition[] = [
       },
       required: ['entity'],
     },
-    handler: async (args) => jsonResponse(await api.entityFields(args.entity)),
+    handler: async (args) => jsonResponse(await api.entityFields(resolveEntity(args.entity))),
   },
   {
     name: 'query-entity',
@@ -133,7 +146,10 @@ export const genericTools: ToolDefinition[] = [
     },
     handler: async (args) =>
       jsonResponse(
-        await api.getById(resolveEntity(args.entity, args.parentEntity, args.parentId), args.id),
+        await api.getById(
+          resolveEntity(args.entity, args.parentEntity, args.parentId),
+          assertSafeNumericId(args.id, 'id'),
+        ),
       ),
   },
   {
@@ -172,7 +188,7 @@ export const genericTools: ToolDefinition[] = [
     },
     handler: async (args) => {
       const body = parseJsonBody(args.fields, updateBodySchema, 'fields');
-      return jsonResponse(await api.update(args.entity, body));
+      return jsonResponse(await api.update(resolveEntity(args.entity), body));
     },
   },
   {
@@ -187,7 +203,10 @@ export const genericTools: ToolDefinition[] = [
       },
       required: ['entity', 'id'],
     },
-    handler: async (args) => jsonResponse(await api.deleteById(args.entity, args.id)),
+    handler: async (args) =>
+      jsonResponse(
+        await api.deleteById(resolveEntity(args.entity), assertSafeNumericId(args.id, 'id')),
+      ),
   },
   {
     name: 'get-threshold-information',

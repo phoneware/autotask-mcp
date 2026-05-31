@@ -30,6 +30,12 @@ describe('redactSecrets', () => {
     expect(out.length).toBeLessThan(600);
     expect(out).toContain('truncated');
   });
+  it('redacts the exact current secret value even in free text', () => {
+    // AUTOTASK_SECRET is set to "super-secret-value" by the hoisted env above.
+    const out = redactSecrets('Auth failed: invalid secret super-secret-value at edge');
+    expect(out).not.toContain('super-secret-value');
+    expect(out).toContain('[REDACTED]');
+  });
 });
 
 describe('AutotaskApi', () => {

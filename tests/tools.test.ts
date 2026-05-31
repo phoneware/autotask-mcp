@@ -187,3 +187,73 @@ describe('generic tools', () => {
     });
   });
 });
+
+describe('generic tools: path-traversal hardening', () => {
+  const VALID_QUERY = '{"filter":[{"op":"gte","field":"id","value":0}]}';
+
+  beforeEach(() => {
+    query.mockReset();
+    queryCount.mockReset();
+    create.mockReset();
+  });
+
+  it('rejects traversal / unsafe entity names', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const q = genericTools.find((t) => t.name === 'query-entity')!;
+    for (const bad of [
+      '..',
+      '../ThresholdInformation',
+      'Tickets/../Companies',
+      'Tickets/query',
+      '',
+    ]) {
+      await expect(q.handler({ entity: bad, query: VALID_QUERY })).rejects.toThrow(
+        /safe Autotask entity name/,
+      );
+    }
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsafe parentEntity and non-numeric parentId', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const q = genericTools.find((t) => t.name === 'query-entity')!;
+    await expect(
+      q.handler({ entity: 'Notes', query: VALID_QUERY, parentEntity: '..', parentId: '1' }),
+    ).rejects.toThrow(/parentEntity must be a safe/);
+    await expect(
+      q.handler({
+        entity: 'Notes',
+        query: VALID_QUERY,
+        parentEntity: 'Tickets',
+        parentId: '../123',
+      }),
+    ).rejects.toThrow(/parentId must be a numeric id/);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-numeric id on get-entity / delete-entity', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const get = genericTools.find((t) => t.name === 'get-entity')!;
+    await expect(get.handler({ entity: 'Tickets', id: '../1' })).rejects.toThrow(
+      /id must be a numeric id/,
+    );
+  });
+
+  it('still allows valid entities and parent-scoped child collections', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const q = genericTools.find((t) => t.name === 'query-entity')!;
+    query.mockResolvedValue({ items: [] });
+    for (const ok of ['Tickets', 'Companies', 'TicketNotes', 'ConfigurationItems']) {
+      await q.handler({ entity: ok, query: VALID_QUERY });
+    }
+    await q.handler({
+      entity: 'Notes',
+      query: VALID_QUERY,
+      parentEntity: 'Tickets',
+      parentId: '123',
+    });
+    expect(query).toHaveBeenLastCalledWith('Tickets/123/Notes', {
+      filter: [{ op: 'gte', field: 'id', value: 0 }],
+    });
+  });
+});
