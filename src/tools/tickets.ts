@@ -3,11 +3,14 @@ import { api } from '../autotask-api.js';
 import {
   jsonResponse,
   parseMaxRecords,
-  collectClauses,
   eqClause,
   containsClause,
+  ensureFilter,
+  resolveClosedStatusIds,
+  boolFlag,
   intArg,
   optionalIntArg,
+  type FilterClause,
 } from './shared.js';
 
 /**
@@ -21,22 +24,39 @@ export const ticketTools: ToolDefinition[] = [
   {
     name: 'search-tickets',
     description:
-      'Search tickets by common fields. All filters are optional and combined with AND; with none, returns the most recent tickets up to maxRecords. status/priority/queueID are numeric picklist codes (see describe-entity-fields).',
+      'Search tickets by common fields. All filters are optional and combined with AND; with none, returns the most recent tickets up to maxRecords. ' +
+      'For triage use the semantic flags rather than enumerating statuses yourself: set openOnly=true to exclude closed tickets (by denylist, so no open status is ever missed) and unassigned=true to return only tickets with no assigned resource. ' +
+      'status/priority/queueID are numeric picklist codes (see describe-entity-fields).',
     inputSchema: {
       type: 'object',
       properties: {
         ticketNumber: { type: 'string', description: 'Exact ticket number, e.g. T20240101.0001' },
         companyID: { type: 'string', description: 'Filter by company id' },
-        status: { type: 'string', description: 'Numeric status picklist code' },
+        status: { type: 'string', description: 'Numeric status picklist code (exact match)' },
         priority: { type: 'string', description: 'Numeric priority picklist code' },
         queueID: { type: 'string', description: 'Numeric queue id' },
         assignedResourceID: { type: 'string', description: 'Assigned resource id' },
         titleContains: { type: 'string', description: 'Substring match on ticket title' },
+        unassigned: {
+          type: 'string',
+          description: 'Set "true" to return only tickets with no assigned resource',
+        },
+        openOnly: {
+          type: 'string',
+          description:
+            'Set "true" to exclude closed tickets (status not in closedStatusIds). Use this instead of guessing which statuses are "open".',
+        },
+        closedStatusIds: {
+          type: 'string',
+          description:
+            'Comma-separated status codes treated as closed when openOnly=true. Defaults to env AUTOTASK_CLOSED_STATUS_IDS or "5,16".',
+        },
         maxRecords: { type: 'string', description: 'Max records to return (default 50, max 500)' },
       },
     },
     handler: async (args) => {
-      const filter = collectClauses(
+      const clauses: FilterClause[] = [];
+      for (const c of [
         eqClause('ticketNumber', args.ticketNumber),
         eqClause('companyID', args.companyID),
         eqClause('status', args.status),
@@ -44,8 +64,24 @@ export const ticketTools: ToolDefinition[] = [
         eqClause('queueID', args.queueID),
         eqClause('assignedResourceID', args.assignedResourceID),
         containsClause('title', args.titleContains),
-      );
-      const query = { filter, MaxRecords: parseMaxRecords(args.maxRecords) };
+      ]) {
+        if (c) clauses.push(c);
+      }
+
+      // unassigned: use notExist (more reliable than `eq null` for empty fields).
+      if (boolFlag(args.unassigned)) {
+        clauses.push({ op: 'notExist', field: 'assignedResourceID' });
+      }
+
+      // openOnly: exclude closed statuses by denylist so no open status is ever
+      // missed (avoids the fragile per-status allowlist fan-out).
+      if (boolFlag(args.openOnly)) {
+        for (const id of resolveClosedStatusIds(args.closedStatusIds)) {
+          clauses.push({ op: 'noteq', field: 'status', value: id });
+        }
+      }
+
+      const query = { filter: ensureFilter(clauses), MaxRecords: parseMaxRecords(args.maxRecords) };
       return jsonResponse(await api.query('Tickets', query));
     },
   },

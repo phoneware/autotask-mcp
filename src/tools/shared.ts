@@ -81,3 +81,26 @@ export function containsClause(field: string, value: string | undefined): Filter
 export function collectClauses(...clauses: Array<FilterClause | null>): FilterClause[] {
   return ensureFilter(clauses.filter((c): c is FilterClause => c !== null));
 }
+
+/**
+ * Default Autotask Ticket status picklist codes considered "closed/done".
+ * Picklists vary per instance, so this is overridable per call or via the
+ * AUTOTASK_CLOSED_STATUS_IDS env var (comma-separated).
+ */
+export const DEFAULT_CLOSED_STATUS_IDS = [5, 16];
+
+/** Resolve the closed-status id list: explicit arg > env > built-in default. */
+export function resolveClosedStatusIds(raw?: string): number[] {
+  const source = raw && raw.trim() !== '' ? raw : process.env.AUTOTASK_CLOSED_STATUS_IDS;
+  if (!source) return DEFAULT_CLOSED_STATUS_IDS;
+  const ids = source
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n));
+  return ids.length > 0 ? ids : DEFAULT_CLOSED_STATUS_IDS;
+}
+
+/** `true`/`false` string flag → boolean (anything else = false). */
+export function boolFlag(value: string | undefined): boolean {
+  return value === 'true';
+}

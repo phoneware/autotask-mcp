@@ -149,17 +149,18 @@ docker compose up -d
 
 ## Configuration
 
-| Variable                    | Required  | Description                                                                                              |
-| --------------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
-| `AUTOTASK_USERNAME`         | yes       | Autotask API user name                                                                                   |
-| `AUTOTASK_SECRET`           | yes       | Autotask API secret                                                                                      |
-| `AUTOTASK_INTEGRATION_CODE` | yes       | Integration code / API tracking identifier                                                               |
-| `AUTOTASK_API_URL`          | no        | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`) |
-| `AUTOTASK_READ_ONLY`        | no        | `true` to disable all write tools                                                                        |
-| `AUTOTASK_TRANSPORT`        | no        | `http` to use the HTTP transport (default: `stdio`)                                                      |
-| `AUTOTASK_HTTP_TOKEN`       | http only | Bearer token (>= 16 chars) required to call `/mcp`                                                       |
-| `AUTOTASK_HTTP_HOST`        | no        | HTTP bind host (default `127.0.0.1`)                                                                     |
-| `PORT`                      | no        | HTTP port (default `3000`)                                                                               |
+| Variable                     | Required  | Description                                                                                              |
+| ---------------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
+| `AUTOTASK_USERNAME`          | yes       | Autotask API user name                                                                                   |
+| `AUTOTASK_SECRET`            | yes       | Autotask API secret                                                                                      |
+| `AUTOTASK_INTEGRATION_CODE`  | yes       | Integration code / API tracking identifier                                                               |
+| `AUTOTASK_API_URL`           | no        | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`) |
+| `AUTOTASK_READ_ONLY`         | no        | `true` to disable all write tools                                                                        |
+| `AUTOTASK_CLOSED_STATUS_IDS` | no        | Comma-separated ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)    |
+| `AUTOTASK_TRANSPORT`         | no        | `http` to use the HTTP transport (default: `stdio`)                                                      |
+| `AUTOTASK_HTTP_TOKEN`        | http only | Bearer token (>= 16 chars) required to call `/mcp`                                                       |
+| `AUTOTASK_HTTP_HOST`         | no        | HTTP bind host (default `127.0.0.1`)                                                                     |
+| `PORT`                       | no        | HTTP port (default `3000`)                                                                               |
 
 ## Tools
 
@@ -242,6 +243,18 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
   "confirm": "CREATE_TICKET"
 }
 ```
+
+**Find open, unassigned tickets** (`search-tickets`) — the reliable way to do triage. Use the `openOnly` + `unassigned` flags instead of enumerating statuses, so no open status is ever missed:
+
+```json
+{
+  "openOnly": "true",
+  "unassigned": "true",
+  "maxRecords": "500"
+}
+```
+
+This builds a single server-side filter — `assignedResourceID notExist` plus a closed-status denylist (`status != 5`, `status != 16` by default) — rather than a fragile per-status allowlist.
 
 **Run read-only** (no write tools registered):
 

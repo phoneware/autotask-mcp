@@ -138,6 +138,55 @@ describe('ticket tools', () => {
 
     expect(create).toHaveBeenCalledWith('Tickets', { title: 'Help', companyID: 42, status: 1 });
   });
+
+  // Regression: "open + unassigned" must use notExist + a closed-status denylist,
+  // NOT a per-status allowlist. The original bug missed status 13 because the
+  // model enumerated "open" statuses and forgot one. With openOnly the filter
+  // never enumerates open statuses, so a status-13 unassigned ticket is included.
+  it('search-tickets openOnly+unassigned builds notExist + closed-status denylist', async () => {
+    const { ticketTools } = await import('../src/tools/tickets.js');
+    const search = ticketTools.find((t) => t.name === 'search-tickets')!;
+    query.mockResolvedValueOnce({ items: [] });
+
+    await search.handler({ unassigned: 'true', openOnly: 'true', maxRecords: '500' });
+
+    expect(query).toHaveBeenCalledWith('Tickets', {
+      filter: [
+        { op: 'notExist', field: 'assignedResourceID' },
+        { op: 'noteq', field: 'status', value: 5 },
+        { op: 'noteq', field: 'status', value: 16 },
+      ],
+      MaxRecords: 500,
+    });
+
+    // No eq-status clause => status 13 (and any other open status) is not excluded.
+    const sentFilter = query.mock.calls[0][1].filter as Array<{ op: string; field: string }>;
+    expect(sentFilter.some((c) => c.op === 'eq' && c.field === 'status')).toBe(false);
+  });
+
+  it('search-tickets honors custom closedStatusIds', async () => {
+    const { ticketTools } = await import('../src/tools/tickets.js');
+    const search = ticketTools.find((t) => t.name === 'search-tickets')!;
+    query.mockResolvedValueOnce({ items: [] });
+
+    await search.handler({ openOnly: 'true', closedStatusIds: '5, 16, 99' });
+
+    expect(query.mock.calls[0][1].filter).toEqual([
+      { op: 'noteq', field: 'status', value: 5 },
+      { op: 'noteq', field: 'status', value: 16 },
+      { op: 'noteq', field: 'status', value: 99 },
+    ]);
+  });
+
+  it('search-tickets without flags does not inject assignment/status filters', async () => {
+    const { ticketTools } = await import('../src/tools/tickets.js');
+    const search = ticketTools.find((t) => t.name === 'search-tickets')!;
+    query.mockResolvedValueOnce({ items: [] });
+
+    await search.handler({ companyID: '7' });
+
+    expect(query.mock.calls[0][1].filter).toEqual([{ op: 'eq', field: 'companyID', value: '7' }]);
+  });
 });
 
 describe('generic tools', () => {
