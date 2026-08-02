@@ -1,4 +1,5 @@
 import { ZoneInformation } from './types.js';
+import { governor } from './governor.js';
 
 // Unauthenticated endpoint used to discover which Autotask zone (data center)
 // an account lives in. Returns the correct REST base URL for that account.
@@ -111,8 +112,44 @@ export class AutotaskApi {
   /**
    * Low-level REST call. `path` is relative to the zone base, e.g.
    * "V1.0/Tickets/query". Retries GET/DELETE on 5xx and any method on 429.
+   *
+   * Every call passes through the governor, which caps our concurrency at
+   * Autotask's per-endpoint thread limit and refuses to spend the last of the
+   * tenant-wide hourly budget. `internal` bypasses it for the governor's own
+   * ThresholdInformation probe, which would otherwise recurse.
    */
-  async request(method: string, path: string, body?: unknown): Promise<unknown> {
+  async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    opts: { internal?: boolean; maxRetries?: number } = {},
+  ): Promise<unknown> {
+    if (opts.internal) {
+      return this.execute(method, path, body, opts.maxRetries);
+    }
+    await governor.assertBudget(() => this.fetchThresholdRaw());
+    return governor.withSlot(path, () => this.execute(method, path, body, opts.maxRetries));
+  }
+
+  /**
+   * The governor's own budget probe. Never governed (it would deadlock), and
+   * never retried: the governor fails open on error, so retrying a failing
+   * ThresholdInformation would stall every tool call behind seconds of backoff
+   * to reach the same "allow it through" answer.
+   */
+  private fetchThresholdRaw(): Promise<unknown> {
+    return this.request('GET', 'V1.0/ThresholdInformation', undefined, {
+      internal: true,
+      maxRetries: 0,
+    });
+  }
+
+  private async execute(
+    method: string,
+    path: string,
+    body?: unknown,
+    maxRetries = MAX_RETRIES,
+  ): Promise<unknown> {
     const base = await this.getBaseUrl();
     const url = `${base}${path.replace(/^\//, '')}`;
     let attempt = 0;
@@ -132,7 +169,7 @@ export class AutotaskApi {
       }
 
       // 429: Autotask API threshold reached. Honor Retry-After, then back off.
-      if (resp.status === 429 && attempt < MAX_RETRIES) {
+      if (resp.status === 429 && attempt < maxRetries) {
         const retryAfter = resp.headers.get('Retry-After');
         const delayMs = retryAfter
           ? Math.max(0, parseInt(retryAfter, 10) * 1000)
@@ -147,7 +184,7 @@ export class AutotaskApi {
         resp.status >= 500 &&
         resp.status < 600 &&
         RETRYABLE_5XX_METHODS.has(method) &&
-        attempt < MAX_RETRIES
+        attempt < maxRetries
       ) {
         await sleep(Math.random() * 1000 * Math.pow(2, attempt));
         attempt++;

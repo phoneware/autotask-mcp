@@ -9,6 +9,22 @@ vi.hoisted(() => {
 });
 
 import { AutotaskApi, redactSecrets } from '../src/autotask-api.js';
+import { governor } from '../src/governor.js';
+
+/**
+ * Every API call now passes the budget governor, which probes
+ * ThresholdInformation when its reading is stale. These tests assert on exact
+ * fetch call sequences, so prime the governor with a healthy reading first:
+ * the guard stays fully active, it just already knows the budget and does not
+ * spend a call re-checking it.
+ */
+async function primeGovernor(): Promise<void> {
+  governor.reset();
+  await governor.assertBudget(async () => ({
+    externalRequestThreshold: 10_000,
+    currentTimeframeRequestCount: 0,
+  }));
+}
 
 function jsonResp(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -41,7 +57,8 @@ describe('redactSecrets', () => {
 describe('AutotaskApi', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await primeGovernor();
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
   });

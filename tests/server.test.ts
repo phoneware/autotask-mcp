@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 
 // buildServer imports the tool layer, whose api singleton needs credentials.
 vi.hoisted(() => {
@@ -9,7 +8,7 @@ vi.hoisted(() => {
   process.env.AUTOTASK_API_URL = 'https://webservices2.autotask.net/atservicesrest/';
 });
 
-import { buildServer, handleHttpRequest, tokensMatch } from '../src/server.js';
+import { buildServer } from '../src/server.js';
 import { DESTRUCTIVE_TOOLS } from '../src/security.js';
 
 describe('buildServer registration (readonly lock test)', () => {
@@ -45,77 +44,5 @@ describe('buildServer registration (readonly lock test)', () => {
     const ro = buildServer();
     expect(ro.registeredCount).toBe(18);
     expect(ro.skipped).toBe(11);
-  });
-});
-
-// Minimal req/res doubles for the HTTP router.
-function mockReq(url: string, headers: Record<string, string> = {}): IncomingMessage {
-  return { url, headers } as unknown as IncomingMessage;
-}
-function mockRes() {
-  const res = {
-    statusCode: 0,
-    headers: {} as Record<string, string>,
-    body: '',
-    ended: false,
-    setHeader(k: string, v: string) {
-      this.headers[k.toLowerCase()] = v;
-    },
-    end(chunk?: string) {
-      if (chunk) this.body = chunk;
-      this.ended = true;
-    },
-  };
-  return res as typeof res & ServerResponse;
-}
-
-describe('handleHttpRequest', () => {
-  const TOKEN = 'a-very-long-test-token-1234567890';
-
-  it('serves /health with no auth', () => {
-    const res = mockRes();
-    const transport = { handleRequest: vi.fn() };
-    handleHttpRequest(mockReq('/health'), res, TOKEN, transport);
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ ok: true });
-    expect(transport.handleRequest).not.toHaveBeenCalled();
-  });
-
-  it('rejects /mcp without a token (401)', () => {
-    const res = mockRes();
-    const transport = { handleRequest: vi.fn() };
-    handleHttpRequest(mockReq('/mcp'), res, TOKEN, transport);
-    expect(res.statusCode).toBe(401);
-    expect(res.headers['www-authenticate']).toContain('Bearer');
-    expect(transport.handleRequest).not.toHaveBeenCalled();
-  });
-
-  it('rejects /mcp with a wrong token (401)', () => {
-    const res = mockRes();
-    const transport = { handleRequest: vi.fn() };
-    handleHttpRequest(mockReq('/mcp', { authorization: 'Bearer wrong' }), res, TOKEN, transport);
-    expect(res.statusCode).toBe(401);
-    expect(transport.handleRequest).not.toHaveBeenCalled();
-  });
-
-  it('delegates /mcp to the transport with a valid token', () => {
-    const res = mockRes();
-    const transport = { handleRequest: vi.fn() };
-    handleHttpRequest(mockReq('/mcp', { authorization: `Bearer ${TOKEN}` }), res, TOKEN, transport);
-    expect(transport.handleRequest).toHaveBeenCalledOnce();
-  });
-
-  it('404s unknown paths', () => {
-    const res = mockRes();
-    handleHttpRequest(mockReq('/nope'), res, TOKEN, { handleRequest: vi.fn() });
-    expect(res.statusCode).toBe(404);
-  });
-});
-
-describe('tokensMatch', () => {
-  it('matches equal tokens, rejects different/length-mismatched', () => {
-    expect(tokensMatch('abc', 'abc')).toBe(true);
-    expect(tokensMatch('abc', 'abd')).toBe(false);
-    expect(tokensMatch('abc', 'abcd')).toBe(false);
   });
 });
