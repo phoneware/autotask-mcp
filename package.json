@@ -1,7 +1,7 @@
 {
-  "name": "@veeemlab/autotask-mcp",
+  "name": "@phoneware/autotask-mcp",
   "version": "0.4.0",
-  "description": "Autotask PSA MCP server. Generic entity query/get/create/update across the full REST API plus convenience tools for tickets, companies, contacts, projects, tasks and time entries. AI-safe with readonly mode and destructive-action confirmation. stdio + optional HTTP transport.",
+  "description": "Phoneware-hosted Autotask PSA MCP server. Generic entity query/get/create/update across the full REST API plus convenience tools for tickets, companies, contacts, projects, tasks and time entries. AI-safe with readonly mode, destructive-action confirmation and a tenant-wide API budget governor. stdio + multi-session HTTP transport.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -57,15 +57,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/veeemlab/autotask-mcp.git"
+    "url": "git+https://github.com/phoneware/autotask-mcp.git"
   },
-  "homepage": "https://github.com/veeemlab/autotask-mcp#readme",
+  "homepage": "https://github.com/phoneware/autotask-mcp#readme",
   "bugs": {
-    "url": "https://github.com/veeemlab/autotask-mcp/issues"
+    "url": "https://github.com/phoneware/autotask-mcp/issues"
   },
   "author": "Vitalii Morgunov",
   "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  }
+  "private": true
 }

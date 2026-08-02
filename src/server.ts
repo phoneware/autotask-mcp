@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { timingSafeEqual } from 'node:crypto';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -112,59 +110,6 @@ export function buildServer(): { server: McpServer; registeredCount: number; ski
   return { server, registeredCount, skipped };
 }
 
-/** Constant-time bearer token comparison. */
-export function tokensMatch(presented: string, expected: string): boolean {
-  const a = Buffer.from(presented);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
-/** Minimal transport surface the HTTP router needs (for testability). */
-export interface McpHttpTransport {
-  handleRequest(req: IncomingMessage, res: ServerResponse): unknown;
-}
-
-/**
- * Route an incoming HTTP request: unauthenticated `/health`, bearer-gated
- * `/mcp` (delegated to the MCP transport), everything else 404. Extracted from
- * the server bootstrap so the auth/routing logic is unit-testable without
- * binding a port.
- */
-export function handleHttpRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  httpToken: string,
-  transport: McpHttpTransport,
-): void {
-  if (!req.url) {
-    res.statusCode = 400;
-    res.end();
-    return;
-  }
-  if (req.url === '/health') {
-    res.statusCode = 200;
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ ok: true }));
-    return;
-  }
-  if (req.url.startsWith('/mcp')) {
-    const auth = req.headers['authorization'];
-    const presented =
-      typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
-    if (!presented || !tokensMatch(presented, httpToken)) {
-      res.statusCode = 401;
-      res.setHeader('WWW-Authenticate', 'Bearer realm="autotask-mcp"');
-      res.end();
-      return;
-    }
-    void transport.handleRequest(req, res);
-    return;
-  }
-  res.statusCode = 404;
-  res.end();
-}
-
 export async function runStdio(): Promise<void> {
   const { server, registeredCount, skipped } = buildServer();
   const transport = new StdioServerTransport();
@@ -173,37 +118,4 @@ export async function runStdio(): Promise<void> {
   console.error(
     `[autotask-mcp] running (stdio, mode: ${mode}, ${registeredCount} tools, ${skipped} write tools skipped)`,
   );
-}
-
-export async function runHttp(): Promise<void> {
-  const httpToken = process.env.AUTOTASK_HTTP_TOKEN;
-  if (!httpToken || httpToken.length < 16) {
-    console.error(
-      '[autotask-mcp] AUTOTASK_TRANSPORT=http requires AUTOTASK_HTTP_TOKEN (>= 16 chars). ' +
-        'Aborting — refusing to expose /mcp without auth.',
-    );
-    process.exit(1);
-  }
-  const host = process.env.AUTOTASK_HTTP_HOST ?? '127.0.0.1';
-  const port = Number(process.env.PORT ?? 3000);
-
-  const { StreamableHTTPServerTransport } =
-    await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
-  const http = await import('node:http');
-
-  const { server, registeredCount, skipped } = buildServer();
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => crypto.randomUUID(),
-  });
-  await server.connect(transport);
-
-  const httpServer = http.createServer((req, res) =>
-    handleHttpRequest(req, res, httpToken, transport),
-  );
-  httpServer.listen(port, host, () => {
-    const mode = isReadonly() ? 'READONLY' : 'full';
-    console.error(
-      `[autotask-mcp] HTTP transport on ${host}:${port} (mode: ${mode}, ${registeredCount} tools, ${skipped} write tools skipped)`,
-    );
-  });
 }

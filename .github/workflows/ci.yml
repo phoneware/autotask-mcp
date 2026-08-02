@@ -38,6 +38,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Publish dry-run
-        run: npm publish --dry-run

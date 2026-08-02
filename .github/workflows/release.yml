@@ -1,5 +1,12 @@
 name: Release
 
+# Tagging cuts a GitHub Release for this fork. It deliberately does NOT publish
+# to npm: this is Phoneware's fork of veeemlab/autotask-mcp, run as a hosted
+# service rather than distributed as a package, and the upstream @veeemlab scope
+# is not ours to publish into. The package is marked private for the same
+# reason. The deployable artifact is the Cloud Run image built by
+# cloudbuild.yaml on pushes to main, plus the GHCR image built on tags.
+
 on:
   push:
     tags: ['v*']
@@ -9,10 +16,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write # required for npm provenance
       contents: write # required to create the GitHub Release
     steps:
       - uses: actions/checkout@v5
@@ -22,11 +28,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
           cache: npm
-
-      - name: Upgrade npm for OIDC trusted publishing
-        run: npm install -g npm@latest
 
       - run: npm ci
 
@@ -41,9 +43,6 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Publish to npm with provenance
-        run: npm publish --provenance --access public
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

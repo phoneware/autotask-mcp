@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { createServer, type Server, type IncomingMessage } from 'node:http';
 import { AddressInfo } from 'node:net';
 
@@ -10,6 +10,7 @@ vi.hoisted(() => {
 });
 
 import { AutotaskApi } from '../src/autotask-api.js';
+import { governor } from '../src/governor.js';
 
 interface Recorded {
   method: string;
@@ -52,6 +53,17 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
+});
+
+// Prime the budget governor so its ThresholdInformation probe does not land in
+// `recorded` ahead of the call under test. The guard stays active; it simply
+// has a fresh reading already.
+beforeEach(async () => {
+  governor.reset();
+  await governor.assertBudget(async () => ({
+    externalRequestThreshold: 10_000,
+    currentTimeframeRequestCount: 0,
+  }));
 });
 
 describe('integration: real mock Autotask server', () => {

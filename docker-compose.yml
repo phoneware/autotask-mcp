@@ -1,10 +1,13 @@
 # HTTP-transport deployment. For stdio (Claude Desktop/Code) run the image
 # directly with `docker run -i` instead — stdio needs an attached stdin/stdout
 # and is not a long-running service.
+#
+# MCP sessions are held in instance memory, so do not scale this service to more
+# than one replica: a client's session lives on the instance that created it.
 services:
   autotask-mcp:
     build: .
-    image: ghcr.io/veeemlab/autotask-mcp:latest
+    image: ghcr.io/phoneware/autotask-mcp:latest
     restart: unless-stopped
     ports:
       - '3000:3000'
@@ -19,6 +22,10 @@ services:
       AUTOTASK_INTEGRATION_CODE: ${AUTOTASK_INTEGRATION_CODE}
       AUTOTASK_HTTP_TOKEN: ${AUTOTASK_HTTP_TOKEN}
       # AUTOTASK_READ_ONLY: 'true'
+      # Pin the public hostname once this sits behind a proxy:
+      # AUTOTASK_HTTP_ALLOWED_HOSTS: mcp.autotask.example.com
+      # Autotask's hourly budget is shared tenant-wide; see README.
+      # AUTOTASK_THRESHOLD_STOP_PCT: '90'
     healthcheck:
       test:
         [
