@@ -1,0 +1,42 @@
+name: Deploy
+
+# CI/CD for the Phoneware-hosted Autotask MCP. NEVER deploy from a workstation.
+# Push to main -> Cloud Build runs cloudbuild.yaml (test gate, image build, push
+# to Artifact Registry, Cloud Run deploy). Auth via Workload Identity
+# Federation, mirroring phoneware/bandwidth-mcp and phoneware/monorepo. No
+# static keys.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+env:
+  WIF_PROVIDER: projects/859122914438/locations/global/workloadIdentityPools/github/providers/github
+  DEPLOYER_SA: edge-tf-deployer@phoneware-edge.iam.gserviceaccount.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: phoneware-edge
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build and deploy via Cloud Build
+        run: |
+          gcloud builds submit \
+            --project=phoneware-edge \
+            --config=cloudbuild.yaml \
+            --substitutions=COMMIT_SHA=${GITHUB_SHA} \
+            .
