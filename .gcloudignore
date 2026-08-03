@@ -1,0 +1,27 @@
+# What `gcloud builds submit` must NOT upload into the Cloud Build context.
+#
+# Without this file gcloud uploads the entire working directory. In CI that
+# directory contains the short-lived credentials file that
+# google-github-actions/auth writes (gha-creds-*.json), so the OIDC credential
+# would be shipped to Cloud Build and land in the build's source archive. Keep
+# it out.
+#
+# Note this is NOT a copy of .dockerignore: cloudbuild.yaml's test step runs
+# `npm ci && npm test` against this upload, so tests/, tsconfig and the lock
+# file all have to survive. Only the Dockerfile build stage uses .dockerignore.
+
+gha-creds-*.json
+*.json.tmp
+
+.git
+.gitignore
+node_modules
+dist
+coverage
+
+.env
+.env.*
+!.env.example
+
+npm-debug.log*
+.DS_Store

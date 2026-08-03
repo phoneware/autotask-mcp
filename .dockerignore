@@ -11,3 +11,4 @@ tests
 !.env.example
 BLUEPRINT.md
 npm-debug.log*
+gha-creds-*.json
