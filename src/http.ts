@@ -8,20 +8,20 @@
  * one client and 400s everyone else, so each `initialize` here mints its own
  * McpServer + transport pair and registers it in a session store.
  *
- * Two ways in, and they are not equivalent:
+ * Google sign-in is the only way in. Autotask has no OAuth of its own, so
+ * Google is not standing in for Autotask auth: its only job is to produce a
+ * verified email, which is matched to an Autotask Resource so writes carry
+ * ImpersonationResourceId and are attributed to a real person.
  *
- *   - **Google sign-in** (OAuth 2.1, when configured). Establishes *who* is
- *     connecting. Autotask has no OAuth of its own, so Google is not standing
- *     in for Autotask auth: its only job is to produce a verified email, which
- *     is matched to an Autotask Resource so writes carry
- *     ImpersonationResourceId and are attributed to a real person.
- *   - **A shared static bearer** (AUTOTASK_HTTP_TOKEN). No identity, so writes
- *     land as the API user. Intended for scripts and machine callers.
- *
- * Either may be configured, or both. With neither, /mcp refuses every request.
+ * There is deliberately no shared static bearer alongside it. A second token
+ * with no identity, no expiry and no domain allowlist would be a weaker
+ * parallel door into the same building, and every write through it would land
+ * as the API user, which is the audit hole Google sign-in exists to close.
+ * Headless callers, if they ever appear, should present a verifiable identity
+ * (a Google service-account ID token) rather than a shared secret.
  */
 
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -47,7 +47,6 @@ const DEFAULT_RATE_LIMIT = 120;
 const RATE_WINDOW_MS = 60_000;
 const DEFAULT_MAX_BODY_BYTES = 4 * 1024 * 1024;
 const REAP_INTERVAL_MS = 60_000;
-const MIN_TOKEN_LENGTH = 16;
 
 // --- small helpers -----------------------------------------------------------
 
@@ -63,23 +62,6 @@ function envList(name: string): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-/**
- * A usable static bearer token, or null. Anything shorter than the minimum is
- * treated as absent rather than as a weak secret.
- */
-export function configuredToken(): string | null {
-  const token = process.env.AUTOTASK_HTTP_TOKEN;
-  return token && token.length >= MIN_TOKEN_LENGTH ? token : null;
-}
-
-/** Constant-time bearer comparison. */
-export function tokensMatch(presented: string, expected: string): boolean {
-  const a = Buffer.from(presented);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
 }
 
 export function bearerFrom(headers: Request['headers']): string {
@@ -234,8 +216,6 @@ export const defaultCreateSession: SessionFactory = (hooks) => {
 // --- app wiring --------------------------------------------------------------
 
 export interface AppOptions {
-  /** Static shared bearer, or null when not configured. */
-  staticToken: string | null;
   /** Google bridge, or null when Google sign-in is not configured. */
   googleProvider: GoogleAuthProvider | null;
   /** Public base URL. Required for OAuth (it is the issuer). */
@@ -249,11 +229,9 @@ export interface AppOptions {
 }
 
 /** Everything still missing before the server can actually serve. */
-export function missingConfig(opts: Pick<AppOptions, 'staticToken' | 'googleProvider'>): string[] {
+export function missingConfig(opts: Pick<AppOptions, 'googleProvider'>): string[] {
   const missing = [...missingCredentials()];
-  if (!opts.staticToken && !opts.googleProvider) {
-    missing.push('AUTOTASK_HTTP_TOKEN or Google sign-in');
-  }
+  if (!opts.googleProvider) missing.push('Google sign-in (AUTOTASK_OAUTH_*)');
   return missing;
 }
 
@@ -303,10 +281,7 @@ export function createApp(opts: AppOptions): Express {
       ok: true,
       configured: missing.length === 0,
       missingConfig: missing,
-      auth: {
-        google: Boolean(opts.googleProvider),
-        staticToken: Boolean(opts.staticToken),
-      },
+      auth: { google: Boolean(opts.googleProvider) },
       mode: isReadonly() ? 'readonly' : 'full',
       uptimeSeconds: Math.floor(process.uptime()),
       sessions: opts.sessions.size,
@@ -378,9 +353,8 @@ function rateLimit(opts: AppOptions) {
 }
 
 /**
- * Accept either the static bearer (no identity) or a Google-issued token
- * (identity, and therefore attribution). On failure, point OAuth-capable
- * clients at the protected-resource metadata so they can start a sign-in.
+ * Verify a Google-issued token. On failure, point the client at the
+ * protected-resource metadata so it can start a sign-in.
  */
 function makeAuthMiddleware(opts: AppOptions) {
   const resourceMetadataUrl =
@@ -395,38 +369,26 @@ function makeAuthMiddleware(opts: AppOptions) {
   };
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    if (!opts.staticToken && !opts.googleProvider) {
+    const provider = opts.googleProvider;
+    if (!provider) {
       rpcError(
         res,
         503,
         -32002,
-        'Server not configured: set AUTOTASK_HTTP_TOKEN or configure Google sign-in ' +
-          'before /mcp will serve. See /health for everything still missing.',
+        'Server not configured: Google sign-in is not set up, so /mcp cannot serve. ' +
+          'See /health for everything still missing.',
       );
       return;
     }
 
     const presented = bearerFrom(req.headers);
-    if (!presented) {
-      res.setHeader('WWW-Authenticate', challenge());
-      rpcError(res, 401, -32001, 'Unauthorized');
-      return;
-    }
-
-    if (opts.staticToken && tokensMatch(presented, opts.staticToken)) {
-      // Machine caller: authenticated, but anonymous. No impersonation.
-      next();
-      return;
-    }
-
-    if (opts.googleProvider) {
+    if (presented) {
       try {
-        const auth = await opts.googleProvider.verifyAccessToken(presented);
-        (req as Request & { auth?: unknown }).auth = auth;
+        (req as Request & { auth?: unknown }).auth = await provider.verifyAccessToken(presented);
         next();
         return;
       } catch {
-        // Fall through to the shared 401 below.
+        // Fall through to the 401 below.
       }
     }
 
@@ -569,7 +531,6 @@ export function googleProviderFromEnv(
 }
 
 export async function runHttp(): Promise<RunningServer> {
-  const staticToken = configuredToken();
   const rawBase = process.env.AUTOTASK_BASE_URL;
   const baseUrl = rawBase ? new URL(rawBase) : undefined;
   const tokenStore = new TokenStore();
@@ -583,14 +544,13 @@ export async function runHttp(): Promise<RunningServer> {
     console.error(`[autotask-mcp] Google sign-in disabled: ${(err as Error).message}`);
   }
 
-  if (!staticToken && !googleProvider) {
+  if (!googleProvider) {
     // Deliberately not fatal. Exiting crash-loops the Cloud Run revision before
     // /health can say why, and makes "deploy, then configure" impossible. /mcp
     // refuses every request in this state, so starting cannot expose anything.
     console.error(
-      '[autotask-mcp] WARNING: no authentication configured. Starting anyway so /health can ' +
-        'report it, but /mcp will refuse every request with 503 until either ' +
-        `AUTOTASK_HTTP_TOKEN (>= ${MIN_TOKEN_LENGTH} chars) or Google sign-in is set up.`,
+      '[autotask-mcp] WARNING: Google sign-in is not configured. Starting anyway so /health ' +
+        'can report it, but /mcp will refuse every request with 503 until it is.',
     );
   }
 
@@ -606,7 +566,6 @@ export async function runHttp(): Promise<RunningServer> {
   );
 
   const opts: AppOptions = {
-    staticToken,
     googleProvider,
     baseUrl,
     sessions,
@@ -632,13 +591,9 @@ export async function runHttp(): Promise<RunningServer> {
   });
 
   const missing = missingConfig(opts);
-  const authModes =
-    [googleProvider ? 'google' : null, staticToken ? 'static-token' : null]
-      .filter(Boolean)
-      .join('+') || 'none';
   console.error(
     `[autotask-mcp] HTTP transport on ${host}:${port} (mode: ${isReadonly() ? 'READONLY' : 'full'}, ` +
-      `auth: ${authModes}, ${registeredCount} tools, ${skipped} write tools skipped` +
+      `auth: ${googleProvider ? 'google' : 'none'}, ${registeredCount} tools, ${skipped} write tools skipped` +
       `${missing.length ? `, UNCONFIGURED: ${missing.join(', ')}` : ''})`,
   );
 

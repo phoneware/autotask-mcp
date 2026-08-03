@@ -21,10 +21,11 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   task notes, attachments, project notes and status, and service calls, so the
   header is restricted to entity creates. Someone with no matching Autotask
   resource still signs in; their writes fall back to the API user.
-- **Machine callers.** `AUTOTASK_HTTP_TOKEN` remains a shared static bearer for
-  scripts. It grants access but no identity, so its writes are attributed to
-  the API user. Either method may be configured, or both; with neither, `/mcp`
-  refuses every request.
+- **No shared bearer.** Google sign-in is the only way in. A static token with
+  no identity, no expiry and no domain allowlist would be a weaker parallel
+  door, and its writes would land as the API user, which is the audit hole
+  sign-in exists to close. A future headless caller should present a Google
+  service-account ID token, not a shared secret.
 - **Token durability.** Issued tokens and DCR client registrations live in
   instance memory, so a restart (including every deploy) forces a re-sign-in.
   Google sign-in is usually a silent redirect, so that is a fair trade for not
@@ -101,16 +102,14 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    ```bash
    printf %s '<autotask-secret>' | gcloud secrets create autotask-mcp-secret \
      --data-file=- --project=phoneware-edge
-   openssl rand -hex 32 | tr -d '\n' | gcloud secrets create autotask-mcp-http-token \
-     --data-file=- --project=phoneware-edge
    printf %s '<google-oauth-client-secret>' | gcloud secrets create autotask-mcp-google-secret \
      --data-file=- --project=phoneware-edge
    ```
-5. Grant the Cloud Run runtime service account read access on all three
+5. Grant the Cloud Run runtime service account read access on both
    secrets. The service currently runs as the project's default compute SA:
 
    ```bash
-   for SECRET in autotask-mcp-secret autotask-mcp-http-token autotask-mcp-google-secret; do
+   for SECRET in autotask-mcp-secret autotask-mcp-google-secret; do
      gcloud secrets add-iam-policy-binding "$SECRET" \
        --member=serviceAccount:859122914438-compute@developer.gserviceaccount.com \
        --role=roles/secretmanager.secretAccessor \
@@ -135,7 +134,6 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    AUTOTASK_OAUTH_ALLOWED_DOMAINS=phoneware.us \
      --update-secrets=\
    AUTOTASK_SECRET=autotask-mcp-secret:latest,\
-   AUTOTASK_HTTP_TOKEN=autotask-mcp-http-token:latest,\
    AUTOTASK_OAUTH_CLIENT_SECRET=autotask-mcp-google-secret:latest
    ```
 
@@ -144,7 +142,7 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    > Google validates. That is why the domain mapping is step 2.
 
    Then confirm `/health` reports `"configured": true` and
-   `"auth": {"google": true, ...}`.
+   `"auth": {"google": true}`.
 
 7. Restart-free check: `gcloud run services update` creates a new revision, so
    the new configuration is live as soon as the command returns.
@@ -170,23 +168,22 @@ workstation.
 Claude Code, or any client that can set a header:
 
 ```bash
-claude mcp add autotask --transport http \
-  https://mcp.autotask.phoneware.cloud/mcp \
-  --header "Authorization: Bearer <AUTOTASK_HTTP_TOKEN>"
+claude mcp add autotask --transport http https://mcp.autotask.phoneware.cloud/mcp
 ```
 
 claude.ai → Settings → Connectors → Add custom connector, URL
 `https://mcp.autotask.phoneware.cloud/mcp`. It discovers the OAuth metadata,
 registers itself, and sends you to Google. No client id or secret to paste.
 
-Header-only callers (scripts, cron) can still use the static bearer, but their
-writes are attributed to the API user rather than to a person.
+There is no static-bearer alternative: every caller signs in, and every write is
+attributed to a person.
 
 ## Verify
 
 - `GET /health` returns `{"ok":true,...}` with `mode`, `sessions` and
   `autotaskUsagePct`.
-- `POST /mcp` with no bearer returns 401 with a `WWW-Authenticate` header.
+- `POST /mcp` with no bearer returns 401 with a `WWW-Authenticate` header
+  carrying `resource_metadata=...`.
 - Two clients connected at once each get their own `Mcp-Session-Id` and both
   work (covered by `tests/http.test.ts`).
 - `get-threshold-information` reports the tenant's current API usage.
@@ -196,7 +193,9 @@ writes are attributed to the API user rather than to a person.
 ```bash
 npm ci && npm run build
 AUTOTASK_TRANSPORT=http \
-AUTOTASK_HTTP_TOKEN=$(openssl rand -hex 24) \
+AUTOTASK_BASE_URL=http://127.0.0.1:3000 \
+AUTOTASK_OAUTH_CLIENT_ID=... AUTOTASK_OAUTH_CLIENT_SECRET=... \
+AUTOTASK_OAUTH_ALLOWED_DOMAINS=phoneware.us \
 AUTOTASK_USERNAME=... AUTOTASK_SECRET=... AUTOTASK_INTEGRATION_CODE=... \
 node dist/index.js
 # In another shell:

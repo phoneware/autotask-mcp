@@ -17,8 +17,7 @@ for (const k of CREDS) {
 
 const { missingCredentials, isConfigured, getApi, resetApi } =
   await import('../src/autotask-api.js');
-const { createApp, SessionStore, defaultCreateSession, configuredToken } =
-  await import('../src/http.js');
+const { createApp, SessionStore, defaultCreateSession } = await import('../src/http.js');
 
 afterEach(() => {
   for (const k of CREDS) {
@@ -30,7 +29,6 @@ afterEach(() => {
 
 async function listen(overrides: Record<string, unknown> = {}) {
   const app = createApp({
-    staticToken: null,
     googleProvider: null,
     sessions: new SessionStore(),
     limiter: null,
@@ -87,24 +85,6 @@ describe('credential configuration', () => {
   });
 });
 
-describe('static token configuration', () => {
-  it('treats a missing or too-short token as absent', () => {
-    const savedToken = process.env.AUTOTASK_HTTP_TOKEN;
-
-    delete process.env.AUTOTASK_HTTP_TOKEN;
-    expect(configuredToken()).toBeNull();
-
-    process.env.AUTOTASK_HTTP_TOKEN = 'too-short';
-    expect(configuredToken()).toBeNull();
-
-    process.env.AUTOTASK_HTTP_TOKEN = 'a-long-enough-token-1234567890';
-    expect(configuredToken()).toBe('a-long-enough-token-1234567890');
-
-    if (savedToken === undefined) delete process.env.AUTOTASK_HTTP_TOKEN;
-    else process.env.AUTOTASK_HTTP_TOKEN = savedToken;
-  });
-});
-
 describe('a completely unconfigured server', () => {
   it('answers /health with 200 and names everything missing', async () => {
     for (const k of CREDS) delete process.env[k];
@@ -116,8 +96,8 @@ describe('a completely unconfigured server', () => {
       const body = await resp.json();
       expect(body.ok).toBe(true);
       expect(body.configured).toBe(false);
-      expect(body.missingConfig).toEqual([...CREDS, 'AUTOTASK_HTTP_TOKEN or Google sign-in']);
-      expect(body.auth).toEqual({ google: false, staticToken: false });
+      expect(body.missingConfig).toEqual([...CREDS, 'Google sign-in (AUTOTASK_OAUTH_*)']);
+      expect(body.auth).toEqual({ google: false });
     } finally {
       await close();
     }
@@ -135,8 +115,8 @@ describe('a completely unconfigured server', () => {
   });
 
   it('refuses /mcp with 503 even when a caller presents a bearer', async () => {
-    // The unconfigured branch must run BEFORE any comparison, so a caller
-    // cannot get in by guessing an empty secret.
+    // The unconfigured branch runs before any token handling, so there is no
+    // state in which an unconfigured server can be talked into serving.
     const { base, close } = await listen();
     try {
       const resp = await fetch(`${base}/mcp`, {
