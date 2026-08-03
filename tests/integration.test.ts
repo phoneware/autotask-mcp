@@ -11,6 +11,7 @@ vi.hoisted(() => {
 
 import { AutotaskApi } from '../src/autotask-api.js';
 import { governor } from '../src/governor.js';
+import { withCaller } from '../src/auth/context.js';
 
 interface Recorded {
   method: string;
@@ -109,5 +110,78 @@ describe('integration: real mock Autotask server', () => {
     expect(err!.message).toMatch(/500/);
     expect(err!.message).not.toContain('leaked-value');
     expect(err!.message).toContain('[REDACTED]');
+  });
+});
+
+describe('integration: impersonation reaches Autotask', () => {
+  it('sends ImpersonationResourceId on a create made by a signed-in person', async () => {
+    recorded.length = 0;
+    nextResponse = { status: 200, body: JSON.stringify({ itemId: 5 }) };
+    const api = new AutotaskApi();
+
+    await withCaller({ email: 'dave@phoneware.us', resourceId: 77 }, () =>
+      api.create('Tickets', { title: 'x' }),
+    );
+
+    // This is the whole point of Google sign-in: the ticket is attributed to
+    // Dave, not to the shared API user.
+    expect(recorded[0].headers['impersonationresourceid']).toBe('77');
+  });
+
+  it('omits the header on a query, where Autotask does not support impersonation', async () => {
+    recorded.length = 0;
+    nextResponse = { status: 200, body: JSON.stringify({ items: [] }) };
+    const api = new AutotaskApi();
+
+    await withCaller({ email: 'dave@phoneware.us', resourceId: 77 }, () =>
+      api.query('Tickets', { filter: [{ op: 'gte', field: 'id', value: 0 }] }),
+    );
+
+    expect(recorded[0].headers['impersonationresourceid']).toBeUndefined();
+  });
+
+  it('omits the header for a caller with no Autotask resource', async () => {
+    recorded.length = 0;
+    nextResponse = { status: 200, body: JSON.stringify({ itemId: 6 }) };
+    const api = new AutotaskApi();
+
+    await withCaller({ email: 'contractor@phoneware.us' }, () =>
+      api.create('Tickets', { title: 'x' }),
+    );
+
+    expect(recorded[0].headers['impersonationresourceid']).toBeUndefined();
+  });
+
+  it('omits the header entirely when no one is signed in', async () => {
+    recorded.length = 0;
+    nextResponse = { status: 200, body: JSON.stringify({ itemId: 7 }) };
+    const api = new AutotaskApi();
+
+    await api.create('Tickets', { title: 'x' });
+
+    expect(recorded[0].headers['impersonationresourceid']).toBeUndefined();
+  });
+
+  it('keeps identities separate across concurrent callers', async () => {
+    // One shared AutotaskApi serves every session, so the per-request context
+    // must not leak between two people calling at the same time.
+    recorded.length = 0;
+    nextResponse = { status: 200, body: JSON.stringify({ itemId: 8 }) };
+    const api = new AutotaskApi();
+
+    await Promise.all([
+      withCaller({ email: 'a@phoneware.us', resourceId: 1 }, () =>
+        api.create('Tickets', { title: 'a' }),
+      ),
+      withCaller({ email: 'b@phoneware.us', resourceId: 2 }, () =>
+        api.create('Companies', { name: 'b' }),
+      ),
+    ]);
+
+    const byPath = Object.fromEntries(
+      recorded.map((r) => [r.url, r.headers['impersonationresourceid']]),
+    );
+    expect(byPath['/V1.0/Tickets']).toBe('1');
+    expect(byPath['/V1.0/Companies']).toBe('2');
   });
 });
