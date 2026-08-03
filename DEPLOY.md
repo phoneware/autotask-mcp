@@ -46,9 +46,15 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
 > configuration, and it needs Autotask admin access plus Secret Manager write,
 > so it cannot be automated from CI.
 >
-> Until it lands, the service boots but reports `"configured": false` on
-> `/health` and names the missing variables. It deliberately does not crash:
-> a crash-looping revision hides the reason.
+> Until it lands, the service boots and stays up: `/health` returns 200 with
+> `"configured": false` and names every missing variable, and `/mcp` refuses
+> every request with 503. It deliberately does not crash, because a
+> crash-looping revision hides the reason, and it cannot run open, because the
+> refusal happens before any token comparison.
+>
+> The image also defaults to the HTTP transport and binds `0.0.0.0` whenever
+> `K_SERVICE` is set, so a Cloud Run revision comes up without needing
+> `AUTOTASK_TRANSPORT` and `AUTOTASK_HTTP_HOST` to be set by hand first.
 
 1. **Dedicated Autotask API user.** In Autotask: Admin → Resources/Users →
    new API-only user. Copy the default `API User (system) (API-only)` security

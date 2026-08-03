@@ -53,6 +53,16 @@ function envList(name: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * A usable bearer token, or null. Anything shorter than the minimum is treated
+ * as absent rather than as a weak secret: `/mcp` refuses to serve at all in
+ * that state, so a misconfigured deployment can never expose the tool surface.
+ */
+export function configuredToken(): string | null {
+  const token = process.env.AUTOTASK_HTTP_TOKEN;
+  return token && token.length >= MIN_TOKEN_LENGTH ? token : null;
+}
+
 /** Constant-time bearer comparison. */
 export function tokensMatch(presented: string, expected: string): boolean {
   const a = Buffer.from(presented);
@@ -232,7 +242,8 @@ export async function readJsonBody(req: IncomingMessage, maxBytes: number): Prom
 // --- the router --------------------------------------------------------------
 
 export interface RouterDeps {
-  token: string;
+  /** null when unconfigured: /mcp refuses to serve rather than run open. */
+  token: string | null;
   sessions: SessionStore;
   limiter: RateLimiter | null;
   allowedOrigins: string[];
@@ -303,7 +314,8 @@ export function createRouter(deps: RouterDeps) {
 
     if (path === '/health') {
       const snap = governor.lastSnapshot;
-      const missing = missingCredentials();
+      const missing = [...missingCredentials()];
+      if (!deps.token) missing.push('AUTOTASK_HTTP_TOKEN');
       // Still 200 when credentials are absent: the process is alive and this is
       // the one endpoint that can explain what is wrong. Failing the probe here
       // would crash-loop the revision and hide the reason.
@@ -325,6 +337,19 @@ export function createRouter(deps: RouterDeps) {
     }
 
     // --- /mcp from here down --------------------------------------------------
+    // No usable token means the deployment is not configured. Refuse outright
+    // rather than fall through to a comparison against an empty secret.
+    if (!deps.token) {
+      sendRpcError(
+        res,
+        503,
+        -32002,
+        `Server not configured: AUTOTASK_HTTP_TOKEN (>= ${MIN_TOKEN_LENGTH} chars) is required ` +
+          'before /mcp will serve. See /health for everything still missing.',
+      );
+      return;
+    }
+
     const presented = bearerFrom(req.headers);
     if (!presented || !tokensMatch(presented, deps.token)) {
       res.setHeader('WWW-Authenticate', 'Bearer realm="autotask-mcp"');
@@ -435,16 +460,22 @@ export interface RunningServer {
 }
 
 export async function runHttp(): Promise<RunningServer> {
-  const token = process.env.AUTOTASK_HTTP_TOKEN;
-  if (!token || token.length < MIN_TOKEN_LENGTH) {
+  const token = configuredToken();
+  if (!token) {
+    // Deliberately not fatal. Exiting here crash-looped the Cloud Run revision
+    // before /health could say why, and made "deploy, then configure"
+    // impossible. /mcp refuses every request while the token is missing, so
+    // starting up cannot expose anything.
     console.error(
-      `[autotask-mcp] AUTOTASK_TRANSPORT=http requires AUTOTASK_HTTP_TOKEN (>= ${MIN_TOKEN_LENGTH} chars). ` +
-        'Aborting: refusing to expose /mcp without auth.',
+      `[autotask-mcp] WARNING: AUTOTASK_HTTP_TOKEN (>= ${MIN_TOKEN_LENGTH} chars) is not set. ` +
+        'Starting anyway so /health can report it, but /mcp will refuse every request ' +
+        'with 503 until a token is configured.',
     );
-    process.exit(1);
   }
 
-  const host = process.env.AUTOTASK_HTTP_HOST ?? DEFAULT_HOST;
+  // Loopback is unreachable from outside a container, so serverless runtimes
+  // (which set K_SERVICE) bind all interfaces unless told otherwise.
+  const host = process.env.AUTOTASK_HTTP_HOST ?? (process.env.K_SERVICE ? '0.0.0.0' : DEFAULT_HOST);
   const port = envInt('PORT', DEFAULT_PORT);
   const rateLimit = envInt('AUTOTASK_RATE_LIMIT', DEFAULT_RATE_LIMIT);
   const limiter = rateLimit > 0 ? new RateLimiter(rateLimit) : null;
@@ -478,9 +509,12 @@ export async function runHttp(): Promise<RunningServer> {
   const { registeredCount, skipped } = buildServer();
 
   await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
+  const missing = [...missingCredentials()];
+  if (!token) missing.push('AUTOTASK_HTTP_TOKEN');
   console.error(
     `[autotask-mcp] HTTP transport on ${host}:${port} (mode: ${isReadonly() ? 'READONLY' : 'full'}, ` +
-      `${registeredCount} tools, ${skipped} write tools skipped)`,
+      `${registeredCount} tools, ${skipped} write tools skipped` +
+      `${missing.length ? `, UNCONFIGURED: ${missing.join(', ')}` : ''})`,
   );
 
   const close = async (): Promise<void> => {
