@@ -11,9 +11,9 @@
  * Auth is a single shared bearer token. Autotask has no OAuth, no SSO and no
  * per-user credentials (see README), so there is no user identity to bind a
  * session to yet; every action is attributed to the API user. When that
- * changes, the place to hook per-user identity is `authorize()` below, and the
- * resource id it resolves would ride on Autotask's ImpersonationResourceId
- * header.
+ * changes, the place to hook per-user identity is the bearer check in
+ * `createRouter`, and whatever it resolves would ride onto the session and out
+ * as Autotask's ImpersonationResourceId header.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -24,6 +24,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { buildServer } from './server.js';
 import { isReadonly } from './security.js';
+import { missingCredentials } from './autotask-api.js';
 import { governor } from './governor.js';
 
 const DEFAULT_PORT = 3000;
@@ -302,8 +303,14 @@ export function createRouter(deps: RouterDeps) {
 
     if (path === '/health') {
       const snap = governor.lastSnapshot;
+      const missing = missingCredentials();
+      // Still 200 when credentials are absent: the process is alive and this is
+      // the one endpoint that can explain what is wrong. Failing the probe here
+      // would crash-loop the revision and hide the reason.
       sendJson(res, 200, {
         ok: true,
+        configured: missing.length === 0,
+        missingConfig: missing,
         mode: isReadonly() ? 'readonly' : 'full',
         uptimeSeconds: Math.floor(process.uptime()),
         sessions: deps.sessions.size,

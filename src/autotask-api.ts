@@ -256,4 +256,48 @@ export class AutotaskApi {
   }
 }
 
-export const api = new AutotaskApi();
+/** The three credentials every Autotask REST call needs. */
+const REQUIRED_ENV = ['AUTOTASK_USERNAME', 'AUTOTASK_SECRET', 'AUTOTASK_INTEGRATION_CODE'] as const;
+
+/** Which required credentials are missing. Empty means fully configured. */
+export function missingCredentials(): string[] {
+  return REQUIRED_ENV.filter((name) => !process.env[name]);
+}
+
+export function isConfigured(): boolean {
+  return missingCredentials().length === 0;
+}
+
+let instance: AutotaskApi | null = null;
+
+/**
+ * Construct (once) and return the shared client.
+ *
+ * Deliberately lazy. Building it at module load meant a container with missing
+ * credentials threw during import and exited before the HTTP server could bind,
+ * so Cloud Run only ever saw a start-up timeout and `/health` could never say
+ * why. Deferring construction to the first actual Autotask call lets the server
+ * boot, report `configured: false` on `/health`, and fail individual tool calls
+ * with a message that names the missing variables.
+ */
+export function getApi(): AutotaskApi {
+  if (!instance) instance = new AutotaskApi();
+  return instance;
+}
+
+/** Drop the memoized client. Tests use this to pick up changed credentials. */
+export function resetApi(): void {
+  instance = null;
+}
+
+/**
+ * Call-site-compatible handle on the lazily built client: `api.query(...)`
+ * constructs it on first use rather than at import.
+ */
+export const api = new Proxy({} as AutotaskApi, {
+  get(_target, prop, receiver) {
+    const real = getApi();
+    const value = Reflect.get(real, prop, receiver);
+    return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(real) : value;
+  },
+});

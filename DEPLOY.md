@@ -40,48 +40,32 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
 
 ## One-time setup
 
-> **Status: not done yet.** The first deploy run failed at authentication with
-> `unauthorized_client: The given credential is rejected by the attribute condition`,
-> which is step 2 below. Every step here needs owner-level access to
-> `phoneware-edge` or to Autotask, so none of it can be automated from CI.
+> **Status.** The pipeline itself is done and green: WIF authorizes this repo
+> (monorepo #504), the `autotask-mcp` Artifact Registry repository exists
+> (monorepo #505), and the service builds, pushes and deploys. What is left is
+> configuration, and it needs Autotask admin access plus Secret Manager write,
+> so it cannot be automated from CI.
+>
+> Until it lands, the service boots but reports `"configured": false` on
+> `/health` and names the missing variables. It deliberately does not crash:
+> a crash-looping revision hides the reason.
 
 1. **Dedicated Autotask API user.** In Autotask: Admin → Resources/Users →
    new API-only user. Copy the default `API User (system) (API-only)` security
    level, scope the copy, and assign it. Record the username, secret, and the
    27-character integration code (tracking identifier).
-2. **Authorize this repo on the WIF provider.** The shared `github` provider's
-   attribute condition allowlists specific repositories, and
-   `phoneware/autotask-mcp` is not one of them yet. Inspect the current
-   condition, then add this repo to it:
-
+2. **Secrets** in Secret Manager (`phoneware-edge`):
    ```bash
-   gcloud iam workload-identity-pools providers describe github \
-     --project=phoneware-edge --location=global \
-     --workload-identity-pool=github --format='value(attributeCondition)'
-
-   # Re-issue the same condition with phoneware/autotask-mcp added, e.g.
-   gcloud iam workload-identity-pools providers update-oidc github \
-     --project=phoneware-edge --location=global --workload-identity-pool=github \
-     --attribute-condition="<existing condition> || assertion.repository=='phoneware/autotask-mcp'"
-   ```
-
-   The deployer service account also needs
-   `roles/iam.workloadIdentityUser` for this repo's principal set, matching how
-   `phoneware/bandwidth-mcp` is bound.
-
-3. **Secrets** in Secret Manager (`phoneware-edge`):
-   ```
    printf %s '<autotask-secret>' | gcloud secrets create autotask-mcp-secret \
      --data-file=- --project=phoneware-edge
    openssl rand -hex 32 | tr -d '\n' | gcloud secrets create autotask-mcp-http-token \
      --data-file=- --project=phoneware-edge
    ```
-4. **Artifact Registry** repo `autotask-mcp` in `us-central1`, if not present.
-5. Grant the Cloud Run runtime SA `roles/secretmanager.secretAccessor` on both
+3. Grant the Cloud Run runtime SA `roles/secretmanager.secretAccessor` on both
    secrets.
-6. **First deploy**, then set the env vars (they persist across deploys, and
+4. **Configure the service.** These persist across deploys, and
    `cloudbuild.yaml` deliberately never passes `--set-env-vars`, which would
-   wipe them):
+   wipe them:
    ```bash
    gcloud run services update autotask-mcp --region=us-central1 \
      --update-env-vars=\
@@ -94,8 +78,18 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    AUTOTASK_SECRET=autotask-mcp-secret:latest,\
    AUTOTASK_HTTP_TOKEN=autotask-mcp-http-token:latest
    ```
-7. Optionally map DNS `mcp.autotask.phoneware.cloud` (CNAME in the monorepo
+   Then confirm `/health` reports `"configured": true`.
+5. Optionally map DNS `mcp.autotask.phoneware.cloud` (CNAME in the monorepo
    `godaddy.tf`, mirroring `mcp.peplink` and `mcp.bandwidth`).
+
+### Already done (recorded so nobody repeats it)
+
+- **WIF.** The shared `github` provider allowlists repositories explicitly.
+  `phoneware/autotask-mcp` was added to its `attribute_condition`, with the
+  matching `roles/iam.workloadIdentityUser` binding on `edge-tf-deployer`
+  (`infra/terraform/github-actions.tf` in the monorepo).
+- **Artifact Registry.** `autotask-mcp` in `us-central1`, tracked in
+  `infra/terraform/main.tf` rather than created by hand.
 
 ## Deploy
 
