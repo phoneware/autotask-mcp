@@ -47,6 +47,11 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   its own concurrency at 3 per endpoint and stops serving Autotask calls at 90%
   of the hourly budget. Current usage is on `/health`.
 
+> **Running these:** the `phoneware-edge` project is not visible to the
+> default `jason.waldrip@wifiwithoutwalls.com` gcloud account. Either add
+> `--account=jasonw@phoneware.us` to each command or
+> `gcloud config set account jasonw@phoneware.us` first.
+
 ## One-time setup
 
 > **Status.** The pipeline itself is done and green: WIF authorizes this repo
@@ -69,11 +74,30 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    new API-only user. Copy the default `API User (system) (API-only)` security
    level, scope the copy, and assign it. Record the username, secret, and the
    27-character integration code (tracking identifier).
-2. **Google OAuth client.** Google Cloud console → APIs & Services →
+2. **Map the public hostname.** The DNS CNAME already exists (monorepo
+   `infra/terraform/godaddy.tf`, `mcp_autotask_cname`), but without a Cloud Run
+   domain mapping the hostname serves nothing. Do this _before_ the Google
+   client and the env vars: the hostname is the OAuth issuer and the origin of
+   the redirect Google validates, so changing it later means redoing both.
+
+   ```bash
+   gcloud beta run domain-mappings create \
+     --service=autotask-mcp \
+     --domain=mcp.autotask.phoneware.cloud \
+     --region=us-central1 --project=phoneware-edge
+   ```
+
+   Wait for the managed certificate before continuing:
+
+   ```bash
+   curl -sS -o /dev/null -w '%{http_code}\n' https://mcp.autotask.phoneware.cloud/health
+   ```
+
+3. **Google OAuth client.** Google Cloud console → APIs & Services →
    Credentials → Create OAuth client ID → Web application. Authorized redirect
    URI: `https://mcp.autotask.phoneware.cloud/callback`, which must equal
    `AUTOTASK_BASE_URL` + `/callback` exactly. Record the client id and secret.
-3. **Secrets** in Secret Manager (`phoneware-edge`):
+4. **Secrets** in Secret Manager (`phoneware-edge`):
    ```bash
    printf %s '<autotask-secret>' | gcloud secrets create autotask-mcp-secret \
      --data-file=- --project=phoneware-edge
@@ -82,9 +106,19 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    printf %s '<google-oauth-client-secret>' | gcloud secrets create autotask-mcp-google-secret \
      --data-file=- --project=phoneware-edge
    ```
-4. Grant the Cloud Run runtime SA `roles/secretmanager.secretAccessor` on all
-   three secrets.
-5. **Configure the service.** These persist across deploys, and
+5. Grant the Cloud Run runtime service account read access on all three
+   secrets. The service currently runs as the project's default compute SA:
+
+   ```bash
+   for SECRET in autotask-mcp-secret autotask-mcp-http-token autotask-mcp-google-secret; do
+     gcloud secrets add-iam-policy-binding "$SECRET" \
+       --member=serviceAccount:859122914438-compute@developer.gserviceaccount.com \
+       --role=roles/secretmanager.secretAccessor \
+       --project=phoneware-edge
+   done
+   ```
+
+6. **Configure the service.** These persist across deploys, and
    `cloudbuild.yaml` deliberately never passes `--set-env-vars`, which would
    wipe them:
 
@@ -105,16 +139,15 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    AUTOTASK_OAUTH_CLIENT_SECRET=autotask-mcp-google-secret:latest
    ```
 
-   > `AUTOTASK_BASE_URL` must be the **public** URL, not the Cloud Run
-   > `*.run.app` one, once DNS is mapped: it is the OAuth issuer and the origin
-   > of the redirect Google validates. Set DNS up first, or you will have to
-   > redo both this and the Google redirect URI.
+   > `AUTOTASK_BASE_URL` must be the **public** hostname, not the Cloud Run
+   > `*.run.app` one: it is the OAuth issuer and the origin of the redirect
+   > Google validates. That is why the domain mapping is step 2.
 
    Then confirm `/health` reports `"configured": true` and
    `"auth": {"google": true, ...}`.
 
-6. Map DNS `mcp.autotask.phoneware.cloud` (CNAME in the monorepo
-   `godaddy.tf`, mirroring `mcp.peplink` and `mcp.bandwidth`).
+7. Restart-free check: `gcloud run services update` creates a new revision, so
+   the new configuration is live as soon as the command returns.
 
 ### Already done (recorded so nobody repeats it)
 
