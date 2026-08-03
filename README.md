@@ -151,27 +151,27 @@ docker compose up -d
 
 ## Configuration
 
-| Variable                        | Required  | Description                                                                                              |
-| ------------------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
-| `AUTOTASK_USERNAME`             | yes       | Autotask API user name                                                                                   |
-| `AUTOTASK_SECRET`               | yes       | Autotask API secret                                                                                      |
-| `AUTOTASK_INTEGRATION_CODE`     | yes       | Integration code / API tracking identifier                                                               |
-| `AUTOTASK_API_URL`              | no        | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`) |
-| `AUTOTASK_READ_ONLY`            | no        | `true` to disable all write tools                                                                        |
-| `AUTOTASK_CLOSED_STATUS_IDS`    | no        | Ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)                    |
-| `AUTOTASK_TRANSPORT`            | no        | `http` to use the HTTP transport (default: `stdio`)                                                      |
-| `AUTOTASK_HTTP_TOKEN`           | http only | Bearer token (>= 16 chars) required to call `/mcp`                                                       |
-| `AUTOTASK_HTTP_HOST`            | no        | HTTP bind host (default `127.0.0.1`; containers need `0.0.0.0`)                                          |
-| `PORT`                          | no        | HTTP port (default `3000`)                                                                               |
-| `AUTOTASK_HTTP_ALLOWED_HOSTS`   | no        | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset trusts the proxy                      |
-| `AUTOTASK_HTTP_ALLOWED_ORIGINS` | no        | Comma-separated browser `Origin` allowlist. **Unset denies every browser origin**                        |
-| `AUTOTASK_RATE_LIMIT`           | no        | Requests per minute per client IP against `/mcp` (default `120`, `0` disables)                           |
-| `AUTOTASK_MAX_SESSIONS`         | no        | Concurrent MCP sessions before `/mcp` returns 503 (default `100`)                                        |
-| `AUTOTASK_SESSION_TTL_MS`       | no        | Idle session lifetime (default `1800000`, 30 minutes)                                                    |
-| `AUTOTASK_MAX_BODY_BYTES`       | no        | Max request body size (default `4194304`, 4 MB)                                                          |
-| `AUTOTASK_THRESHOLD_STOP_PCT`   | no        | Refuse Autotask calls at this % of the tenant hourly budget (default `90`)                               |
-| `AUTOTASK_THRESHOLD_WARN_PCT`   | no        | Warn at this % (default `75`, where Autotask starts adding latency)                                      |
-| `AUTOTASK_MAX_CONCURRENT`       | no        | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)              |
+| Variable                        | Required  | Description                                                                                                         |
+| ------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
+| `AUTOTASK_USERNAME`             | yes       | Autotask API user name                                                                                              |
+| `AUTOTASK_SECRET`               | yes       | Autotask API secret                                                                                                 |
+| `AUTOTASK_INTEGRATION_CODE`     | yes       | Integration code / API tracking identifier                                                                          |
+| `AUTOTASK_API_URL`              | no        | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`)            |
+| `AUTOTASK_READ_ONLY`            | no        | `true` to disable all write tools                                                                                   |
+| `AUTOTASK_CLOSED_STATUS_IDS`    | no        | Ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)                               |
+| `AUTOTASK_TRANSPORT`            | no        | `http` or `stdio`. Defaults to `stdio`, except on Cloud Run / Knative (`K_SERVICE` set) where it defaults to `http` |
+| `AUTOTASK_HTTP_TOKEN`           | http only | Bearer token (>= 16 chars) required to call `/mcp`. Absent or shorter, and `/mcp` refuses every request with 503    |
+| `AUTOTASK_HTTP_HOST`            | no        | HTTP bind host (default `127.0.0.1`, or `0.0.0.0` when `K_SERVICE` is set)                                          |
+| `PORT`                          | no        | HTTP port (default `3000`)                                                                                          |
+| `AUTOTASK_HTTP_ALLOWED_HOSTS`   | no        | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset trusts the proxy                                 |
+| `AUTOTASK_HTTP_ALLOWED_ORIGINS` | no        | Comma-separated browser `Origin` allowlist. **Unset denies every browser origin**                                   |
+| `AUTOTASK_RATE_LIMIT`           | no        | Requests per minute per client IP against `/mcp` (default `120`, `0` disables)                                      |
+| `AUTOTASK_MAX_SESSIONS`         | no        | Concurrent MCP sessions before `/mcp` returns 503 (default `100`)                                                   |
+| `AUTOTASK_SESSION_TTL_MS`       | no        | Idle session lifetime (default `1800000`, 30 minutes)                                                               |
+| `AUTOTASK_MAX_BODY_BYTES`       | no        | Max request body size (default `4194304`, 4 MB)                                                                     |
+| `AUTOTASK_THRESHOLD_STOP_PCT`   | no        | Refuse Autotask calls at this % of the tenant hourly budget (default `90`)                                          |
+| `AUTOTASK_THRESHOLD_WARN_PCT`   | no        | Warn at this % (default `75`, where Autotask starts adding latency)                                                 |
+| `AUTOTASK_MAX_CONCURRENT`       | no        | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)                         |
 
 ## Tools
 
@@ -308,6 +308,14 @@ server-side connectors) send no `Origin` header. So an unset
 closes DNS rebinding without a separate switch. Set it only for a real browser
 client; CORS headers, including `Access-Control-Expose-Headers: Mcp-Session-Id`,
 are emitted only for an allowlisted origin.
+
+**It starts even when unconfigured.** Missing credentials or a missing
+`AUTOTASK_HTTP_TOKEN` do not stop the process. It boots, `/health` returns 200
+with `configured: false` and a `missingConfig` list, and `/mcp` refuses every
+request with 503 until a token is set. Exiting instead would crash-loop a
+container before anything could report the reason, and would make "deploy, then
+configure" impossible. Since `/mcp` is closed in that state, starting up cannot
+expose the tool surface.
 
 **No OAuth.** Auth is the shared bearer token. Autotask itself has no OAuth, no
 SSO and no per-user credentials, so there is no user identity to bind a session

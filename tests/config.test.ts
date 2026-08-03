@@ -70,6 +70,111 @@ describe('credential configuration', () => {
   });
 });
 
+function unconfiguredRes() {
+  return {
+    statusCode: 0,
+    headers: {} as Record<string, string>,
+    body: '',
+    headersSent: false,
+    setHeader(k: string, v: string) {
+      this.headers[k.toLowerCase()] = v;
+    },
+    end(chunk?: string) {
+      if (chunk) this.body = chunk;
+      this.headersSent = true;
+    },
+  };
+}
+
+describe('unconfigured HTTP token', () => {
+  it('treats a missing or too-short token as absent', async () => {
+    const { configuredToken } = await import('../src/http.js');
+    const saved = process.env.AUTOTASK_HTTP_TOKEN;
+
+    delete process.env.AUTOTASK_HTTP_TOKEN;
+    expect(configuredToken()).toBeNull();
+
+    process.env.AUTOTASK_HTTP_TOKEN = 'too-short';
+    expect(configuredToken()).toBeNull();
+
+    process.env.AUTOTASK_HTTP_TOKEN = 'a-long-enough-token-1234567890';
+    expect(configuredToken()).toBe('a-long-enough-token-1234567890');
+
+    if (saved === undefined) delete process.env.AUTOTASK_HTTP_TOKEN;
+    else process.env.AUTOTASK_HTTP_TOKEN = saved;
+  });
+
+  it('refuses /mcp with 503 rather than running open', async () => {
+    const { createRouter, SessionStore } = await import('../src/http.js');
+    const res = unconfiguredRes();
+
+    await createRouter({
+      token: null,
+      sessions: new SessionStore(),
+      limiter: null,
+      allowedOrigins: [],
+      allowedHosts: [],
+      maxBodyBytes: 1024,
+      createSession: () => {
+        throw new Error('not used');
+      },
+    })(
+      { url: '/mcp', headers: {}, method: 'POST' } as never,
+      res as unknown as Parameters<ReturnType<typeof createRouter>>[1],
+    );
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toContain('AUTOTASK_HTTP_TOKEN');
+  });
+
+  it('refuses /mcp with 503 even when a caller presents a token', async () => {
+    // The unconfigured branch must run BEFORE any comparison, so a caller
+    // cannot get in by guessing an empty secret.
+    const { createRouter, SessionStore } = await import('../src/http.js');
+    const res = unconfiguredRes();
+
+    await createRouter({
+      token: null,
+      sessions: new SessionStore(),
+      limiter: null,
+      allowedOrigins: [],
+      allowedHosts: [],
+      maxBodyBytes: 1024,
+      createSession: () => {
+        throw new Error('not used');
+      },
+    })(
+      { url: '/mcp', headers: { authorization: 'Bearer ' }, method: 'POST' } as never,
+      res as unknown as Parameters<ReturnType<typeof createRouter>>[1],
+    );
+
+    expect(res.statusCode).toBe(503);
+  });
+
+  it('lists the missing token on /health', async () => {
+    const { createRouter, SessionStore } = await import('../src/http.js');
+    const res = unconfiguredRes();
+
+    await createRouter({
+      token: null,
+      sessions: new SessionStore(),
+      limiter: null,
+      allowedOrigins: [],
+      allowedHosts: [],
+      maxBodyBytes: 1024,
+      createSession: () => {
+        throw new Error('not used');
+      },
+    })(
+      { url: '/health', headers: {}, method: 'GET' } as never,
+      res as unknown as Parameters<ReturnType<typeof createRouter>>[1],
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).missingConfig).toContain('AUTOTASK_HTTP_TOKEN');
+  });
+});
+
 describe('/health with no credentials', () => {
   it('answers 200 and names what is missing', async () => {
     for (const k of CREDS) delete process.env[k];
