@@ -10,17 +10,26 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   per client. Sessions live in instance memory, so the service runs
   `--min-instances=1 --max-instances=1 --session-affinity`. Do not scale it out
   or to zero: a session stranded on another instance is a dead session.
-- **Auth.** A single shared bearer token (`AUTOTASK_HTTP_TOKEN`, Secret
-  Manager), checked in constant time, with a `WWW-Authenticate` challenge on
-  failure. Autotask has **no OAuth, no SSO and no per-user credentials**, so
-  there is no user identity to bind a session to yet.
-- **Attribution caveat.** Because there is no user identity, every write is
-  attributed to the API user, not to the person who asked for it. Autotask's
-  `ImpersonationResourceId` request header is how that gets fixed later (it is
-  supported on Tickets, TicketNotes, TaskNotes, Attachments, project notes and
-  status, and service calls, on create). The hook point is the bearer check in
-  `createRouter` in `src/http.ts`: whatever it resolves to a user would be
-  carried onto the session and out as that header.
+- **Auth: Google sign-in.** OAuth 2.1 in front of `/mcp`, with Google as the
+  upstream identity provider and a domain allowlist. Autotask has **no OAuth,
+  no SSO and no per-user credentials**, so Google is not standing in for
+  Autotask auth: its only job is to produce a verified email.
+- **Attribution.** That email is matched against Autotask `Resources` and the
+  resource id rides out on `ImpersonationResourceId`, so a ticket note reads as
+  the person who asked rather than as the API user. Autotask supports
+  impersonation on **create** operations only, and only for tickets, ticket and
+  task notes, attachments, project notes and status, and service calls, so the
+  header is restricted to entity creates. Someone with no matching Autotask
+  resource still signs in; their writes fall back to the API user.
+- **Machine callers.** `AUTOTASK_HTTP_TOKEN` remains a shared static bearer for
+  scripts. It grants access but no identity, so its writes are attributed to
+  the API user. Either method may be configured, or both; with neither, `/mcp`
+  refuses every request.
+- **Token durability.** Issued tokens and DCR client registrations live in
+  instance memory, so a restart (including every deploy) forces a re-sign-in.
+  Google sign-in is usually a silent redirect, so that is a fair trade for not
+  standing up Firestore. Swap in the Firestore stores from peplink-mcp if it
+  ever needs to survive restarts.
 - **The Autotask credential is root.** The API User (API-only) security level
   grants full system administrator access to Autotask data over REST, and it
   never expires. Give this service its **own dedicated API user** on a custom
@@ -60,18 +69,25 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    new API-only user. Copy the default `API User (system) (API-only)` security
    level, scope the copy, and assign it. Record the username, secret, and the
    27-character integration code (tracking identifier).
-2. **Secrets** in Secret Manager (`phoneware-edge`):
+2. **Google OAuth client.** Google Cloud console → APIs & Services →
+   Credentials → Create OAuth client ID → Web application. Authorized redirect
+   URI: `https://mcp.autotask.phoneware.cloud/callback`, which must equal
+   `AUTOTASK_BASE_URL` + `/callback` exactly. Record the client id and secret.
+3. **Secrets** in Secret Manager (`phoneware-edge`):
    ```bash
    printf %s '<autotask-secret>' | gcloud secrets create autotask-mcp-secret \
      --data-file=- --project=phoneware-edge
    openssl rand -hex 32 | tr -d '\n' | gcloud secrets create autotask-mcp-http-token \
      --data-file=- --project=phoneware-edge
+   printf %s '<google-oauth-client-secret>' | gcloud secrets create autotask-mcp-google-secret \
+     --data-file=- --project=phoneware-edge
    ```
-3. Grant the Cloud Run runtime SA `roles/secretmanager.secretAccessor` on both
-   secrets.
-4. **Configure the service.** These persist across deploys, and
+4. Grant the Cloud Run runtime SA `roles/secretmanager.secretAccessor` on all
+   three secrets.
+5. **Configure the service.** These persist across deploys, and
    `cloudbuild.yaml` deliberately never passes `--set-env-vars`, which would
    wipe them:
+
    ```bash
    gcloud run services update autotask-mcp --region=us-central1 \
      --update-env-vars=\
@@ -79,13 +95,25 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    AUTOTASK_HTTP_HOST=0.0.0.0,\
    AUTOTASK_USERNAME=<api-user>,\
    AUTOTASK_INTEGRATION_CODE=<tracking-id>,\
-   AUTOTASK_HTTP_ALLOWED_HOSTS=mcp.autotask.phoneware.cloud \
+   AUTOTASK_HTTP_ALLOWED_HOSTS=mcp.autotask.phoneware.cloud,\
+   AUTOTASK_BASE_URL=https://mcp.autotask.phoneware.cloud,\
+   AUTOTASK_OAUTH_CLIENT_ID=<google-client-id>,\
+   AUTOTASK_OAUTH_ALLOWED_DOMAINS=phoneware.us \
      --update-secrets=\
    AUTOTASK_SECRET=autotask-mcp-secret:latest,\
-   AUTOTASK_HTTP_TOKEN=autotask-mcp-http-token:latest
+   AUTOTASK_HTTP_TOKEN=autotask-mcp-http-token:latest,\
+   AUTOTASK_OAUTH_CLIENT_SECRET=autotask-mcp-google-secret:latest
    ```
-   Then confirm `/health` reports `"configured": true`.
-5. Optionally map DNS `mcp.autotask.phoneware.cloud` (CNAME in the monorepo
+
+   > `AUTOTASK_BASE_URL` must be the **public** URL, not the Cloud Run
+   > `*.run.app` one, once DNS is mapped: it is the OAuth issuer and the origin
+   > of the redirect Google validates. Set DNS up first, or you will have to
+   > redo both this and the Google redirect URI.
+
+   Then confirm `/health` reports `"configured": true` and
+   `"auth": {"google": true, ...}`.
+
+6. Map DNS `mcp.autotask.phoneware.cloud` (CNAME in the monorepo
    `godaddy.tf`, mirroring `mcp.peplink` and `mcp.bandwidth`).
 
 ### Already done (recorded so nobody repeats it)
@@ -114,9 +142,12 @@ claude mcp add autotask --transport http \
   --header "Authorization: Bearer <AUTOTASK_HTTP_TOKEN>"
 ```
 
-A claude.ai custom connector will **not** work against this deployment: that UI
-performs OAuth discovery, and this server presents a static bearer challenge. It
-needs the OAuth gate described above before it can be added as a connector.
+claude.ai → Settings → Connectors → Add custom connector, URL
+`https://mcp.autotask.phoneware.cloud/mcp`. It discovers the OAuth metadata,
+registers itself, and sends you to Google. No client id or secret to paste.
+
+Header-only callers (scripts, cron) can still use the static bearer, but their
+writes are attributed to the API user rather than to a person.
 
 ## Verify
 

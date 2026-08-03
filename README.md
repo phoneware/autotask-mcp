@@ -317,11 +317,38 @@ container before anything could report the reason, and would make "deploy, then
 configure" impossible. Since `/mcp` is closed in that state, starting up cannot
 expose the tool surface.
 
-**No OAuth.** Auth is the shared bearer token. Autotask itself has no OAuth, no
-SSO and no per-user credentials, so there is no user identity to bind a session
-to, and **every write is attributed to the API user rather than to the person
-who asked for it**. A claude.ai custom connector performs OAuth discovery and
-will not connect to this server as-is.
+## Who is connecting, and why it matters
+
+Two ways in, and they are **not** equivalent:
+
+|                            | Google sign-in                                | Static bearer               |
+| -------------------------- | --------------------------------------------- | --------------------------- |
+| Configured by              | `AUTOTASK_OAUTH_*` + `AUTOTASK_BASE_URL`      | `AUTOTASK_HTTP_TOKEN`       |
+| Identity                   | a verified Google email                       | none                        |
+| Writes attributed to       | **the person**, via `ImpersonationResourceId` | the API user                |
+| claude.ai custom connector | works                                         | does not connect            |
+| Intended for               | people                                        | scripts and machine callers |
+
+Either may be configured, or both. With neither, `/mcp` refuses every request.
+
+Autotask has no OAuth, no SSO and no per-user credentials, so Google is **not**
+standing in for Autotask authentication. Its only job is to establish who is
+connecting. That email is matched against Autotask `Resources`, and the
+resulting resource id rides out on the `ImpersonationResourceId` header so a
+ticket note reads as "Dave" rather than "the API user".
+
+Autotask supports impersonation on **create** operations only, and only for
+tickets, ticket and task notes, attachments, project notes and status, and
+service calls. Sending the header where it is unsupported can fail a call that
+would otherwise work, so it is restricted to entity creates. Updates and
+queries are unaffected, and someone with no matching Autotask resource still
+signs in fine, their writes simply fall back to the API user.
+
+The flow: an MCP client discovers `/.well-known/oauth-protected-resource/mcp`,
+registers itself via DCR, sends the browser to `/authorize`, which redirects to
+Google. `/callback` verifies the id_token, enforces the domain allowlist,
+resolves the Autotask resource, and hands back a code the client exchanges at
+`/token`.
 
 ## Autotask API budget governor
 

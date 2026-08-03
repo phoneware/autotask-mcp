@@ -1,5 +1,6 @@
 import { ZoneInformation } from './types.js';
 import { governor } from './governor.js';
+import { currentCaller } from './auth/context.js';
 
 // Unauthenticated endpoint used to discover which Autotask zone (data center)
 // an account lives in. Returns the correct REST base URL for that account.
@@ -44,6 +45,22 @@ export function redactSecrets(text: string): string {
   return out;
 }
 
+/**
+ * Whether ImpersonationResourceId may be sent for this call.
+ *
+ * Autotask supports impersonation on *create* operations only, and only for a
+ * subset of entities (tickets, ticket/task notes, attachments, project notes
+ * and status, service calls). It also requires the API user's security level to
+ * permit impersonation on that entity type, so sending the header where it is
+ * not supported risks failing a call that would otherwise have worked. Restrict
+ * it to entity creates: a POST that is not a /query or /query/count.
+ */
+export function isImpersonatableWrite(method: string, path: string): boolean {
+  if (method !== 'POST') return false;
+  const clean = path.replace(/\/+$/, '').toLowerCase();
+  return !clean.endsWith('/query') && !clean.endsWith('/query/count');
+}
+
 export class AutotaskApi {
   private username: string;
   private secret: string;
@@ -73,14 +90,21 @@ export class AutotaskApi {
     return url.endsWith('/') ? url : `${url}/`;
   }
 
-  private authHeaders(): Record<string, string> {
-    return {
+  private authHeaders(method: string, path: string): Record<string, string> {
+    const headers: Record<string, string> = {
       ApiIntegrationCode: this.integrationCode,
       UserName: this.username,
       Secret: this.secret,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     };
+
+    // Attribute the record to the signed-in person instead of the API user.
+    const caller = currentCaller();
+    if (caller?.resourceId !== undefined && isImpersonatableWrite(method, path)) {
+      headers.ImpersonationResourceId = String(caller.resourceId);
+    }
+    return headers;
   }
 
   /** Resolve (and cache) the account's REST base URL via zone detection. */
@@ -155,7 +179,7 @@ export class AutotaskApi {
     let attempt = 0;
 
     while (true) {
-      const options: RequestInit = { method, headers: this.authHeaders() };
+      const options: RequestInit = { method, headers: this.authHeaders(method, path) };
       if (body !== undefined) {
         options.body = JSON.stringify(body);
       }

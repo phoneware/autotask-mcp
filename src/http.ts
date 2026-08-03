@@ -8,24 +8,36 @@
  * one client and 400s everyone else, so each `initialize` here mints its own
  * McpServer + transport pair and registers it in a session store.
  *
- * Auth is a single shared bearer token. Autotask has no OAuth, no SSO and no
- * per-user credentials (see README), so there is no user identity to bind a
- * session to yet; every action is attributed to the API user. When that
- * changes, the place to hook per-user identity is the bearer check in
- * `createRouter`, and whatever it resolves would ride onto the session and out
- * as Autotask's ImpersonationResourceId header.
+ * Two ways in, and they are not equivalent:
+ *
+ *   - **Google sign-in** (OAuth 2.1, when configured). Establishes *who* is
+ *     connecting. Autotask has no OAuth of its own, so Google is not standing
+ *     in for Autotask auth: its only job is to produce a verified email, which
+ *     is matched to an Autotask Resource so writes carry
+ *     ImpersonationResourceId and are attributed to a real person.
+ *   - **A shared static bearer** (AUTOTASK_HTTP_TOKEN). No identity, so writes
+ *     land as the API user. Intended for scripts and machine callers.
+ *
+ * Either may be configured, or both. With neither, /mcp refuses every request.
  */
 
-import { randomUUID } from 'node:crypto';
-import { timingSafeEqual } from 'node:crypto';
-import type { IncomingMessage, ServerResponse, Server as HttpServer } from 'node:http';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+import type { Server as HttpServer } from 'node:http';
+import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import {
+  mcpAuthRouter,
+  getOAuthProtectedResourceMetadataUrl,
+} from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { buildServer } from './server.js';
 import { isReadonly } from './security.js';
 import { missingCredentials } from './autotask-api.js';
 import { governor } from './governor.js';
+import { GoogleAuthProvider } from './auth/google-provider.js';
+import { MemoryClientsStore, TokenStore } from './auth/stores.js';
+import { withCaller, type CallerIdentity } from './auth/context.js';
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '127.0.0.1';
@@ -54,9 +66,8 @@ function envList(name: string): string[] {
 }
 
 /**
- * A usable bearer token, or null. Anything shorter than the minimum is treated
- * as absent rather than as a weak secret: `/mcp` refuses to serve at all in
- * that state, so a misconfigured deployment can never expose the tool surface.
+ * A usable static bearer token, or null. Anything shorter than the minimum is
+ * treated as absent rather than as a weak secret.
  */
 export function configuredToken(): string | null {
   const token = process.env.AUTOTASK_HTTP_TOKEN;
@@ -71,14 +82,7 @@ export function tokensMatch(presented: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-/** Path without query string. Bare paths keep working behind load balancers. */
-export function parsePath(url: string | undefined): string {
-  if (!url) return '';
-  const q = url.indexOf('?');
-  return q === -1 ? url : url.slice(0, q);
-}
-
-export function bearerFrom(headers: IncomingMessage['headers']): string {
+export function bearerFrom(headers: Request['headers']): string {
   const auth = headers['authorization'];
   if (typeof auth !== 'string') return '';
   return auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
@@ -103,7 +107,7 @@ export function isHostAllowed(host: string | undefined, allowed: string[]): bool
 }
 
 /** Rate-limit bucket key: the real client when behind a proxy, else the socket. */
-export function clientKey(req: IncomingMessage): string {
+export function clientKey(req: Request): string {
   const fwd = req.headers['x-forwarded-for'];
   if (typeof fwd === 'string' && fwd.length > 0) {
     return fwd.split(',')[0].trim();
@@ -204,60 +208,8 @@ async function closeQuietly(session: Session): Promise<void> {
   }
 }
 
-// --- request/response plumbing ----------------------------------------------
+// --- session factory ---------------------------------------------------------
 
-function sendJson(res: ServerResponse, status: number, payload: unknown): void {
-  res.statusCode = status;
-  res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify(payload));
-}
-
-/** JSON-RPC shaped error, so MCP clients surface something useful. */
-function sendRpcError(res: ServerResponse, status: number, code: number, message: string): void {
-  res.statusCode = status;
-  res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null }));
-}
-
-/** Read and parse a JSON body, refusing anything over the size cap. */
-export async function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of req) {
-    const buf = chunk as Buffer;
-    total += buf.length;
-    if (total > maxBytes) {
-      throw Object.assign(new Error('Request body too large'), { statusCode: 413 });
-    }
-    chunks.push(buf);
-  }
-  if (total === 0) return undefined;
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf-8'));
-  } catch {
-    throw Object.assign(new Error('Invalid JSON body'), { statusCode: 400 });
-  }
-}
-
-// --- the router --------------------------------------------------------------
-
-export interface RouterDeps {
-  /** null when unconfigured: /mcp refuses to serve rather than run open. */
-  token: string | null;
-  sessions: SessionStore;
-  limiter: RateLimiter | null;
-  allowedOrigins: string[];
-  allowedHosts: string[];
-  maxBodyBytes: number;
-  /** Injected so tests can build sessions without the real tool layer. */
-  createSession: SessionFactory;
-}
-
-/**
- * The transport's session hooks are constructor-only in the SDK, so the
- * factory takes them as arguments rather than the router assigning them after
- * construction.
- */
 export interface SessionHooks {
   onsessioninitialized: (id: string) => void;
   onsessionclosed: (id: string) => void;
@@ -279,176 +231,304 @@ export const defaultCreateSession: SessionFactory = (hooks) => {
   return { server, transport };
 };
 
-export function createRouter(deps: RouterDeps) {
-  return async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const path = parsePath(req.url);
-    const origin = req.headers['origin'] as string | undefined;
+// --- app wiring --------------------------------------------------------------
 
-    if (!isHostAllowed(req.headers['host'] as string | undefined, deps.allowedHosts)) {
-      sendJson(res, 403, { error: 'Host not allowed' });
+export interface AppOptions {
+  /** Static shared bearer, or null when not configured. */
+  staticToken: string | null;
+  /** Google bridge, or null when Google sign-in is not configured. */
+  googleProvider: GoogleAuthProvider | null;
+  /** Public base URL. Required for OAuth (it is the issuer). */
+  baseUrl?: URL;
+  sessions: SessionStore;
+  limiter: RateLimiter | null;
+  allowedOrigins: string[];
+  allowedHosts: string[];
+  maxBodyBytes: number;
+  createSession: SessionFactory;
+}
+
+/** Everything still missing before the server can actually serve. */
+export function missingConfig(opts: Pick<AppOptions, 'staticToken' | 'googleProvider'>): string[] {
+  const missing = [...missingCredentials()];
+  if (!opts.staticToken && !opts.googleProvider) {
+    missing.push('AUTOTASK_HTTP_TOKEN or Google sign-in');
+  }
+  return missing;
+}
+
+export function createApp(opts: AppOptions): Express {
+  const app = express();
+  // Cloud Run terminates TLS and forwards the client IP; without this the rate
+  // limiter would bucket every request under the proxy's address.
+  app.set('trust proxy', 1);
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!isHostAllowed(req.headers['host'], opts.allowedHosts)) {
+      res.status(403).json({ error: 'Host not allowed' });
       return;
     }
-    if (!isOriginAllowed(origin, deps.allowedOrigins)) {
-      sendJson(res, 403, { error: 'Origin not allowed' });
+    const origin = req.headers['origin'];
+    if (!isOriginAllowed(origin, opts.allowedOrigins)) {
+      res.status(403).json({ error: 'Origin not allowed' });
       return;
     }
-
-    // CORS: only ever echoed for an explicitly allowlisted origin. Mcp-Session-Id
-    // must be exposed or a browser client can never read its own session id.
-    if (origin && deps.allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Vary', 'Origin');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-      res.setHeader(
+    // CORS headers only ever go to an explicitly allowlisted origin.
+    // Mcp-Session-Id must be exposed or a browser client can never read its
+    // own session id.
+    if (origin && opts.allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Vary', 'Origin');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.header(
         'Access-Control-Allow-Headers',
         'Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Accept, Last-Event-ID',
       );
-      res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+      res.header('Access-Control-Expose-Headers', 'Mcp-Session-Id');
     }
-
     if (req.method === 'OPTIONS') {
-      res.statusCode = 204;
-      res.end();
+      res.sendStatus(204);
       return;
     }
+    next();
+  });
 
-    if (path === '/health') {
-      const snap = governor.lastSnapshot;
-      const missing = [...missingCredentials()];
-      if (!deps.token) missing.push('AUTOTASK_HTTP_TOKEN');
-      // Still 200 when credentials are absent: the process is alive and this is
-      // the one endpoint that can explain what is wrong. Failing the probe here
-      // would crash-loop the revision and hide the reason.
-      sendJson(res, 200, {
-        ok: true,
-        configured: missing.length === 0,
-        missingConfig: missing,
-        mode: isReadonly() ? 'readonly' : 'full',
-        uptimeSeconds: Math.floor(process.uptime()),
-        sessions: deps.sessions.size,
-        autotaskUsagePct: snap ? Number(snap.usedPct.toFixed(1)) : null,
+  app.get('/health', (_req: Request, res: Response) => {
+    const snap = governor.lastSnapshot;
+    const missing = missingConfig(opts);
+    // Still 200 when unconfigured: the process is alive and this is the one
+    // endpoint that can explain what is wrong. Failing the probe would
+    // crash-loop the revision and hide the reason.
+    res.json({
+      ok: true,
+      configured: missing.length === 0,
+      missingConfig: missing,
+      auth: {
+        google: Boolean(opts.googleProvider),
+        staticToken: Boolean(opts.staticToken),
+      },
+      mode: isReadonly() ? 'readonly' : 'full',
+      uptimeSeconds: Math.floor(process.uptime()),
+      sessions: opts.sessions.size,
+      autotaskUsagePct: snap ? Number(snap.usedPct.toFixed(1)) : null,
+    });
+  });
+
+  app.use(express.json({ limit: opts.maxBodyBytes }));
+  app.use(express.urlencoded({ extended: false }));
+
+  // OAuth 2.1 authorization-server endpoints: discovery, /authorize, /token,
+  // /register (DCR, which claude.ai relies on) and /revoke.
+  if (opts.googleProvider && opts.baseUrl) {
+    const mcpUrl = new URL('/mcp', opts.baseUrl);
+    app.use(
+      mcpAuthRouter({
+        provider: opts.googleProvider,
+        issuerUrl: opts.baseUrl,
+        resourceServerUrl: mcpUrl,
+        resourceName: 'Autotask MCP',
+        scopesSupported: ['openid', 'email'],
+      }),
+    );
+    // RFC 9728 discovery is path-suffixed (/.well-known/oauth-protected-resource/mcp)
+    // and the WWW-Authenticate challenge points there. Some clients still probe
+    // the bare path first, so answer that too.
+    app.get('/.well-known/oauth-protected-resource', (_req: Request, res: Response) => {
+      res.json({
+        resource: mcpUrl.href,
+        authorization_servers: [opts.baseUrl!.href],
+        scopes_supported: ['openid', 'email'],
+        resource_name: 'Autotask MCP',
       });
+    });
+
+    app.get('/callback', opts.googleProvider.handleCallback);
+  }
+
+  const authenticate = makeAuthMiddleware(opts);
+
+  app.post('/mcp', rateLimit(opts), authenticate, (req: Request, res: Response) => {
+    void handlePost(req, res, opts);
+  });
+
+  // GET opens the SSE stream, DELETE terminates the session. Both need an
+  // established session.
+  for (const method of ['get', 'delete'] as const) {
+    app[method]('/mcp', rateLimit(opts), authenticate, (req: Request, res: Response) => {
+      void handleSessionScoped(req, res, opts, method === 'delete');
+    });
+  }
+
+  app.use((_req: Request, res: Response) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+
+  return app;
+}
+
+function rateLimit(opts: AppOptions) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (opts.limiter && !opts.limiter.check(clientKey(req))) {
+      res.setHeader('Retry-After', '60');
+      rpcError(res, 429, -32003, 'Rate limit exceeded');
       return;
     }
+    next();
+  };
+}
 
-    if (path !== '/mcp') {
-      sendJson(res, 404, { error: 'Not found' });
-      return;
-    }
+/**
+ * Accept either the static bearer (no identity) or a Google-issued token
+ * (identity, and therefore attribution). On failure, point OAuth-capable
+ * clients at the protected-resource metadata so they can start a sign-in.
+ */
+function makeAuthMiddleware(opts: AppOptions) {
+  const resourceMetadataUrl =
+    opts.googleProvider && opts.baseUrl
+      ? getOAuthProtectedResourceMetadataUrl(new URL('/mcp', opts.baseUrl))
+      : undefined;
 
-    // --- /mcp from here down --------------------------------------------------
-    // No usable token means the deployment is not configured. Refuse outright
-    // rather than fall through to a comparison against an empty secret.
-    if (!deps.token) {
-      sendRpcError(
+  const challenge = (): string => {
+    const parts = ['Bearer realm="autotask-mcp"'];
+    if (resourceMetadataUrl) parts.push(`resource_metadata="${resourceMetadataUrl}"`);
+    return parts.join(', ');
+  };
+
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!opts.staticToken && !opts.googleProvider) {
+      rpcError(
         res,
         503,
         -32002,
-        `Server not configured: AUTOTASK_HTTP_TOKEN (>= ${MIN_TOKEN_LENGTH} chars) is required ` +
+        'Server not configured: set AUTOTASK_HTTP_TOKEN or configure Google sign-in ' +
           'before /mcp will serve. See /health for everything still missing.',
       );
       return;
     }
 
     const presented = bearerFrom(req.headers);
-    if (!presented || !tokensMatch(presented, deps.token)) {
-      res.setHeader('WWW-Authenticate', 'Bearer realm="autotask-mcp"');
-      sendRpcError(res, 401, -32001, 'Unauthorized');
+    if (!presented) {
+      res.setHeader('WWW-Authenticate', challenge());
+      rpcError(res, 401, -32001, 'Unauthorized');
       return;
     }
 
-    if (deps.limiter && !deps.limiter.check(clientKey(req))) {
-      res.setHeader('Retry-After', '60');
-      sendRpcError(res, 429, -32003, 'Rate limit exceeded');
+    if (opts.staticToken && tokensMatch(presented, opts.staticToken)) {
+      // Machine caller: authenticated, but anonymous. No impersonation.
+      next();
       return;
     }
 
-    const sessionId = req.headers['mcp-session-id'];
-    const sid = typeof sessionId === 'string' ? sessionId : undefined;
-
-    try {
-      if (req.method === 'POST') {
-        await handlePost(req, res, deps, sid);
+    if (opts.googleProvider) {
+      try {
+        const auth = await opts.googleProvider.verifyAccessToken(presented);
+        (req as Request & { auth?: unknown }).auth = auth;
+        next();
         return;
-      }
-
-      // GET opens the SSE stream, DELETE terminates the session. Both require
-      // an established session.
-      if (req.method === 'GET' || req.method === 'DELETE') {
-        const session = sid ? deps.sessions.get(sid) : undefined;
-        if (!session) {
-          sendRpcError(res, 404, -32001, 'Session not found');
-          return;
-        }
-        await session.transport.handleRequest(req, res);
-        if (req.method === 'DELETE') deps.sessions.delete(session.id);
-        return;
-      }
-
-      res.setHeader('Allow', 'GET, POST, DELETE, OPTIONS');
-      sendRpcError(res, 405, -32000, 'Method not allowed');
-    } catch (err) {
-      const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
-      const message = err instanceof Error ? err.message : String(err);
-      if (!res.headersSent) {
-        sendRpcError(res, statusCode, -32603, message);
-      } else {
-        res.end();
+      } catch {
+        // Fall through to the shared 401 below.
       }
     }
+
+    res.setHeader('WWW-Authenticate', challenge());
+    rpcError(res, 401, -32001, 'Unauthorized');
   };
 }
 
-async function handlePost(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: RouterDeps,
-  sid: string | undefined,
-): Promise<void> {
-  const body = await readJsonBody(req, deps.maxBodyBytes);
+/** The signed-in person for this request, if there is one. */
+export function callerFrom(req: Request): CallerIdentity | undefined {
+  const auth = (req as Request & { auth?: { extra?: Record<string, unknown> } }).auth;
+  const email = auth?.extra?.email;
+  if (typeof email !== 'string') return undefined;
+  const resourceId = auth?.extra?.resourceId;
+  return { email, resourceId: typeof resourceId === 'number' ? resourceId : undefined };
+}
 
-  if (isInitializeRequest(body)) {
-    if (deps.sessions.full) {
-      sendRpcError(res, 503, -32004, 'Server at session capacity, try again later');
+function rpcError(res: Response, status: number, code: number, message: string): void {
+  res.status(status).json({ jsonrpc: '2.0', error: { code, message }, id: null });
+}
+
+async function handlePost(req: Request, res: Response, opts: AppOptions): Promise<void> {
+  const caller = callerFrom(req);
+  const sid = req.headers['mcp-session-id'];
+  const sessionId = typeof sid === 'string' ? sid : undefined;
+
+  try {
+    if (isInitializeRequest(req.body)) {
+      if (opts.sessions.full) {
+        rpcError(res, 503, -32004, 'Server at session capacity, try again later');
+        return;
+      }
+
+      // Registration happens in onsessioninitialized so the id is the one the
+      // transport actually assigned, not one we guessed. `holder` closes the
+      // loop between the hooks and the objects the factory is constructing.
+      const holder: { server?: McpServer; transport?: StreamableHTTPServerTransport } = {};
+      const { server, transport } = opts.createSession({
+        onsessioninitialized: (id) => {
+          opts.sessions.set({
+            id,
+            transport: holder.transport!,
+            server: holder.server!,
+            lastSeen: Date.now(),
+          });
+        },
+        onsessionclosed: (id) => opts.sessions.delete(id),
+      });
+      holder.server = server;
+      holder.transport = transport;
+
+      await server.connect(transport);
+      await withCaller(caller, () => transport.handleRequest(req, res, req.body));
       return;
     }
 
-    // Registration happens in onsessioninitialized so the id is the one the
-    // transport actually assigned, not one we guessed. `holder` closes the loop
-    // between the hooks and the objects the factory is still constructing.
-    const holder: { server?: McpServer; transport?: StreamableHTTPServerTransport } = {};
-    const { server, transport } = deps.createSession({
-      onsessioninitialized: (id) => {
-        deps.sessions.set({
-          id,
-          transport: holder.transport!,
-          server: holder.server!,
-          lastSeen: Date.now(),
-        });
-      },
-      onsessionclosed: (id) => {
-        deps.sessions.delete(id);
-      },
-    });
-    holder.server = server;
-    holder.transport = transport;
-
-    await server.connect(transport);
-    await transport.handleRequest(req, res, body);
-    return;
+    const session = sessionId ? opts.sessions.get(sessionId) : undefined;
+    if (!session) {
+      rpcError(
+        res,
+        404,
+        -32001,
+        sessionId ? 'Session not found or expired' : 'Missing Mcp-Session-Id header',
+      );
+      return;
+    }
+    // Identity is bound per request, not per session: the same session's later
+    // calls still carry whoever is making them.
+    await withCaller(caller, () => session.transport.handleRequest(req, res, req.body));
+  } catch (err) {
+    failed(res, err);
   }
+}
 
-  const session = sid ? deps.sessions.get(sid) : undefined;
+async function handleSessionScoped(
+  req: Request,
+  res: Response,
+  opts: AppOptions,
+  terminate: boolean,
+): Promise<void> {
+  const sid = req.headers['mcp-session-id'];
+  const sessionId = typeof sid === 'string' ? sid : undefined;
+  const session = sessionId ? opts.sessions.get(sessionId) : undefined;
   if (!session) {
-    sendRpcError(
-      res,
-      404,
-      -32001,
-      sid ? 'Session not found or expired' : 'Missing Mcp-Session-Id header',
-    );
+    rpcError(res, 404, -32001, 'Session not found');
     return;
   }
-  await session.transport.handleRequest(req, res, body);
+  try {
+    await withCaller(callerFrom(req), () => session.transport.handleRequest(req, res));
+    if (terminate) opts.sessions.delete(session.id);
+  } catch (err) {
+    failed(res, err);
+  }
+}
+
+function failed(res: Response, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  if (!res.headersSent) {
+    rpcError(res, 500, -32603, message);
+  } else {
+    res.end();
+  }
 }
 
 // --- bootstrap ---------------------------------------------------------------
@@ -459,17 +539,58 @@ export interface RunningServer {
   close: () => Promise<void>;
 }
 
-export async function runHttp(): Promise<RunningServer> {
-  const token = configuredToken();
-  if (!token) {
-    // Deliberately not fatal. Exiting here crash-looped the Cloud Run revision
-    // before /health could say why, and made "deploy, then configure"
-    // impossible. /mcp refuses every request while the token is missing, so
-    // starting up cannot expose anything.
+/** Build the Google bridge from the environment, or null when not configured. */
+export function googleProviderFromEnv(
+  baseUrl: URL | undefined,
+  tokenStore: TokenStore,
+): GoogleAuthProvider | null {
+  const clientId = process.env.AUTOTASK_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.AUTOTASK_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+
+  if (!baseUrl) {
     console.error(
-      `[autotask-mcp] WARNING: AUTOTASK_HTTP_TOKEN (>= ${MIN_TOKEN_LENGTH} chars) is not set. ` +
-        'Starting anyway so /health can report it, but /mcp will refuse every request ' +
-        'with 503 until a token is configured.',
+      '[autotask-mcp] Google sign-in is configured but AUTOTASK_BASE_URL is not set. ' +
+        'It is the OAuth issuer and the callback origin, so sign-in stays disabled until it is.',
+    );
+    return null;
+  }
+
+  return new GoogleAuthProvider({
+    clientId,
+    clientSecret,
+    callbackUrl: new URL('/callback', baseUrl).href,
+    allowedDomains: envList('AUTOTASK_OAUTH_ALLOWED_DOMAINS'),
+    allowedEmails: envList('AUTOTASK_OAUTH_ALLOWED_EMAILS'),
+    clientsStore: new MemoryClientsStore(),
+    tokenStore,
+    tokenTtlSeconds: envInt('AUTOTASK_OAUTH_TOKEN_TTL_SECONDS', 12 * 60 * 60),
+  });
+}
+
+export async function runHttp(): Promise<RunningServer> {
+  const staticToken = configuredToken();
+  const rawBase = process.env.AUTOTASK_BASE_URL;
+  const baseUrl = rawBase ? new URL(rawBase) : undefined;
+  const tokenStore = new TokenStore();
+
+  let googleProvider: GoogleAuthProvider | null = null;
+  try {
+    googleProvider = googleProviderFromEnv(baseUrl, tokenStore);
+  } catch (err) {
+    // A misconfigured allowlist must not silently downgrade to "any Google
+    // account can sign in": refuse to enable Google auth and say why.
+    console.error(`[autotask-mcp] Google sign-in disabled: ${(err as Error).message}`);
+  }
+
+  if (!staticToken && !googleProvider) {
+    // Deliberately not fatal. Exiting crash-loops the Cloud Run revision before
+    // /health can say why, and makes "deploy, then configure" impossible. /mcp
+    // refuses every request in this state, so starting cannot expose anything.
+    console.error(
+      '[autotask-mcp] WARNING: no authentication configured. Starting anyway so /health can ' +
+        'report it, but /mcp will refuse every request with 503 until either ' +
+        `AUTOTASK_HTTP_TOKEN (>= ${MIN_TOKEN_LENGTH} chars) or Google sign-in is set up.`,
     );
   }
 
@@ -477,43 +598,47 @@ export async function runHttp(): Promise<RunningServer> {
   // (which set K_SERVICE) bind all interfaces unless told otherwise.
   const host = process.env.AUTOTASK_HTTP_HOST ?? (process.env.K_SERVICE ? '0.0.0.0' : DEFAULT_HOST);
   const port = envInt('PORT', DEFAULT_PORT);
-  const rateLimit = envInt('AUTOTASK_RATE_LIMIT', DEFAULT_RATE_LIMIT);
-  const limiter = rateLimit > 0 ? new RateLimiter(rateLimit) : null;
+  const rateLimitPerMinute = envInt('AUTOTASK_RATE_LIMIT', DEFAULT_RATE_LIMIT);
+  const limiter = rateLimitPerMinute > 0 ? new RateLimiter(rateLimitPerMinute) : null;
   const sessions = new SessionStore(
     envInt('AUTOTASK_MAX_SESSIONS', DEFAULT_MAX_SESSIONS),
     envInt('AUTOTASK_SESSION_TTL_MS', DEFAULT_SESSION_TTL_MS),
   );
 
-  const router = createRouter({
-    token,
+  const opts: AppOptions = {
+    staticToken,
+    googleProvider,
+    baseUrl,
     sessions,
     limiter,
     allowedOrigins: envList('AUTOTASK_HTTP_ALLOWED_ORIGINS'),
     allowedHosts: envList('AUTOTASK_HTTP_ALLOWED_HOSTS'),
     maxBodyBytes: envInt('AUTOTASK_MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES),
     createSession: defaultCreateSession,
-  });
+  };
 
-  const http = await import('node:http');
-  const httpServer = http.createServer((req, res) => {
-    void router(req, res);
-  });
+  const app = createApp(opts);
 
   const reaper = setInterval(() => {
     void sessions.reap();
     limiter?.reap();
+    tokenStore.sweep();
   }, REAP_INTERVAL_MS);
   reaper.unref();
 
-  // Report what the tool surface looks like once, at boot.
   const { registeredCount, skipped } = buildServer();
+  const httpServer = await new Promise<HttpServer>((resolve) => {
+    const s = app.listen(port, host, () => resolve(s));
+  });
 
-  await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
-  const missing = [...missingCredentials()];
-  if (!token) missing.push('AUTOTASK_HTTP_TOKEN');
+  const missing = missingConfig(opts);
+  const authModes =
+    [googleProvider ? 'google' : null, staticToken ? 'static-token' : null]
+      .filter(Boolean)
+      .join('+') || 'none';
   console.error(
     `[autotask-mcp] HTTP transport on ${host}:${port} (mode: ${isReadonly() ? 'READONLY' : 'full'}, ` +
-      `${registeredCount} tools, ${skipped} write tools skipped` +
+      `auth: ${authModes}, ${registeredCount} tools, ${skipped} write tools skipped` +
       `${missing.length ? `, UNCONFIGURED: ${missing.join(', ')}` : ''})`,
   );
 

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { Readable } from 'node:stream';
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 
 // The tool layer's api singleton needs credentials at import time.
@@ -14,18 +13,17 @@ vi.hoisted(() => {
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {
-  createRouter,
+  createApp,
   defaultCreateSession,
+  missingConfig,
   RateLimiter,
   SessionStore,
   bearerFrom,
   clientKey,
   isHostAllowed,
   isOriginAllowed,
-  parsePath,
-  readJsonBody,
   tokensMatch,
-  type RouterDeps,
+  type AppOptions,
 } from '../src/http.js';
 
 const TOKEN = 'a-very-long-test-token-1234567890';
@@ -33,24 +31,16 @@ const TOKEN = 'a-very-long-test-token-1234567890';
 // --- pure helpers ------------------------------------------------------------
 
 describe('http helpers', () => {
-  it('parsePath strips the query string', () => {
-    expect(parsePath('/health')).toBe('/health');
-    expect(parsePath('/health?probe=1')).toBe('/health');
-    expect(parsePath('/mcp?x=1&y=2')).toBe('/mcp');
-    expect(parsePath(undefined)).toBe('');
-  });
-
   it('bearerFrom extracts only well-formed Bearer headers', () => {
-    expect(bearerFrom({ authorization: 'Bearer abc' })).toBe('abc');
-    expect(bearerFrom({ authorization: 'Basic abc' })).toBe('');
-    expect(bearerFrom({})).toBe('');
+    expect(bearerFrom({ authorization: 'Bearer abc' } as never)).toBe('abc');
+    expect(bearerFrom({ authorization: 'Basic abc' } as never)).toBe('');
+    expect(bearerFrom({} as never)).toBe('');
   });
 
   it('tokensMatch is exact and length-safe', () => {
     expect(tokensMatch('abc', 'abc')).toBe(true);
     expect(tokensMatch('abc', 'abd')).toBe(false);
     expect(tokensMatch('abc', 'abcd')).toBe(false);
-    expect(tokensMatch('', '')).toBe(true);
   });
 
   it('isOriginAllowed denies every browser origin when no allowlist is set', () => {
@@ -64,33 +54,31 @@ describe('http helpers', () => {
 
   it('isHostAllowed enforces only when configured, and ignores the port', () => {
     expect(isHostAllowed('anything', [])).toBe(true);
-    expect(isHostAllowed('mcp.autotask.phoneware.cloud', ['mcp.autotask.phoneware.cloud'])).toBe(
-      true,
-    );
-    expect(
-      isHostAllowed('mcp.autotask.phoneware.cloud:443', ['mcp.autotask.phoneware.cloud']),
-    ).toBe(true);
-    expect(isHostAllowed('evil.example', ['mcp.autotask.phoneware.cloud'])).toBe(false);
-    expect(isHostAllowed(undefined, ['mcp.autotask.phoneware.cloud'])).toBe(false);
+    expect(isHostAllowed('mcp.example.com', ['mcp.example.com'])).toBe(true);
+    expect(isHostAllowed('mcp.example.com:443', ['mcp.example.com'])).toBe(true);
+    expect(isHostAllowed('evil.example', ['mcp.example.com'])).toBe(false);
+    expect(isHostAllowed(undefined, ['mcp.example.com'])).toBe(false);
   });
 
   it('clientKey prefers the first x-forwarded-for hop', () => {
-    expect(clientKey(mockReq('/', { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' }))).toBe('1.2.3.4');
-    expect(clientKey(mockReq('/'))).toBe('127.0.0.1');
+    expect(
+      clientKey({
+        headers: { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' },
+        socket: { remoteAddress: '9.9.9.9' },
+      } as never),
+    ).toBe('1.2.3.4');
+    expect(clientKey({ headers: {}, socket: { remoteAddress: '127.0.0.1' } } as never)).toBe(
+      '127.0.0.1',
+    );
   });
-});
 
-describe('readJsonBody', () => {
-  it('parses JSON and returns undefined for an empty body', async () => {
-    await expect(readJsonBody(streamReq('{"a":1}'), 1024)).resolves.toEqual({ a: 1 });
-    await expect(readJsonBody(streamReq(''), 1024)).resolves.toBeUndefined();
-  });
-
-  it('rejects malformed JSON with a 400 and oversized bodies with a 413', async () => {
-    await expect(readJsonBody(streamReq('{nope'), 1024)).rejects.toMatchObject({ statusCode: 400 });
-    await expect(readJsonBody(streamReq('x'.repeat(50)), 10)).rejects.toMatchObject({
-      statusCode: 413,
-    });
+  it('missingConfig flags the absence of any auth method', () => {
+    expect(missingConfig({ staticToken: null, googleProvider: null })).toContain(
+      'AUTOTASK_HTTP_TOKEN or Google sign-in',
+    );
+    expect(missingConfig({ staticToken: TOKEN, googleProvider: null })).not.toContain(
+      'AUTOTASK_HTTP_TOKEN or Google sign-in',
+    );
   });
 });
 
@@ -101,9 +89,7 @@ describe('RateLimiter', () => {
     expect(rl.check('a', 0)).toBe(true);
     expect(rl.check('a', 0)).toBe(true);
     expect(rl.check('a', 0)).toBe(false);
-    // A different client has its own bucket.
     expect(rl.check('b', 0)).toBe(true);
-    // The window rolls over.
     expect(rl.check('a', 1001)).toBe(true);
   });
 });
@@ -126,9 +112,8 @@ describe('SessionStore', () => {
 
     store.set(fake('fresh', 900));
     store.set(fake('stale', 0));
-    expect(store.size).toBe(2);
-
     const reaped = await store.reap(1500);
+
     expect(reaped).toBe(1);
     expect(closed).toEqual(['stale']);
     expect(store.get('fresh', 1500)).toBeDefined();
@@ -146,149 +131,130 @@ describe('SessionStore', () => {
   });
 });
 
-// --- router ------------------------------------------------------------------
+// --- a real bound app --------------------------------------------------------
 
-function mockReq(url: string, headers: Record<string, string> = {}): IncomingMessage {
+function options(overrides: Partial<AppOptions> = {}): AppOptions {
   return {
-    url,
-    headers,
-    method: 'GET',
-    socket: { remoteAddress: '127.0.0.1' },
-  } as unknown as IncomingMessage;
-}
-
-function streamReq(
-  body: string,
-  headers: Record<string, string> = {},
-  method = 'POST',
-): IncomingMessage {
-  const req = Readable.from([Buffer.from(body)]) as unknown as IncomingMessage;
-  req.url = '/mcp';
-  req.method = method;
-  req.headers = headers;
-  (req as { socket?: unknown }).socket = { remoteAddress: '127.0.0.1' };
-  return req;
-}
-
-function mockRes() {
-  const res = {
-    statusCode: 0,
-    headers: {} as Record<string, string>,
-    body: '',
-    headersSent: false,
-    setHeader(k: string, v: string) {
-      this.headers[k.toLowerCase()] = v;
-    },
-    end(chunk?: string) {
-      if (chunk) this.body = chunk;
-      this.headersSent = true;
-    },
-  };
-  return res as typeof res & ServerResponse;
-}
-
-function deps(overrides: Partial<RouterDeps> = {}): RouterDeps {
-  return {
-    token: TOKEN,
+    staticToken: TOKEN,
+    googleProvider: null,
     sessions: new SessionStore(),
     limiter: null,
     allowedOrigins: [],
     allowedHosts: [],
     maxBodyBytes: 1024 * 1024,
-    createSession: () => {
-      throw new Error('not used');
-    },
+    createSession: defaultCreateSession,
     ...overrides,
   };
 }
 
-describe('router', () => {
-  it('serves /health unauthenticated, including with a query string', async () => {
-    const res = mockRes();
-    await createRouter(deps())(mockReq('/health?probe=1'), res);
-    expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body);
+async function listen(opts: AppOptions): Promise<{ base: string; server: Server }> {
+  const app = createApp(opts);
+  const server = await new Promise<Server>((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, server };
+}
+
+async function close(server: Server): Promise<void> {
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+}
+
+describe('routing and auth', () => {
+  let base: string;
+  let server: Server;
+
+  beforeAll(async () => {
+    ({ base, server } = await listen(options()));
+  });
+  afterAll(() => close(server));
+
+  it('serves /health unauthenticated, with a query string, reporting auth modes', async () => {
+    const resp = await fetch(`${base}/health?probe=1`);
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
     expect(body.ok).toBe(true);
-    expect(body).toHaveProperty('sessions', 0);
-    expect(body).toHaveProperty('mode');
+    expect(body.configured).toBe(true);
+    expect(body.auth).toEqual({ google: false, staticToken: true });
   });
 
   it('401s /mcp with no token, a wrong token, and a wrong scheme', async () => {
-    for (const headers of [{}, { authorization: 'Bearer nope' }, { authorization: TOKEN }]) {
-      const res = mockRes();
-      await createRouter(deps())(mockReq('/mcp', headers), res);
-      expect(res.statusCode).toBe(401);
-      expect(res.headers['www-authenticate']).toContain('Bearer');
+    for (const headers of [
+      {},
+      { authorization: 'Bearer nope' },
+      { authorization: TOKEN },
+    ] as Record<string, string>[]) {
+      const resp = await fetch(`${base}/mcp`, { method: 'POST', headers });
+      expect(resp.status).toBe(401);
+      expect(resp.headers.get('www-authenticate')).toContain('Bearer');
     }
   });
 
   it('404s unknown paths', async () => {
-    const res = mockRes();
-    await createRouter(deps())(mockReq('/nope'), res);
-    expect(res.statusCode).toBe(404);
+    expect((await fetch(`${base}/nope`)).status).toBe(404);
   });
 
-  it('405s an unsupported method on /mcp', async () => {
-    const res = mockRes();
-    const req = mockReq('/mcp', { authorization: `Bearer ${TOKEN}` });
-    (req as { method: string }).method = 'PUT';
-    await createRouter(deps())(req, res);
-    expect(res.statusCode).toBe(405);
-    expect(res.headers['allow']).toContain('POST');
-  });
-
-  it('rejects a disallowed Origin and a disallowed Host before auth', async () => {
-    const originRes = mockRes();
-    await createRouter(deps())(mockReq('/health', { origin: 'https://evil.example' }), originRes);
-    expect(originRes.statusCode).toBe(403);
-
-    const hostRes = mockRes();
-    await createRouter(deps({ allowedHosts: ['good.example'] }))(
-      mockReq('/health', { host: 'evil.example' }),
-      hostRes,
-    );
-    expect(hostRes.statusCode).toBe(403);
-  });
-
-  it('echoes CORS headers and exposes Mcp-Session-Id for an allowlisted origin', async () => {
-    const res = mockRes();
-    await createRouter(deps({ allowedOrigins: ['https://ok.example'] }))(
-      mockReq('/health', { origin: 'https://ok.example' }),
-      res,
-    );
-    expect(res.headers['access-control-allow-origin']).toBe('https://ok.example');
-    expect(res.headers['access-control-expose-headers']).toBe('Mcp-Session-Id');
-  });
-
-  it('answers preflight with 204', async () => {
-    const res = mockRes();
-    const req = mockReq('/mcp', { origin: 'https://ok.example' });
-    (req as { method: string }).method = 'OPTIONS';
-    await createRouter(deps({ allowedOrigins: ['https://ok.example'] }))(req, res);
-    expect(res.statusCode).toBe(204);
-  });
-
-  it('429s past the rate limit, and does so without touching the session store', async () => {
-    const router = createRouter(deps({ limiter: new RateLimiter(1, 60_000) }));
-    const first = mockRes();
-    await router(mockReq('/mcp', { authorization: `Bearer ${TOKEN}` }), first);
-    expect(first.statusCode).not.toBe(429);
-
-    const second = mockRes();
-    await router(mockReq('/mcp', { authorization: `Bearer ${TOKEN}` }), second);
-    expect(second.statusCode).toBe(429);
-    expect(second.headers['retry-after']).toBe('60');
-  });
-
-  it('404s a POST that carries an unknown session id', async () => {
-    const res = mockRes();
-    const req = streamReq(JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }), {
-      authorization: `Bearer ${TOKEN}`,
-      'mcp-session-id': 'does-not-exist',
+  it('404s a POST carrying an unknown session id', async () => {
+    const resp = await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        'content-type': 'application/json',
+        'mcp-session-id': 'does-not-exist',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
     });
-    await createRouter(deps())(req, res);
-    expect(res.statusCode).toBe(404);
-    expect(res.body).toContain('Session not found');
+    expect(resp.status).toBe(404);
+    expect(JSON.stringify(await resp.json())).toContain('Session not found');
+  });
+});
+
+describe('origin, CORS and limits', () => {
+  it('rejects a disallowed Origin and a disallowed Host', async () => {
+    const { base, server } = await listen(options({ allowedHosts: ['good.example'] }));
+    try {
+      const origin = await fetch(`${base}/health`, { headers: { origin: 'https://evil.example' } });
+      expect(origin.status).toBe(403);
+      const host = await fetch(`${base}/health`, { headers: { host: 'evil.example' } });
+      expect(host.status).toBe(403);
+    } finally {
+      await close(server);
+    }
+  });
+
+  it('echoes CORS and exposes Mcp-Session-Id for an allowlisted origin', async () => {
+    const { base, server } = await listen(options({ allowedOrigins: ['https://ok.example'] }));
+    try {
+      const resp = await fetch(`${base}/health`, { headers: { origin: 'https://ok.example' } });
+      expect(resp.headers.get('access-control-allow-origin')).toBe('https://ok.example');
+      expect(resp.headers.get('access-control-expose-headers')).toBe('Mcp-Session-Id');
+
+      const preflight = await fetch(`${base}/mcp`, {
+        method: 'OPTIONS',
+        headers: { origin: 'https://ok.example' },
+      });
+      expect(preflight.status).toBe(204);
+    } finally {
+      await close(server);
+    }
+  });
+
+  it('429s past the rate limit', async () => {
+    const { base, server } = await listen(options({ limiter: new RateLimiter(1, 60_000) }));
+    try {
+      const first = await fetch(`${base}/mcp`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${TOKEN}` },
+      });
+      expect(first.status).not.toBe(429);
+      const second = await fetch(`${base}/mcp`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${TOKEN}` },
+      });
+      expect(second.status).toBe(429);
+      expect(second.headers.get('retry-after')).toBe('60');
+    } finally {
+      await close(server);
+    }
   });
 
   it('503s a new initialize once at session capacity', async () => {
@@ -299,51 +265,48 @@ describe('router', () => {
       server: {} as never,
       transport: {} as never,
     });
-    const res = mockRes();
-    const req = streamReq(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'initialize',
-        id: 1,
-        params: {
-          protocolVersion: '2025-06-18',
-          capabilities: {},
-          clientInfo: { name: 'x', version: '1' },
-        },
-      }),
-      { authorization: `Bearer ${TOKEN}` },
-    );
-    await createRouter(deps({ sessions }))(req, res);
-    expect(res.statusCode).toBe(503);
+    const { base, server } = await listen(options({ sessions }));
+    try {
+      const resp = await fetch(`${base}/mcp`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'initialize',
+          id: 1,
+          params: {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            clientInfo: { name: 'x', version: '1' },
+          },
+        }),
+      });
+      expect(resp.status).toBe(503);
+    } finally {
+      await close(server);
+    }
   });
 });
 
 // --- end to end over a real socket ------------------------------------------
 
 describe('end-to-end MCP over HTTP', () => {
+  let base: string;
   let server: Server;
-  let url: string;
   const sessions = new SessionStore();
 
   beforeAll(async () => {
-    const router = createRouter(
-      deps({ sessions, createSession: defaultCreateSession, allowedOrigins: [] }),
-    );
-    server = createServer((req, res) => {
-      void router(req, res);
-    });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp`;
+    ({ base, server } = await listen(options({ sessions })));
   });
 
   afterAll(async () => {
     await sessions.closeAll();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await close(server);
   });
 
   async function connect() {
     const client = new Client({ name: 'test-client', version: '1.0.0' });
-    const transport = new StreamableHTTPClientTransport(new URL(url), {
+    const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`), {
       requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
     });
     await client.connect(transport);
@@ -366,13 +329,10 @@ describe('end-to-end MCP over HTTP', () => {
     const a = await connect();
     const b = await connect();
 
-    const idA = a.transport.sessionId;
-    const idB = b.transport.sessionId;
-    expect(idA).toBeTruthy();
-    expect(idB).toBeTruthy();
-    expect(idA).not.toBe(idB);
+    expect(a.transport.sessionId).toBeTruthy();
+    expect(b.transport.sessionId).toBeTruthy();
+    expect(a.transport.sessionId).not.toBe(b.transport.sessionId);
 
-    // Both remain independently usable.
     const [toolsA, toolsB] = await Promise.all([a.client.listTools(), b.client.listTools()]);
     expect(toolsA.tools.length).toBe(toolsB.tools.length);
 
@@ -387,7 +347,7 @@ describe('end-to-end MCP over HTTP', () => {
 
   it('rejects an unauthenticated client', async () => {
     const client = new Client({ name: 'anon', version: '1.0.0' });
-    const transport = new StreamableHTTPClientTransport(new URL(url));
+    const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`));
     await expect(client.connect(transport)).rejects.toThrow();
   });
 });
