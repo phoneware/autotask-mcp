@@ -22,11 +22,39 @@ import {
   clientKey,
   isHostAllowed,
   isOriginAllowed,
-  tokensMatch,
+  callerFrom,
   type AppOptions,
 } from '../src/http.js';
+import { GoogleAuthProvider } from '../src/auth/google-provider.js';
+import { MemoryClientsStore, TokenStore } from '../src/auth/stores.js';
 
 const TOKEN = 'a-very-long-test-token-1234567890';
+
+/**
+ * A real GoogleAuthProvider with a token pre-seeded in its store, so tests
+ * authenticate through the actual verification path rather than a stub. There
+ * is no static-bearer shortcut any more: Google sign-in is the only way in.
+ */
+function authedProvider(): GoogleAuthProvider {
+  const tokenStore = new TokenStore();
+  const provider = new GoogleAuthProvider({
+    clientId: 'test-client.apps.googleusercontent.com',
+    clientSecret: 'test-secret',
+    callbackUrl: 'https://example.com/callback',
+    allowedDomains: ['phoneware.us'],
+    clientsStore: new MemoryClientsStore(),
+    tokenStore,
+  });
+  tokenStore.set({
+    accessToken: TOKEN,
+    refreshToken: 'refresh-token',
+    clientId: 'mcp-client',
+    expiresAt: Date.now() + 3_600_000,
+    email: 'dave@phoneware.us',
+    resourceId: 77,
+  });
+  return provider;
+}
 
 // --- pure helpers ------------------------------------------------------------
 
@@ -35,12 +63,6 @@ describe('http helpers', () => {
     expect(bearerFrom({ authorization: 'Bearer abc' } as never)).toBe('abc');
     expect(bearerFrom({ authorization: 'Basic abc' } as never)).toBe('');
     expect(bearerFrom({} as never)).toBe('');
-  });
-
-  it('tokensMatch is exact and length-safe', () => {
-    expect(tokensMatch('abc', 'abc')).toBe(true);
-    expect(tokensMatch('abc', 'abd')).toBe(false);
-    expect(tokensMatch('abc', 'abcd')).toBe(false);
   });
 
   it('isOriginAllowed denies every browser origin when no allowlist is set', () => {
@@ -72,13 +94,40 @@ describe('http helpers', () => {
     );
   });
 
-  it('missingConfig flags the absence of any auth method', () => {
-    expect(missingConfig({ staticToken: null, googleProvider: null })).toContain(
-      'AUTOTASK_HTTP_TOKEN or Google sign-in',
+  it('missingConfig flags the absence of Google sign-in', () => {
+    expect(missingConfig({ googleProvider: null })).toContain('Google sign-in (AUTOTASK_OAUTH_*)');
+    expect(missingConfig({ googleProvider: authedProvider() })).not.toContain(
+      'Google sign-in (AUTOTASK_OAUTH_*)',
     );
-    expect(missingConfig({ staticToken: TOKEN, googleProvider: null })).not.toContain(
-      'AUTOTASK_HTTP_TOKEN or Google sign-in',
-    );
+  });
+});
+
+describe('callerFrom', () => {
+  // The seam between "the provider verified this token" and "the Autotask call
+  // carries ImpersonationResourceId". Everything either side of it is covered
+  // in google-auth and integration; this is the join.
+  it('lifts the signed-in person out of a verified request', () => {
+    expect(
+      callerFrom({ auth: { extra: { email: 'dave@phoneware.us', resourceId: 77 } } } as never),
+    ).toEqual({ email: 'dave@phoneware.us', resourceId: 77 });
+  });
+
+  it('keeps the email when the person has no Autotask resource', () => {
+    expect(callerFrom({ auth: { extra: { email: 'dave@phoneware.us' } } } as never)).toEqual({
+      email: 'dave@phoneware.us',
+      resourceId: undefined,
+    });
+  });
+
+  it('yields no caller for an unauthenticated request', () => {
+    expect(callerFrom({} as never)).toBeUndefined();
+    expect(callerFrom({ auth: { extra: {} } } as never)).toBeUndefined();
+  });
+
+  it('ignores a non-numeric resourceId rather than sending garbage upstream', () => {
+    expect(
+      callerFrom({ auth: { extra: { email: 'd@phoneware.us', resourceId: '77' } } } as never),
+    ).toEqual({ email: 'd@phoneware.us', resourceId: undefined });
   });
 });
 
@@ -135,8 +184,7 @@ describe('SessionStore', () => {
 
 function options(overrides: Partial<AppOptions> = {}): AppOptions {
   return {
-    staticToken: TOKEN,
-    googleProvider: null,
+    googleProvider: authedProvider(),
     sessions: new SessionStore(),
     limiter: null,
     allowedOrigins: [],
@@ -174,10 +222,10 @@ describe('routing and auth', () => {
     const body = await resp.json();
     expect(body.ok).toBe(true);
     expect(body.configured).toBe(true);
-    expect(body.auth).toEqual({ google: false, staticToken: true });
+    expect(body.auth).toEqual({ google: true });
   });
 
-  it('401s /mcp with no token, a wrong token, and a wrong scheme', async () => {
+  it('401s /mcp with no token, an unknown token, and a wrong scheme', async () => {
     for (const headers of [
       {},
       { authorization: 'Bearer nope' },

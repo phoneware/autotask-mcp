@@ -33,7 +33,7 @@ export function redactSecrets(text: string): string {
   );
   // 2) Exact current credential values, wherever they appear (free-text leaks
   //    like "invalid secret <value>" that the key:value pattern would miss).
-  for (const envName of ['AUTOTASK_SECRET', 'AUTOTASK_INTEGRATION_CODE', 'AUTOTASK_HTTP_TOKEN']) {
+  for (const envName of ['AUTOTASK_SECRET', 'AUTOTASK_INTEGRATION_CODE']) {
     const value = process.env[envName];
     if (value && value.length >= 4) {
       out = out.replace(new RegExp(escapeRegExp(value), 'g'), REDACT_PLACEHOLDER);

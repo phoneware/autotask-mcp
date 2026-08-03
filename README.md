@@ -109,10 +109,11 @@ Add to `claude_desktop_config.json`:
 ### Connect to the hosted server (HTTP)
 
 ```bash
-claude mcp add autotask --transport http \
-  https://mcp.autotask.phoneware.cloud/mcp \
-  --header "Authorization: Bearer <AUTOTASK_HTTP_TOKEN>"
+claude mcp add autotask --transport http https://mcp.autotask.phoneware.cloud/mcp
 ```
+
+It runs the OAuth flow and signs you in with Google. claude.ai users add it
+under Settings → Connectors → Add custom connector with the same URL.
 
 ## Run with Docker
 
@@ -133,15 +134,17 @@ docker run --rm -i \
 ```bash
 docker run --rm -p 3000:3000 \
   -e AUTOTASK_TRANSPORT=http \
-  -e AUTOTASK_HTTP_TOKEN=change-this-long-token \
   -e AUTOTASK_HTTP_HOST=0.0.0.0 \
+  -e AUTOTASK_BASE_URL=https://your.public.host \
+  -e AUTOTASK_OAUTH_CLIENT_ID=... -e AUTOTASK_OAUTH_CLIENT_SECRET=... \
+  -e AUTOTASK_OAUTH_ALLOWED_DOMAINS=example.com \
   -e AUTOTASK_USERNAME=apiuser@example.com \
   -e AUTOTASK_SECRET=your-secret \
   -e AUTOTASK_INTEGRATION_CODE=your-code \
   ghcr.io/phoneware/autotask-mcp
 ```
 
-> The default HTTP bind host is `127.0.0.1`. Inside a container you must set `AUTOTASK_HTTP_HOST=0.0.0.0` for the published port to be reachable — only do so behind your own network controls, and always with a strong `AUTOTASK_HTTP_TOKEN`.
+> The default HTTP bind host is `127.0.0.1`, except on Cloud Run / Knative (`K_SERVICE` set) where it is `0.0.0.0`. Inside any other container set `AUTOTASK_HTTP_HOST=0.0.0.0` for the published port to be reachable, and only behind your own network controls.
 
 Or use `docker compose` (HTTP service with a `/health` healthcheck) — supply the credentials via a `.env` file:
 
@@ -151,27 +154,26 @@ docker compose up -d
 
 ## Configuration
 
-| Variable                        | Required  | Description                                                                                                         |
-| ------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
-| `AUTOTASK_USERNAME`             | yes       | Autotask API user name                                                                                              |
-| `AUTOTASK_SECRET`               | yes       | Autotask API secret                                                                                                 |
-| `AUTOTASK_INTEGRATION_CODE`     | yes       | Integration code / API tracking identifier                                                                          |
-| `AUTOTASK_API_URL`              | no        | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`)            |
-| `AUTOTASK_READ_ONLY`            | no        | `true` to disable all write tools                                                                                   |
-| `AUTOTASK_CLOSED_STATUS_IDS`    | no        | Ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)                               |
-| `AUTOTASK_TRANSPORT`            | no        | `http` or `stdio`. Defaults to `stdio`, except on Cloud Run / Knative (`K_SERVICE` set) where it defaults to `http` |
-| `AUTOTASK_HTTP_TOKEN`           | http only | Bearer token (>= 16 chars) required to call `/mcp`. Absent or shorter, and `/mcp` refuses every request with 503    |
-| `AUTOTASK_HTTP_HOST`            | no        | HTTP bind host (default `127.0.0.1`, or `0.0.0.0` when `K_SERVICE` is set)                                          |
-| `PORT`                          | no        | HTTP port (default `3000`)                                                                                          |
-| `AUTOTASK_HTTP_ALLOWED_HOSTS`   | no        | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset trusts the proxy                                 |
-| `AUTOTASK_HTTP_ALLOWED_ORIGINS` | no        | Comma-separated browser `Origin` allowlist. **Unset denies every browser origin**                                   |
-| `AUTOTASK_RATE_LIMIT`           | no        | Requests per minute per client IP against `/mcp` (default `120`, `0` disables)                                      |
-| `AUTOTASK_MAX_SESSIONS`         | no        | Concurrent MCP sessions before `/mcp` returns 503 (default `100`)                                                   |
-| `AUTOTASK_SESSION_TTL_MS`       | no        | Idle session lifetime (default `1800000`, 30 minutes)                                                               |
-| `AUTOTASK_MAX_BODY_BYTES`       | no        | Max request body size (default `4194304`, 4 MB)                                                                     |
-| `AUTOTASK_THRESHOLD_STOP_PCT`   | no        | Refuse Autotask calls at this % of the tenant hourly budget (default `90`)                                          |
-| `AUTOTASK_THRESHOLD_WARN_PCT`   | no        | Warn at this % (default `75`, where Autotask starts adding latency)                                                 |
-| `AUTOTASK_MAX_CONCURRENT`       | no        | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)                         |
+| Variable                        | Required | Description                                                                                                         |
+| ------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `AUTOTASK_USERNAME`             | yes      | Autotask API user name                                                                                              |
+| `AUTOTASK_SECRET`               | yes      | Autotask API secret                                                                                                 |
+| `AUTOTASK_INTEGRATION_CODE`     | yes      | Integration code / API tracking identifier                                                                          |
+| `AUTOTASK_API_URL`              | no       | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`)            |
+| `AUTOTASK_READ_ONLY`            | no       | `true` to disable all write tools                                                                                   |
+| `AUTOTASK_CLOSED_STATUS_IDS`    | no       | Ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)                               |
+| `AUTOTASK_TRANSPORT`            | no       | `http` or `stdio`. Defaults to `stdio`, except on Cloud Run / Knative (`K_SERVICE` set) where it defaults to `http` |
+| `AUTOTASK_HTTP_HOST`            | no       | HTTP bind host (default `127.0.0.1`, or `0.0.0.0` when `K_SERVICE` is set)                                          |
+| `PORT`                          | no       | HTTP port (default `3000`)                                                                                          |
+| `AUTOTASK_HTTP_ALLOWED_HOSTS`   | no       | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset trusts the proxy                                 |
+| `AUTOTASK_HTTP_ALLOWED_ORIGINS` | no       | Comma-separated browser `Origin` allowlist. **Unset denies every browser origin**                                   |
+| `AUTOTASK_RATE_LIMIT`           | no       | Requests per minute per client IP against `/mcp` (default `120`, `0` disables)                                      |
+| `AUTOTASK_MAX_SESSIONS`         | no       | Concurrent MCP sessions before `/mcp` returns 503 (default `100`)                                                   |
+| `AUTOTASK_SESSION_TTL_MS`       | no       | Idle session lifetime (default `1800000`, 30 minutes)                                                               |
+| `AUTOTASK_MAX_BODY_BYTES`       | no       | Max request body size (default `4194304`, 4 MB)                                                                     |
+| `AUTOTASK_THRESHOLD_STOP_PCT`   | no       | Refuse Autotask calls at this % of the tenant hourly budget (default `90`)                                          |
+| `AUTOTASK_THRESHOLD_WARN_PCT`   | no       | Warn at this % (default `75`, where Autotask starts adding latency)                                                 |
+| `AUTOTASK_MAX_CONCURRENT`       | no       | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)                         |
 
 ## Tools
 
@@ -280,8 +282,8 @@ AUTOTASK_READ_ONLY=true node dist/index.js
 curl http://127.0.0.1:3000/health
 # {"ok":true,"mode":"full","uptimeSeconds":41,"sessions":2,"autotaskUsagePct":12.4}
 
-# MCP endpoint — requires the bearer token
-curl -H "Authorization: Bearer $AUTOTASK_HTTP_TOKEN" http://127.0.0.1:3000/mcp
+# MCP endpoint — requires a bearer from the Google sign-in flow
+curl -i -X POST http://127.0.0.1:3000/mcp   # 401 + WWW-Authenticate: Bearer resource_metadata=...
 ```
 
 ## HTTP transport
@@ -309,22 +311,21 @@ closes DNS rebinding without a separate switch. Set it only for a real browser
 client; CORS headers, including `Access-Control-Expose-Headers: Mcp-Session-Id`,
 are emitted only for an allowlisted origin.
 
-**It starts even when unconfigured.** Missing credentials or a missing
-`AUTOTASK_HTTP_TOKEN` do not stop the process. It boots, `/health` returns 200
+**It starts even when unconfigured.** Missing Autotask credentials or missing
+Google sign-in config do not stop the process. It boots, `/health` returns 200
 with `configured: false` and a `missingConfig` list, and `/mcp` refuses every
-request with 503 until a token is set. Exiting instead would crash-loop a
-container before anything could report the reason, and would make "deploy, then
-configure" impossible. Since `/mcp` is closed in that state, starting up cannot
-expose the tool surface.
+request with 503. Exiting instead would crash-loop a container before anything
+could report the reason, and would make "deploy, then configure" impossible.
+Since `/mcp` is closed in that state, starting up cannot expose the tool
+surface.
 
 ## Who is connecting, and why it matters
 
 Two ways in, and they are **not** equivalent:
 
 |                            | Google sign-in                                | Static bearer               |
-| -------------------------- | --------------------------------------------- | --------------------------- |
-| Configured by              | `AUTOTASK_OAUTH_*` + `AUTOTASK_BASE_URL`      | `AUTOTASK_HTTP_TOKEN`       |
-| Identity                   | a verified Google email                       | none                        |
+| -------------------------- | --------------------------------------------- | --------------------------- | ----------------------- | ---- |
+| Configured by              | `AUTOTASK_OAUTH_*` + `AUTOTASK_BASE_URL`      | Identity                    | a verified Google email | none |
 | Writes attributed to       | **the person**, via `ImpersonationResourceId` | the API user                |
 | claude.ai custom connector | works                                         | does not connect            |
 | Intended for               | people                                        | scripts and machine callers |
@@ -379,11 +380,11 @@ The probe costs one call per minute and its reading is surfaced on `/health`.
 - **Confirmation tokens**: _every_ mutating tool — generic and convenience alike (`create-*`, `update-*`, `delete-*`) — requires a `confirm` argument equal to the upper-snake-cased tool name (e.g. `CREATE_TICKET`, `DELETE_ENTITY`) before it executes. This blocks accidental single-call writes to production data.
 - **Strict argument validation**: numeric tool arguments are validated; non-numeric input is rejected with a clear error instead of being sent to Autotask as `null`.
 - **Secret redaction**: credentials and tokens are stripped from error messages before they reach the model or logs.
-- **HTTP auth**: the HTTP transport refuses to start without a `>= 16` char bearer token. `/mcp` requires `Authorization: Bearer <AUTOTASK_HTTP_TOKEN>` (constant-time compared) and returns `401` otherwise. `/health` is intentionally unauthenticated, for container/orchestrator health checks only. Default bind host is `127.0.0.1`; expose beyond localhost (e.g. `0.0.0.0` in Docker) only behind your own network controls.
+- **HTTP auth**: `/mcp` requires a bearer issued by this server's own Google sign-in flow, and returns `401` with a `WWW-Authenticate` challenge pointing at the OAuth metadata otherwise. There is no shared static token. `/health` is intentionally unauthenticated, for container/orchestrator health checks only. Default bind host is `127.0.0.1`; expose beyond localhost (e.g. `0.0.0.0` in Docker) only behind your own network controls.
 - **Browser origins denied by default**: an unset `AUTOTASK_HTTP_ALLOWED_ORIGINS` rejects any request carrying an `Origin` header, so a malicious page cannot drive the server via DNS rebinding. `AUTOTASK_HTTP_ALLOWED_HOSTS` adds `Host` pinning on top.
 - **Abuse limits**: per-IP rate limiting on `/mcp` (`AUTOTASK_RATE_LIMIT`), a request body cap (`AUTOTASK_MAX_BODY_BYTES`), a session cap (`AUTOTASK_MAX_SESSIONS`) and idle session reaping (`AUTOTASK_SESSION_TTL_MS`).
 - **Tenant blast-radius guard**: the budget governor stops calls before the shared Autotask hourly budget is exhausted, which would otherwise suspend API access for every integration on the database, not just this one.
-- **No user attribution yet**: auth is a single shared token, so every write lands as the API user. Autotask offers no OAuth or per-user credentials; `ImpersonationResourceId` is the path to real attribution once the server has a user identity to bind.
+- **Attributed writes**: every session carries the signed-in person's Autotask resource id, sent as `ImpersonationResourceId` on creates, so records are attributed to them rather than to the shared API user.
 
 ## Development
 
