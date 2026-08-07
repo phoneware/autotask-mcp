@@ -41,6 +41,11 @@ import { FirestoreClientsStore, FirestoreTokenStore } from './auth/firestore-sto
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
 import { withCaller, type CallerIdentity } from './auth/context.js';
 import type { Capability } from './auth/capabilities.js';
+import {
+  isAllowedRedirectUri,
+  isPlausibleClientId,
+  DEFAULT_REDIRECT_ALLOWLIST,
+} from './auth/redirect-policy.js';
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '127.0.0.1';
@@ -238,6 +243,11 @@ export interface AppOptions {
   createSession: SessionFactory;
   /** Where OAuth clients and tokens live. Surfaced on /health. */
   persistence?: Persistence;
+  /**
+   * Non-loopback redirect targets a client may use. Loopback is always
+   * permitted. Defaults to the hosted connector callback.
+   */
+  redirectAllowlist?: readonly string[];
 }
 
 /** Everything still missing before the server can actually serve. */
@@ -312,12 +322,29 @@ export function createApp(opts: AppOptions): Express {
   if (opts.googleProvider && opts.baseUrl) {
     const mcpUrl = new URL('/mcp', opts.baseUrl);
 
-    // An unknown client_id is a dead end the person in the browser can actually
-    // fix, by removing and re-adding the connector so it registers again. The
-    // SDK answers it with a bare {"error":"invalid_client"} JSON body, which
-    // tells them nothing, so intercept it first and say what to do.
+    // Registration is open, so where the code is delivered is the boundary that
+    // matters. Enforce it on the way in rather than trusting what a client
+    // declares about itself.
+    app.post('/register', (req: Request, res: Response, next: NextFunction) => {
+      const declared = (req.body as { redirect_uris?: unknown } | undefined)?.redirect_uris;
+      const uris = Array.isArray(declared) ? declared : [];
+      const bad = uris.filter(
+        (u) => typeof u !== 'string' || !isAllowedRedirectUri(u, opts.redirectAllowlist),
+      );
+      if (bad.length === 0) {
+        next();
+        return;
+      }
+      console.error(`[autotask-mcp] refused registration for redirect_uri ${JSON.stringify(bad)}`);
+      res.status(400).json({
+        error: 'invalid_redirect_uri',
+        error_description:
+          'redirect_uri must be a loopback address or an allowlisted callback for this server.',
+      });
+    });
+
     app.all('/authorize', (req: Request, res: Response, next: NextFunction) => {
-      void explainUnknownClient(req, res, next, opts.googleProvider!);
+      void resolveClient(req, res, next, opts);
     });
 
     app.use(
@@ -373,24 +400,48 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Answer /authorize for a client_id we have never heard of with something a
- * person can act on, then get out of the way for every other request.
+ * Make sure /authorize has a client to work with, adopting the one it presents
+ * when that is safe.
  *
- * A client reaches this state by holding a registration that no longer exists:
- * one issued before client persistence landed, or one deleted since. The OAuth
- * remedy is for the client to register again, which claude.ai only does when
- * the connector is removed and re-added, so that is what this page asks for.
+ * A client reaches us with an unknown client_id by holding a registration the
+ * server no longer has: issued before client persistence existed, or removed
+ * since. Clients do not recover from this on their own. Claude Code re-sends
+ * the same cached id and fails again, so telling the person to remove and
+ * re-add the connector does not help, because nothing prompts the client to
+ * register a second time.
+ *
+ * So we register it for them. That is not the concession it first looks like:
+ * `/register` is open and unauthenticated, as MCP clients require, so anyone
+ * can already obtain a client_id for the asking. The id is not a secret and
+ * never proved anything. What does matter is where the code is delivered, and
+ * that is checked here against the same policy /register enforces, so an
+ * adopted client can only ever point somewhere we would have allowed it to
+ * register for anyway.
+ *
+ * A redirect_uri outside the policy is the one case that still refuses, and it
+ * is worth refusing loudly: it is what an attacker phishing a phoneware.us
+ * account would need.
  */
-async function explainUnknownClient(
+async function resolveClient(
   req: Request,
   res: Response,
   next: NextFunction,
-  provider: GoogleAuthProvider,
+  opts: AppOptions,
 ): Promise<void> {
-  const fromQuery = req.query.client_id;
-  const fromBody = (req.body as { client_id?: unknown } | undefined)?.client_id;
-  const clientId =
-    typeof fromQuery === 'string' ? fromQuery : typeof fromBody === 'string' ? fromBody : undefined;
+  const provider = opts.googleProvider;
+  if (!provider) {
+    next();
+    return;
+  }
+  const param = (name: string): string | undefined => {
+    const q = req.query[name];
+    if (typeof q === 'string') return q;
+    const b = (req.body as Record<string, unknown> | undefined)?.[name];
+    return typeof b === 'string' ? b : undefined;
+  };
+
+  const clientId = param('client_id');
+  const redirectUri = param('redirect_uri');
 
   // No client_id at all is the SDK's error to report, not ours.
   if (!clientId) {
@@ -411,13 +462,44 @@ async function explainUnknownClient(
     return;
   }
 
-  console.error(`[autotask-mcp] /authorize for unregistered client_id ${clientId}`);
+  const adoptable =
+    redirectUri !== undefined &&
+    isPlausibleClientId(clientId) &&
+    isAllowedRedirectUri(redirectUri, opts.redirectAllowlist) &&
+    provider.clientsStore.registerClient !== undefined;
+
+  if (adoptable) {
+    try {
+      await provider.clientsStore.registerClient!({
+        client_id: clientId,
+        client_name: 'Adopted on first authorize',
+        redirect_uris: [redirectUri],
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+      } as never);
+      console.error(
+        `[autotask-mcp] adopted previously-registered client_id ${clientId} for ${redirectUri}`,
+      );
+      next();
+      return;
+    } catch (err) {
+      console.error(`[autotask-mcp] could not adopt ${clientId}: ${(err as Error).message}`);
+      next();
+      return;
+    }
+  }
+
+  console.error(
+    `[autotask-mcp] refused /authorize for client_id ${clientId} with redirect_uri ` +
+      `${redirectUri ?? '(none)'}: outside the redirect policy`,
+  );
   res.status(400).type('html').send(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reconnect Autotask MCP</title>
+<title>Autotask MCP sign-in refused</title>
 <style>
   body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
          max-width: 34rem; margin: 12vh auto; padding: 0 1.5rem; color: #1c1c1c; }
@@ -434,17 +516,17 @@ async function explainUnknownClient(
 </style>
 </head>
 <body>
-<h1>This connector needs to be added again</h1>
-<p>Autotask MCP does not recognise the app that sent you here, so there is
-nothing to sign in to yet. Its registration no longer exists on the server.</p>
-<ol>
-  <li>Open your connector settings.</li>
-  <li>Remove the Autotask connector.</li>
-  <li>Add it back, pointing at <code>${escapeHtml(new URL('/mcp', `${req.protocol}://${req.get('host') ?? ''}`).href)}</code>.</li>
-  <li>Sign in with your Phoneware Google account when prompted.</li>
-</ol>
-<p>Adding it back registers a fresh client, and sign-in will work from there.</p>
-<p class="muted">Unrecognised client_id: <code>${escapeHtml(clientId)}</code></p>
+<h1>This sign-in was refused</h1>
+<p>The app that sent you here asked Autotask MCP to return your sign-in to
+<code>${escapeHtml(redirectUri ?? 'an unspecified address')}</code>, which is not
+somewhere this server will send one.</p>
+<p>If you started this from Claude Code or the Autotask connector, that is not
+the address either of them uses, and you should treat the link that brought you
+here as untrustworthy. <strong>Do not sign in.</strong></p>
+<p>Connect instead by adding the connector yourself, pointing at
+<code>${escapeHtml(new URL('/mcp', `${req.protocol}://${req.get('host') ?? ''}`).href)}</code>,
+and signing in when it prompts you.</p>
+<p class="muted">Nothing was signed in and nothing was changed in Autotask.</p>
 </body>
 </html>`);
 }
@@ -739,6 +821,9 @@ export async function runHttp(): Promise<RunningServer> {
     maxBodyBytes: envInt('AUTOTASK_MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES),
     createSession: defaultCreateSession,
     persistence,
+    redirectAllowlist: envList('AUTOTASK_OAUTH_REDIRECT_ALLOWLIST').length
+      ? envList('AUTOTASK_OAUTH_REDIRECT_ALLOWLIST')
+      : DEFAULT_REDIRECT_ALLOWLIST,
   };
 
   const app = createApp(opts);
