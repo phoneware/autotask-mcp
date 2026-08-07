@@ -11,15 +11,32 @@ import {
   CONFIRM_REQUIRED_TOOLS,
   confirmTokenFor,
   assertConfirmToken,
+  assertCapability,
+  capabilityForTool,
   isReadonly,
 } from './security.js';
+import { permits, type Capability } from './auth/capabilities.js';
+import { currentCaller } from './auth/context.js';
 
 const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf-8'),
 ) as { version: string };
 
-/** Build a fully configured MCP server (tools + resources + guards). */
-export function buildServer(): { server: McpServer; registeredCount: number; skipped: number } {
+/**
+ * Build a fully configured MCP server (tools + resources + guards).
+ *
+ * `capabilities` is what the signed-in person may do. Tools beyond it are not
+ * registered at all, which is the same stance read-only mode already takes: a
+ * tool that does not exist cannot be called by a confused agent, and the model
+ * is not tempted by a capability it will only be refused. Omitting the argument
+ * builds the full surface, which is what stdio (a single trusted local
+ * operator, no sign-in) and the tool-count tests want.
+ */
+export function buildServer(capabilities?: readonly Capability[]): {
+  server: McpServer;
+  registeredCount: number;
+  skipped: number;
+} {
   const server = new McpServer({ name: 'autotask-mcp-server', version: pkg.version });
   const readonly = isReadonly();
   let registeredCount = 0;
@@ -29,6 +46,10 @@ export function buildServer(): { server: McpServer; registeredCount: number; ski
     const isDestructive = DESTRUCTIVE_TOOLS.has(tool.name);
     const requiresConfirm = CONFIRM_REQUIRED_TOOLS.has(tool.name);
     if (readonly && isDestructive) {
+      skipped++;
+      continue;
+    }
+    if (capabilities && !permits(capabilities, capabilityForTool(tool.name))) {
       skipped++;
       continue;
     }
@@ -55,6 +76,17 @@ export function buildServer(): { server: McpServer; registeredCount: number; ski
         const stringArgs: Record<string, string> = {};
         for (const [k, v] of Object.entries(args)) {
           if (v !== undefined) stringArgs[k] = String(v);
+        }
+
+        // Re-check rights at call time, not just at registration. Identity is
+        // bound per request while a session outlives one, so the person making
+        // this call is not necessarily the one the session was built for.
+        // Skipped when there is no caller at all: that is stdio, where the
+        // operator is the process owner and there is no sign-in to derive
+        // rights from.
+        const caller = currentCaller();
+        if (caller) {
+          assertCapability(tool.name, caller.capabilities, caller.email);
         }
 
         if (confirmToken) {

@@ -5,8 +5,10 @@ import { companyTools } from './companies.js';
 import { contactTools } from './contacts.js';
 import { projectTools } from './projects.js';
 import { timeEntryTools } from './timeentries.js';
+import { identityTools } from './identity.js';
 
 export const allTools: ToolDefinition[] = [
+  ...identityTools,
   ...genericTools,
   ...ticketTools,
   ...companyTools,

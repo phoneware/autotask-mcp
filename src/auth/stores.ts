@@ -20,6 +20,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { Capability } from './capabilities.js';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 
@@ -32,8 +33,16 @@ export interface StoredToken {
   scopes?: string[];
   /** Google account that authenticated. */
   email: string;
-  /** Autotask Resource id for that email, when one exists. */
+  /**
+   * Autotask Resource id for that email. Required at issue time, but optional
+   * on the type because tokens minted before authorization existed are still
+   * readable from Firestore; those are treated as having no rights.
+   */
   resourceId?: number;
+  /** Autotask security level (Resource.userType) at the time of issue. */
+  userType?: number;
+  /** What the person may do. Absent on pre-authorization tokens. */
+  capabilities?: Capability[];
 }
 
 /**

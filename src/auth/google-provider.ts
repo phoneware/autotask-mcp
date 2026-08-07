@@ -36,7 +36,8 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { StoredToken, TokenStoreLike } from './stores.js';
-import { resourceIdForEmail } from './resource-lookup.js';
+import { resolveResourceForEmail, isResolved } from './resource-lookup.js';
+import type { Capability } from './capabilities.js';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -60,7 +61,9 @@ interface AuthCodeEntry {
   mcpRedirectUri: string;
   scopes?: string[];
   email: string;
-  resourceId?: number;
+  resourceId: number;
+  userType?: number;
+  capabilities: readonly Capability[];
   createdAt: number;
 }
 
@@ -200,11 +203,17 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     url.searchParams.set('redirect_uri', this.opts.callbackUrl);
     url.searchParams.set('scope', 'openid email');
     url.searchParams.set('state', state);
-    // Nudge Google's account chooser toward the right workspace, and keep the
-    // consent screen out of the way on repeat sign-ins.
+    // Nudge Google's account chooser toward the right workspace.
     if (this.opts.allowedDomains.length === 1) {
       url.searchParams.set('hd', this.opts.allowedDomains[0]);
     }
+    // Always make the person pick. Without this, Google silently reuses whatever
+    // session the browser already has, so someone with several Google accounts
+    // gets signed in as whichever one happened to be active, with no visible
+    // choice. The identity chosen here decides which Autotask resource we
+    // impersonate and which rights the session gets, so it has to be deliberate
+    // rather than inherited from browser state.
+    url.searchParams.set('prompt', 'select_account');
     res.redirect(url.toString());
   }
 
@@ -257,14 +266,15 @@ export class GoogleAuthProvider implements OAuthServerProvider {
       return;
     }
 
-    // Resolve attribution now, while a browser is present to see any problem,
-    // rather than on the first write.
-    const resourceId = await resourceIdForEmail(email);
-    if (resourceId === undefined) {
-      console.error(
-        `[autotask-mcp] ${email} signed in but has no matching Autotask resource; ` +
-          'their writes will be attributed to the API user.',
-      );
+    // Resolve identity and rights now, while a browser is present to show the
+    // reason. This gates the sign-in rather than decorating it: a person we
+    // cannot resolve to exactly one active Autotask resource has no identity to
+    // act as, and letting them through would mean writes landing as the API
+    // user with nobody's name on them.
+    const resolution = await resolveResourceForEmail(email);
+    if (!isResolved(resolution)) {
+      res.status(403).send(this.refusalPage(email, resolution.reason));
+      return;
     }
 
     const ourCode = randomUUID();
@@ -274,7 +284,9 @@ export class GoogleAuthProvider implements OAuthServerProvider {
       mcpRedirectUri: pending.mcpRedirectUri,
       scopes: pending.scopes,
       email,
-      resourceId,
+      resourceId: resolution.resourceId,
+      userType: resolution.userType,
+      capabilities: resolution.capabilities,
       createdAt: Date.now(),
     });
 
@@ -283,6 +295,44 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     if (pending.mcpState) redirect.searchParams.set('state', pending.mcpState);
     res.redirect(redirect.toString());
   };
+
+  /**
+   * A refusal the person can act on. They authenticated with Google fine; what
+   * failed is the Autotask side, and only an Autotask administrator can fix it,
+   * so say which account was rejected and why.
+   */
+  private refusalPage(email: string, reason: string): string {
+    return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autotask access refused</title>
+<style>
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         max-width: 34rem; margin: 12vh auto; padding: 0 1.5rem; color: #1c1c1c; }
+  h1 { font-size: 1.35rem; margin-bottom: .5rem; }
+  code { background: #f0f0f0; padding: .1rem .35rem; border-radius: 3px; font-size: .85em; }
+  .muted { color: #666; font-size: .85rem; margin-top: 2rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #161616; color: #e8e8e8; }
+    code { background: #2a2a2a; }
+    .muted { color: #999; }
+  }
+</style>
+</head>
+<body>
+<h1>Signed in, but not allowed into Autotask</h1>
+<p>Google confirmed you as <code>${escapeHtml(email)}</code>, but this server
+could not match that to an Autotask account it can act as.</p>
+<p><strong>${escapeHtml(reason)}</strong></p>
+<p>Every action here is carried out as a specific Autotask person, so without
+that match there is nothing to act as. If you signed in with the wrong Google
+account, start the connection again and pick the right one.</p>
+<p class="muted">Nothing was changed in Autotask.</p>
+</body>
+</html>`;
+  }
 
   private async exchangeWithGoogle(code: string): Promise<IdTokenClaims | null> {
     const resp = await fetch(GOOGLE_TOKEN_URL, {
@@ -334,7 +384,14 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     // Single use, whatever happens next.
     this.authCodes.delete(authorizationCode);
 
-    return this.issueTokens(client.client_id, entry.email, entry.resourceId, entry.scopes);
+    return this.issueTokens(
+      client.client_id,
+      entry.email,
+      entry.resourceId,
+      entry.userType,
+      entry.capabilities,
+      entry.scopes,
+    );
   }
 
   async exchangeRefreshToken(
@@ -348,13 +405,20 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     }
     await this.opts.tokenStore.delete(stored.accessToken);
 
-    // Re-resolve the resource: someone may have been given an Autotask
-    // account, or had one deactivated, since they first signed in.
-    const resourceId = await resourceIdForEmail(stored.email);
+    // Re-resolve on every refresh: someone may have been deactivated, or had
+    // their security level changed, since they first signed in. A refresh is
+    // the only checkpoint we get, so rights must be re-derived here rather than
+    // carried forward from the original sign-in.
+    const resolution = await resolveResourceForEmail(stored.email);
+    if (!isResolved(resolution)) {
+      throw new Error(`invalid_grant: ${resolution.reason}`);
+    }
     return this.issueTokens(
       client.client_id,
       stored.email,
-      resourceId,
+      resolution.resourceId,
+      resolution.userType,
+      resolution.capabilities,
       scopes ?? stored.scopes,
       refreshToken,
     );
@@ -363,7 +427,9 @@ export class GoogleAuthProvider implements OAuthServerProvider {
   private async issueTokens(
     clientId: string,
     email: string,
-    resourceId: number | undefined,
+    resourceId: number,
+    userType: number | undefined,
+    capabilities: readonly Capability[],
     scopes?: string[],
     reuseRefreshToken?: string,
   ): Promise<OAuthTokens> {
@@ -378,6 +444,8 @@ export class GoogleAuthProvider implements OAuthServerProvider {
       scopes,
       email,
       resourceId,
+      userType,
+      capabilities: [...capabilities],
     };
     await this.opts.tokenStore.set(stored);
 
@@ -399,13 +467,26 @@ export class GoogleAuthProvider implements OAuthServerProvider {
       await this.opts.tokenStore.delete(token);
       throw new Error('invalid_token: access token expired');
     }
+    // A token with no capabilities was minted before rights were enforced, so
+    // nobody ever checked whether this person should have been let in. Refuse
+    // it rather than guessing a safe floor: the client still holds a refresh
+    // token, and refreshing re-resolves the person against Autotask properly.
+    if (!stored.capabilities?.length || stored.resourceId === undefined) {
+      await this.opts.tokenStore.delete(token);
+      throw new Error('invalid_token: issued before authorization, sign in again');
+    }
 
     return {
       token,
       clientId: stored.clientId,
       scopes: stored.scopes ?? [],
       expiresAt: Math.floor(stored.expiresAt / 1000),
-      extra: { email: stored.email, resourceId: stored.resourceId },
+      extra: {
+        email: stored.email,
+        resourceId: stored.resourceId,
+        userType: stored.userType,
+        capabilities: stored.capabilities ?? [],
+      },
     };
   }
 

@@ -134,6 +134,8 @@ function token(overrides: Record<string, unknown> = {}) {
     expiresAt: Date.now() + 3_600_000,
     email: 'dave@phoneware.us',
     resourceId: 77,
+    userType: 14,
+    capabilities: ['read', 'create', 'update', 'delete'],
     ...overrides,
   };
 }

@@ -52,6 +52,8 @@ function authedProvider(): GoogleAuthProvider {
     expiresAt: Date.now() + 3_600_000,
     email: 'dave@phoneware.us',
     resourceId: 77,
+    userType: 14,
+    capabilities: ['read', 'create', 'update', 'delete'],
   });
   return provider;
 }
@@ -106,17 +108,32 @@ describe('callerFrom', () => {
   // The seam between "the provider verified this token" and "the Autotask call
   // carries ImpersonationResourceId". Everything either side of it is covered
   // in google-auth and integration; this is the join.
-  it('lifts the signed-in person out of a verified request', () => {
+  it('lifts the signed-in person and their rights out of a verified request', () => {
     expect(
-      callerFrom({ auth: { extra: { email: 'dave@phoneware.us', resourceId: 77 } } } as never),
-    ).toEqual({ email: 'dave@phoneware.us', resourceId: 77 });
+      callerFrom({
+        auth: {
+          extra: {
+            email: 'dave@phoneware.us',
+            resourceId: 77,
+            userType: 14,
+            capabilities: ['read', 'create'],
+          },
+        },
+      } as never),
+    ).toEqual({
+      email: 'dave@phoneware.us',
+      resourceId: 77,
+      userType: 14,
+      capabilities: ['read', 'create'],
+    });
   });
 
-  it('keeps the email when the person has no Autotask resource', () => {
-    expect(callerFrom({ auth: { extra: { email: 'dave@phoneware.us' } } } as never)).toEqual({
-      email: 'dave@phoneware.us',
-      resourceId: undefined,
-    });
+  it('yields no caller when there is no Autotask resource to act as', () => {
+    // Without a resource id there is nobody to impersonate, and a write would
+    // land as the API user with no name on it. No caller means no rights.
+    expect(
+      callerFrom({ auth: { extra: { email: 'dave@phoneware.us' } } } as never),
+    ).toBeUndefined();
   });
 
   it('yields no caller for an unauthenticated request', () => {
@@ -124,10 +141,16 @@ describe('callerFrom', () => {
     expect(callerFrom({ auth: { extra: {} } } as never)).toBeUndefined();
   });
 
-  it('ignores a non-numeric resourceId rather than sending garbage upstream', () => {
+  it('rejects a non-numeric resourceId rather than sending garbage upstream', () => {
     expect(
       callerFrom({ auth: { extra: { email: 'd@phoneware.us', resourceId: '77' } } } as never),
-    ).toEqual({ email: 'd@phoneware.us', resourceId: undefined });
+    ).toBeUndefined();
+  });
+
+  it('defaults to no capabilities when the token carries none', () => {
+    expect(
+      callerFrom({ auth: { extra: { email: 'd@phoneware.us', resourceId: 77 } } } as never),
+    ).toEqual({ email: 'd@phoneware.us', resourceId: 77, userType: undefined, capabilities: [] });
   });
 });
 
@@ -370,6 +393,17 @@ describe('end-to-end MCP over HTTP', () => {
     await client.close();
   });
 
+  it('offers an administrator the mutating tools', async () => {
+    const { client, transport } = await connect();
+    const names = (await client.listTools()).tools.map((t) => t.name);
+
+    expect(names).toContain('delete-entity');
+    expect(names).toContain('update-ticket');
+    expect(names).toContain('whoami');
+    await transport.terminateSession();
+    await client.close();
+  });
+
   it('serves two concurrent clients with independent sessions', async () => {
     // The regression test for the single-shared-transport bug: before the
     // session store, the second client's initialize returned 400 "Server
@@ -397,5 +431,130 @@ describe('end-to-end MCP over HTTP', () => {
     const client = new Client({ name: 'anon', version: '1.0.0' });
     const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`));
     await expect(client.connect(transport)).rejects.toThrow();
+  });
+});
+
+// --- rights, over the wire ---------------------------------------------------
+
+describe('a limited person over real MCP', () => {
+  // The end-to-end proof of the authorization layer: what a client is offered
+  // has to match the person's Autotask security level, not the API user's
+  // system-administrator rights.
+  const LIMITED = 'a-service-desk-token-1234567890';
+  const sessions = new SessionStore();
+  let base: string;
+  let server: Server;
+  let limitedProvider: GoogleAuthProvider;
+
+  beforeAll(async () => {
+    const tokenStore = new TokenStore();
+    const provider = new GoogleAuthProvider({
+      clientId: 'test-client.apps.googleusercontent.com',
+      clientSecret: 'test-secret',
+      callbackUrl: 'https://example.com/callback',
+      allowedDomains: ['phoneware.us'],
+      clientsStore: new MemoryClientsStore(),
+      tokenStore,
+    });
+    // The real Service Desk User contractor in the tenant: read and create.
+    tokenStore.set({
+      accessToken: LIMITED,
+      refreshToken: 'limited-refresh',
+      clientId: 'mcp-client',
+      expiresAt: Date.now() + 3_600_000,
+      email: 'contractor@phoneware.us',
+      resourceId: 4242,
+      userType: 20,
+      capabilities: ['read', 'create'],
+    });
+    limitedProvider = provider;
+    ({ base, server } = await listen(options({ googleProvider: provider, sessions })));
+  });
+
+  afterAll(async () => {
+    await sessions.closeAll();
+    await close(server);
+  });
+
+  it('is offered reads and creates but never updates or deletes', async () => {
+    const client = new Client({ name: 'limited', version: '1.0.0' });
+    const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`), {
+      requestInit: { headers: { Authorization: `Bearer ${LIMITED}` } },
+    });
+    await client.connect(transport);
+    const names = (await client.listTools()).tools.map((t) => t.name);
+
+    expect(names).toContain('search-tickets');
+    expect(names).toContain('create-ticket');
+    expect(names).not.toContain('update-ticket');
+    expect(names).not.toContain('delete-entity');
+    expect(names).not.toContain('update-entity');
+
+    await transport.terminateSession();
+    await client.close();
+  });
+
+  it('is refused at call time even if it names a withheld tool directly', async () => {
+    // Registration filtering is what they see; this is the gate that holds
+    // when something reaches the handler anyway.
+    const client = new Client({ name: 'limited', version: '1.0.0' });
+    const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`), {
+      requestInit: { headers: { Authorization: `Bearer ${LIMITED}` } },
+    });
+    await client.connect(transport);
+
+    const result = (await client.callTool({
+      name: 'delete-entity',
+      arguments: { confirm: 'DELETE_ENTITY', entity: 'Companies', id: '1' },
+    })) as { isError?: boolean; content?: Array<{ text?: string }> };
+
+    expect(result.isError).toBe(true);
+    // Nothing reached Autotask: it failed on rights, not on the request.
+    expect(result.content?.[0]?.text ?? '').toMatch(/not found|capability/i);
+
+    await transport.terminateSession();
+    await client.close();
+  });
+
+  it('refuses at call time even when the session was built with more rights', async () => {
+    // Registration filtering cannot cover this: identity is bound per request
+    // while a session outlives one, so a session holding tools the current
+    // caller may not use is reachable. Building the full surface regardless of
+    // the caller reproduces that, and the call itself must still be refused.
+    const wideSessions = new SessionStore();
+    const { base: wideBase, server: wideServer } = await listen(
+      options({
+        googleProvider: limitedProvider,
+        sessions: wideSessions,
+        createSession: (hooks) => defaultCreateSession(hooks, undefined),
+      }),
+    );
+
+    try {
+      const client = new Client({ name: 'limited', version: '1.0.0' });
+      const transport = new StreamableHTTPClientTransport(new URL(`${wideBase}/mcp`), {
+        requestInit: { headers: { Authorization: `Bearer ${LIMITED}` } },
+      });
+      await client.connect(transport);
+
+      // The tool exists in this session, so this is the runtime gate alone.
+      expect((await client.listTools()).tools.map((t) => t.name)).toContain('delete-entity');
+
+      const result = (await client.callTool({
+        name: 'delete-entity',
+        arguments: { confirm: 'DELETE_ENTITY', entity: 'Companies', id: '1' },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+
+      expect(result.isError).toBe(true);
+      expect(result.content?.[0]?.text ?? '').toMatch(
+        /"delete" capability, which contractor@phoneware\.us does not have/,
+      );
+
+      await transport.terminateSession();
+      await client.close();
+    } finally {
+      await wideSessions.closeAll();
+      await close(wideServer);
+    }
   });
 });
