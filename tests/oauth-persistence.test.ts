@@ -155,38 +155,117 @@ afterAll(async () => {
 });
 
 describe('/authorize with an unknown client', () => {
-  it('explains how to fix it instead of returning bare JSON', async () => {
-    const res = await fetch(authorizeUrl('c13c9bc3-2d84-469e-9ad0-165457c895ea'), {
-      redirect: 'manual',
-    });
+  // Clients do not re-register when told invalid_client; Claude Code re-sends
+  // the same cached id and fails again. Since /register is open anyway, the id
+  // was never a secret, so adopting it costs nothing and is the only thing that
+  // actually unbreaks a client holding a registration the server has lost.
+  it('adopts a stale client_id and carries on to Google', async () => {
+    const stale = 'c13c9bc3-2d84-469e-9ad0-165457c895ea';
+    const res = await fetch(authorizeUrl(stale), { redirect: 'manual' });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toMatch(/^https:\/\/accounts\.google\.com\//);
+  });
+
+  it('persists the adopted client, so the next call is an ordinary lookup', async () => {
+    const stale = 'a-stale-but-plausible-client-id';
+    await fetch(authorizeUrl(stale), { redirect: 'manual' });
+
+    const stored = await clientsStore.getClient(stale);
+    expect(stored?.client_id).toBe(stale);
+    expect(stored?.redirect_uris).toEqual([REDIRECT]);
+  });
+
+  it('adopts a loopback client on any port, which is how CLI clients work', async () => {
+    // The port is picked per sign-in attempt, so it can never be pre-registered.
+    const url = new URL(`${base}/authorize`);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', 'a-claude-code-style-client');
+    url.searchParams.set('code_challenge', 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+    url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set('redirect_uri', 'http://localhost:3118/callback');
+
+    const res = await fetch(url, { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toMatch(/^https:\/\/accounts\.google\.com\//);
+  });
+
+  it('refuses to adopt a client pointing anywhere else, and says not to sign in', async () => {
+    // The phishing shape: an attacker-controlled destination for the code.
+    const url = new URL(`${base}/authorize`);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', 'attacker-supplied-client');
+    url.searchParams.set('code_challenge', 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+    url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set('redirect_uri', 'https://evil.example/steal');
+
+    const res = await fetch(url, { redirect: 'manual' });
     const body = await res.text();
 
     expect(res.status).toBe(400);
-    expect(res.headers.get('content-type')).toMatch(/text\/html/);
-    // The actionable part: remove and re-add, which is what re-registers it.
-    expect(body).toMatch(/Remove the Autotask connector/i);
-    expect(body).toMatch(/Add it back/i);
-    expect(body).not.toMatch(/"error":"invalid_client"/);
+    expect(body).toMatch(/Do not sign in/i);
+    expect(body).toContain('evil.example');
+    expect(await clientsStore.getClient('attacker-supplied-client')).toBeUndefined();
   });
 
-  it('echoes the offending client_id so it can be matched to a log line', async () => {
-    const res = await fetch(authorizeUrl('some-stale-id'), { redirect: 'manual' });
-    expect(await res.text()).toContain('some-stale-id');
-  });
+  it('escapes the refused redirect rather than reflecting markup', async () => {
+    const url = new URL(`${base}/authorize`);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', 'markup-probe');
+    url.searchParams.set('redirect_uri', 'https://evil.example/"><img src=x onerror=alert(1)>');
 
-  it('escapes the client_id rather than reflecting markup', async () => {
-    const res = await fetch(authorizeUrl('<img src=x onerror=alert(1)>'), { redirect: 'manual' });
-    const body = await res.text();
-
+    const body = await (await fetch(url, { redirect: 'manual' })).text();
     expect(body).not.toContain('<img src=x');
     expect(body).toContain('&lt;img src=x');
+  });
+
+  it('refuses an implausible client_id rather than storing junk', async () => {
+    const url = new URL(`${base}/authorize`);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', 'short');
+    url.searchParams.set('code_challenge', 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+    url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set('redirect_uri', REDIRECT);
+
+    expect((await fetch(url, { redirect: 'manual' })).status).toBe(400);
   });
 
   it('leaves a request with no client_id to the SDK', async () => {
     // Missing entirely is a different error, and not ours to describe.
     const res = await fetch(`${base}/authorize?response_type=code`, { redirect: 'manual' });
     expect(res.status).toBe(400);
-    expect(await res.text()).not.toMatch(/Remove the Autotask connector/i);
+    expect(await res.text()).not.toMatch(/Do not sign in/i);
+  });
+});
+
+describe('/register redirect policy', () => {
+  async function register(redirectUris: unknown) {
+    return fetch(`${base}/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'policy-probe',
+        redirect_uris: redirectUris,
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+      }),
+    });
+  }
+
+  it('accepts the callbacks real clients use', async () => {
+    expect((await register([REDIRECT])).status).toBe(201);
+    expect((await register(['http://127.0.0.1:51000/callback'])).status).toBe(201);
+  });
+
+  it('refuses a registration that would send codes off-machine', async () => {
+    const res = await register(['https://evil.example/steal']);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('invalid_redirect_uri');
+  });
+
+  it('refuses when any one of several redirects is disallowed', async () => {
+    expect((await register([REDIRECT, 'https://evil.example/steal'])).status).toBe(400);
   });
 });
 
