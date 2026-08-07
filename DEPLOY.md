@@ -26,11 +26,17 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   door, and its writes would land as the API user, which is the audit hole
   sign-in exists to close. A future headless caller should present a Google
   service-account ID token, not a shared secret.
-- **Token durability.** Issued tokens and DCR client registrations live in
-  instance memory, so a restart (including every deploy) forces a re-sign-in.
-  Google sign-in is usually a silent redirect, so that is a fair trade for not
-  standing up Firestore. Swap in the Firestore stores from peplink-mcp if it
-  ever needs to survive restarts.
+- **Token and client durability.** Issued tokens and DCR client registrations
+  live in Firestore (the `(default)` database in `phoneware-edge`, collections
+  `autotask_mcp_oauth_clients` and `autotask_mcp_oauth_tokens`), so a deploy
+  neither logs anyone out nor breaks an existing connection. This is not a
+  nicety: an MCP client registers once, caches the `client_id` it was issued,
+  and presents it forever after. When those registrations lived in instance
+  memory, every deploy invalidated every already-connected client, which then
+  got `{"error":"invalid_client"}` from `/authorize` with no way to know it
+  should register again. Firestore is chosen automatically wherever Cloud Run
+  is detected (`K_SERVICE`); `AUTOTASK_PERSISTENCE` overrides it, and `/health`
+  reports which backend is live. Do not set it to `memory` on Cloud Run.
 - **The Autotask credential is root.** The API User (API-only) security level
   grants full system administrator access to Autotask data over REST, and it
   never expires. Give this service its **own dedicated API user** on a custom
@@ -155,6 +161,12 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   (`infra/terraform/github-actions.tf` in the monorepo).
 - **Artifact Registry.** `autotask-mcp` in `us-central1`, tracked in
   `infra/terraform/main.tf` rather than created by hand.
+- **Firestore.** The `(default)` database already exists in `phoneware-edge`
+  (Native mode, `us-central1`) and is already used by `peplink-mcp`. The Cloud
+  Run runtime service account (`859122914438-compute@developer.gserviceaccount.com`)
+  already holds `roles/datastore.user`. OAuth persistence therefore needed no
+  new database, no new binding, and no environment variable: it turns itself on
+  from `K_SERVICE`. Collections are created on first write.
 
 ## Deploy
 
