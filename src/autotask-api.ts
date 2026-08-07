@@ -15,6 +15,13 @@ const REDACT_PLACEHOLDER = '[REDACTED]';
 // rather than corrupting state). POST/PATCH/PUT are never auto-retried on 5xx.
 const RETRYABLE_5XX_METHODS = new Set(['GET', 'DELETE']);
 
+// Autotask's complaint when a create is attributed to an impersonated resource
+// the API user's security level may not impersonate onto that entity. "The
+// logged in Resource" is the *impersonated* person, not the API user, which is
+// why the same call succeeds unattributed. Matched loosely: Autotask has
+// reworded this string before and the wrapping JSON varies by entity.
+const IMPERSONATION_REFUSAL = /adequate permissions to (create|add)/i;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -90,7 +97,7 @@ export class AutotaskApi {
     return url.endsWith('/') ? url : `${url}/`;
   }
 
-  private authHeaders(method: string, path: string): Record<string, string> {
+  private authHeaders(method: string, path: string, impersonate = true): Record<string, string> {
     const headers: Record<string, string> = {
       ApiIntegrationCode: this.integrationCode,
       UserName: this.username,
@@ -101,7 +108,7 @@ export class AutotaskApi {
 
     // Attribute the record to the signed-in person instead of the API user.
     const caller = currentCaller();
-    if (caller?.resourceId !== undefined && isImpersonatableWrite(method, path)) {
+    if (impersonate && caller?.resourceId !== undefined && isImpersonatableWrite(method, path)) {
       headers.ImpersonationResourceId = String(caller.resourceId);
     }
     return headers;
@@ -177,9 +184,13 @@ export class AutotaskApi {
     const base = await this.getBaseUrl();
     const url = `${base}${path.replace(/^\//, '')}`;
     let attempt = 0;
+    // Cleared permanently for this call once Autotask refuses the impersonated
+    // create, so the retry and any later backoff attempt go unattributed too.
+    let impersonate = true;
 
     while (true) {
-      const options: RequestInit = { method, headers: this.authHeaders(method, path) };
+      const headers = this.authHeaders(method, path, impersonate);
+      const options: RequestInit = { method, headers };
       if (body !== undefined) {
         options.body = JSON.stringify(body);
       }
@@ -216,6 +227,16 @@ export class AutotaskApi {
       }
 
       const text = await resp.text();
+
+      // An impersonated create Autotask will not attribute. The record itself
+      // is permitted (the API user can create it); only the attribution is
+      // refused, so retry once unattributed rather than failing work the caller
+      // is entitled to do. Losing the byline beats losing the ticket.
+      if (headers.ImpersonationResourceId !== undefined && IMPERSONATION_REFUSAL.test(text)) {
+        impersonate = false;
+        continue;
+      }
+
       throw new Error(`Autotask API error (${resp.status}): ${redactSecrets(text)}`);
     }
   }

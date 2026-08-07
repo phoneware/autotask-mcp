@@ -10,6 +10,7 @@ vi.hoisted(() => {
 
 import { AutotaskApi, redactSecrets } from '../src/autotask-api.js';
 import { governor } from '../src/governor.js';
+import { withCaller } from '../src/auth/context.js';
 
 /**
  * Every API call now passes the budget governor, which probes
@@ -149,5 +150,86 @@ describe('AutotaskApi', () => {
     expect(fetchMock.mock.calls[1][0]).toBe(
       'https://webservices2.autotask.net/atservicesrest/V1.0/Version',
     );
+  });
+
+  describe('impersonation fallback', () => {
+    const caller = {
+      email: 'jason@example.com',
+      resourceId: 29682893,
+      capabilities: ['read', 'create', 'update', 'delete'] as const,
+    };
+
+    it('retries a refused impersonated create without the attribution header', async () => {
+      // Autotask refuses to attribute the create, then accepts it unattributed.
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResp(
+            {
+              errors: [
+                'The logged in Resource does not have the adequate permissions to create this entity type.',
+              ],
+            },
+            500,
+          ),
+        )
+        .mockResolvedValueOnce(jsonResp({ itemId: 12345 }));
+
+      const api = new AutotaskApi();
+      const out = await withCaller({ ...caller, capabilities: [...caller.capabilities] }, () =>
+        api.create('Tickets', { title: 'Porting 4 tns', companyID: 1016 }),
+      );
+
+      expect(out).toEqual({ itemId: 12345 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // first attempt carries the byline, the retry does not
+      expect(fetchMock.mock.calls[0][1].headers.ImpersonationResourceId).toBe('29682893');
+      expect(fetchMock.mock.calls[1][1].headers.ImpersonationResourceId).toBeUndefined();
+      // the record itself is unchanged between attempts
+      expect(fetchMock.mock.calls[1][1].body).toBe(fetchMock.mock.calls[0][1].body);
+    });
+
+    it('does not retry a create that failed for any other reason', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResp({ errors: ['Ticket: Queue ID is required.'] }, 500));
+
+      const api = new AutotaskApi();
+      await expect(
+        withCaller({ ...caller, capabilities: [...caller.capabilities] }, () =>
+          api.create('Tickets', { title: 'x', companyID: 1016 }),
+        ),
+      ).rejects.toThrow(/Queue ID is required/);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not loop when the unattributed retry is refused too', async () => {
+      const refusal = () =>
+        jsonResp(
+          { errors: ['The logged in Resource does not have the adequate permissions to create.'] },
+          500,
+        );
+      fetchMock.mockResolvedValueOnce(refusal()).mockResolvedValueOnce(refusal());
+
+      const api = new AutotaskApi();
+      await expect(
+        withCaller({ ...caller, capabilities: [...caller.capabilities] }, () =>
+          api.create('Tickets', { title: 'x', companyID: 1016 }),
+        ),
+      ).rejects.toThrow(/adequate permissions/);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('leaves an unattributed create alone: nothing to fall back to', async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonResp(
+          { errors: ['The logged in Resource does not have the adequate permissions to create.'] },
+          500,
+        ),
+      );
+
+      const api = new AutotaskApi();
+      await expect(api.create('Tickets', { title: 'x', companyID: 1016 })).rejects.toThrow(
+        /adequate permissions/,
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
   });
 });
