@@ -36,7 +36,9 @@ import { isReadonly } from './security.js';
 import { missingCredentials } from './autotask-api.js';
 import { governor } from './governor.js';
 import { GoogleAuthProvider } from './auth/google-provider.js';
-import { MemoryClientsStore, TokenStore } from './auth/stores.js';
+import { MemoryClientsStore, TokenStore, type TokenStoreLike } from './auth/stores.js';
+import { FirestoreClientsStore, FirestoreTokenStore } from './auth/firestore-stores.js';
+import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
 import { withCaller, type CallerIdentity } from './auth/context.js';
 
 const DEFAULT_PORT = 3000;
@@ -226,6 +228,8 @@ export interface AppOptions {
   allowedHosts: string[];
   maxBodyBytes: number;
   createSession: SessionFactory;
+  /** Where OAuth clients and tokens live. Surfaced on /health. */
+  persistence?: Persistence;
 }
 
 /** Everything still missing before the server can actually serve. */
@@ -282,6 +286,9 @@ export function createApp(opts: AppOptions): Express {
       configured: missing.length === 0,
       missingConfig: missing,
       auth: { google: Boolean(opts.googleProvider) },
+      // 'memory' here means every registered client dies with this process, so
+      // it needs to be visible from outside rather than inferred from a deploy.
+      persistence: opts.persistence ?? 'memory',
       mode: isReadonly() ? 'readonly' : 'full',
       uptimeSeconds: Math.floor(process.uptime()),
       sessions: opts.sessions.size,
@@ -296,6 +303,15 @@ export function createApp(opts: AppOptions): Express {
   // /register (DCR, which claude.ai relies on) and /revoke.
   if (opts.googleProvider && opts.baseUrl) {
     const mcpUrl = new URL('/mcp', opts.baseUrl);
+
+    // An unknown client_id is a dead end the person in the browser can actually
+    // fix, by removing and re-adding the connector so it registers again. The
+    // SDK answers it with a bare {"error":"invalid_client"} JSON body, which
+    // tells them nothing, so intercept it first and say what to do.
+    app.all('/authorize', (req: Request, res: Response, next: NextFunction) => {
+      void explainUnknownClient(req, res, next, opts.googleProvider!);
+    });
+
     app.use(
       mcpAuthRouter({
         provider: opts.googleProvider,
@@ -339,6 +355,90 @@ export function createApp(opts: AppOptions): Express {
   });
 
   return app;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string,
+  );
+}
+
+/**
+ * Answer /authorize for a client_id we have never heard of with something a
+ * person can act on, then get out of the way for every other request.
+ *
+ * A client reaches this state by holding a registration that no longer exists:
+ * one issued before client persistence landed, or one deleted since. The OAuth
+ * remedy is for the client to register again, which claude.ai only does when
+ * the connector is removed and re-added, so that is what this page asks for.
+ */
+async function explainUnknownClient(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  provider: GoogleAuthProvider,
+): Promise<void> {
+  const fromQuery = req.query.client_id;
+  const fromBody = (req.body as { client_id?: unknown } | undefined)?.client_id;
+  const clientId =
+    typeof fromQuery === 'string' ? fromQuery : typeof fromBody === 'string' ? fromBody : undefined;
+
+  // No client_id at all is the SDK's error to report, not ours.
+  if (!clientId) {
+    next();
+    return;
+  }
+
+  try {
+    if (await provider.clientsStore.getClient(clientId)) {
+      next();
+      return;
+    }
+  } catch (err) {
+    // A store that is down is a server problem, not an unknown client. Let the
+    // SDK run so the failure is reported as one.
+    console.error(`[autotask-mcp] client lookup failed: ${(err as Error).message}`);
+    next();
+    return;
+  }
+
+  console.error(`[autotask-mcp] /authorize for unregistered client_id ${clientId}`);
+  res.status(400).type('html').send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconnect Autotask MCP</title>
+<style>
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         max-width: 34rem; margin: 12vh auto; padding: 0 1.5rem; color: #1c1c1c; }
+  h1 { font-size: 1.35rem; margin-bottom: .5rem; }
+  code { background: #f0f0f0; padding: .1rem .35rem; border-radius: 3px; font-size: .85em; }
+  ol { padding-left: 1.2rem; }
+  li { margin-bottom: .4rem; }
+  .muted { color: #666; font-size: .85rem; margin-top: 2rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #161616; color: #e8e8e8; }
+    code { background: #2a2a2a; }
+    .muted { color: #999; }
+  }
+</style>
+</head>
+<body>
+<h1>This connector needs to be added again</h1>
+<p>Autotask MCP does not recognise the app that sent you here, so there is
+nothing to sign in to yet. Its registration no longer exists on the server.</p>
+<ol>
+  <li>Open your connector settings.</li>
+  <li>Remove the Autotask connector.</li>
+  <li>Add it back, pointing at <code>${escapeHtml(new URL('/mcp', `${req.protocol}://${req.get('host') ?? ''}`).href)}</code>.</li>
+  <li>Sign in with your Phoneware Google account when prompted.</li>
+</ol>
+<p>Adding it back registers a fresh client, and sign-in will work from there.</p>
+<p class="muted">Unrecognised client_id: <code>${escapeHtml(clientId)}</code></p>
+</body>
+</html>`);
 }
 
 function rateLimit(opts: AppOptions) {
@@ -501,10 +601,50 @@ export interface RunningServer {
   close: () => Promise<void>;
 }
 
+export type Persistence = 'firestore' | 'memory';
+
+/**
+ * Decide where OAuth clients and tokens live.
+ *
+ * Firestore is the default anywhere Cloud Run is detected (K_SERVICE), because
+ * in-memory registration there is a known-broken configuration: the instance is
+ * replaced on every deploy, and each replacement silently invalidates every
+ * client that had already registered. Local runs and tests stay in memory,
+ * where a restart is expected and Firestore credentials are usually absent.
+ * AUTOTASK_PERSISTENCE overrides the choice in either direction.
+ */
+export function resolvePersistence(env: NodeJS.ProcessEnv = process.env): Persistence {
+  const requested = env.AUTOTASK_PERSISTENCE?.trim().toLowerCase();
+  if (requested === 'firestore' || requested === 'memory') return requested;
+  if (requested) {
+    console.error(
+      `[autotask-mcp] ignoring AUTOTASK_PERSISTENCE=${requested}: expected 'firestore' or 'memory'`,
+    );
+  }
+  return env.K_SERVICE ? 'firestore' : 'memory';
+}
+
+export function buildStores(persistence: Persistence): {
+  tokenStore: TokenStoreLike;
+  clientsStore: OAuthRegisteredClientsStore;
+} {
+  if (persistence === 'firestore') {
+    // The Firestore client resolves credentials lazily, at query time, so
+    // constructing it cannot fail the boot of a misconfigured deployment.
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+    return {
+      tokenStore: new FirestoreTokenStore({ projectId }),
+      clientsStore: new FirestoreClientsStore({ projectId }),
+    };
+  }
+  return { tokenStore: new TokenStore(), clientsStore: new MemoryClientsStore() };
+}
+
 /** Build the Google bridge from the environment, or null when not configured. */
 export function googleProviderFromEnv(
   baseUrl: URL | undefined,
-  tokenStore: TokenStore,
+  tokenStore: TokenStoreLike,
+  clientsStore: OAuthRegisteredClientsStore,
 ): GoogleAuthProvider | null {
   const clientId = process.env.AUTOTASK_OAUTH_CLIENT_ID;
   const clientSecret = process.env.AUTOTASK_OAUTH_CLIENT_SECRET;
@@ -524,7 +664,7 @@ export function googleProviderFromEnv(
     callbackUrl: new URL('/callback', baseUrl).href,
     allowedDomains: envList('AUTOTASK_OAUTH_ALLOWED_DOMAINS'),
     allowedEmails: envList('AUTOTASK_OAUTH_ALLOWED_EMAILS'),
-    clientsStore: new MemoryClientsStore(),
+    clientsStore,
     tokenStore,
     tokenTtlSeconds: envInt('AUTOTASK_OAUTH_TOKEN_TTL_SECONDS', 12 * 60 * 60),
   });
@@ -533,11 +673,12 @@ export function googleProviderFromEnv(
 export async function runHttp(): Promise<RunningServer> {
   const rawBase = process.env.AUTOTASK_BASE_URL;
   const baseUrl = rawBase ? new URL(rawBase) : undefined;
-  const tokenStore = new TokenStore();
+  const persistence = resolvePersistence();
+  const { tokenStore, clientsStore } = buildStores(persistence);
 
   let googleProvider: GoogleAuthProvider | null = null;
   try {
-    googleProvider = googleProviderFromEnv(baseUrl, tokenStore);
+    googleProvider = googleProviderFromEnv(baseUrl, tokenStore, clientsStore);
   } catch (err) {
     // A misconfigured allowlist must not silently downgrade to "any Google
     // account can sign in": refuse to enable Google auth and say why.
@@ -574,6 +715,7 @@ export async function runHttp(): Promise<RunningServer> {
     allowedHosts: envList('AUTOTASK_HTTP_ALLOWED_HOSTS'),
     maxBodyBytes: envInt('AUTOTASK_MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES),
     createSession: defaultCreateSession,
+    persistence,
   };
 
   const app = createApp(opts);
@@ -581,7 +723,11 @@ export async function runHttp(): Promise<RunningServer> {
   const reaper = setInterval(() => {
     void sessions.reap();
     limiter?.reap();
-    tokenStore.sweep();
+    // Persistent stores sweep over the network, so a failure here must not
+    // reject into an unhandled rejection and take the process down.
+    void Promise.resolve(tokenStore.sweep()).catch((err: Error) => {
+      console.error(`[autotask-mcp] token sweep failed: ${err.message}`);
+    });
   }, REAP_INTERVAL_MS);
   reaper.unref();
 
@@ -593,7 +739,8 @@ export async function runHttp(): Promise<RunningServer> {
   const missing = missingConfig(opts);
   console.error(
     `[autotask-mcp] HTTP transport on ${host}:${port} (mode: ${isReadonly() ? 'READONLY' : 'full'}, ` +
-      `auth: ${googleProvider ? 'google' : 'none'}, ${registeredCount} tools, ${skipped} write tools skipped` +
+      `auth: ${googleProvider ? 'google' : 'none'}, persistence: ${persistence}, ` +
+      `${registeredCount} tools, ${skipped} write tools skipped` +
       `${missing.length ? `, UNCONFIGURED: ${missing.join(', ')}` : ''})`,
   );
 

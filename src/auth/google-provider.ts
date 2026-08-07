@@ -35,7 +35,7 @@ import type {
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import { TokenStore, type StoredToken } from './stores.js';
+import type { StoredToken, TokenStoreLike } from './stores.js';
 import { resourceIdForEmail } from './resource-lookup.js';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -77,7 +77,7 @@ export interface GoogleAuthProviderOptions {
   /** Optional explicit address allowlist, checked in addition to domains. */
   allowedEmails?: string[];
   clientsStore: OAuthRegisteredClientsStore;
-  tokenStore: TokenStore;
+  tokenStore: TokenStoreLike;
   tokenTtlSeconds?: number;
 }
 
@@ -161,6 +161,12 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     return this.opts.clientsStore;
   }
 
+  /**
+   * Expire the short-lived in-process state. Issued tokens are swept on the
+   * reaper interval instead: with a persistent store that is a query, and
+   * running one on every /authorize would be a needless round trip on the
+   * latency-sensitive path.
+   */
   private sweep(now = Date.now()): void {
     for (const [key, entry] of this.pending) {
       if (now - entry.createdAt > PENDING_TTL_MS) this.pending.delete(key);
@@ -168,7 +174,6 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     for (const [key, entry] of this.authCodes) {
       if (now - entry.createdAt > CODE_TTL_MS) this.authCodes.delete(key);
     }
-    this.opts.tokenStore.sweep(now);
   }
 
   // --- 1. Authorization: send the browser to Google --------------------------
@@ -337,11 +342,11 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     refreshToken: string,
     scopes?: string[],
   ): Promise<OAuthTokens> {
-    const stored = this.opts.tokenStore.getByRefreshToken(refreshToken);
+    const stored = await this.opts.tokenStore.getByRefreshToken(refreshToken);
     if (!stored || stored.clientId !== client.client_id) {
       throw new Error('invalid_grant: unknown refresh token');
     }
-    this.opts.tokenStore.delete(stored.accessToken);
+    await this.opts.tokenStore.delete(stored.accessToken);
 
     // Re-resolve the resource: someone may have been given an Autotask
     // account, or had one deactivated, since they first signed in.
@@ -355,13 +360,13 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     );
   }
 
-  private issueTokens(
+  private async issueTokens(
     clientId: string,
     email: string,
     resourceId: number | undefined,
     scopes?: string[],
     reuseRefreshToken?: string,
-  ): OAuthTokens {
+  ): Promise<OAuthTokens> {
     const accessToken = randomBytes(32).toString('hex');
     const refreshToken = reuseRefreshToken ?? randomBytes(32).toString('hex');
 
@@ -374,7 +379,7 @@ export class GoogleAuthProvider implements OAuthServerProvider {
       email,
       resourceId,
     };
-    this.opts.tokenStore.set(stored);
+    await this.opts.tokenStore.set(stored);
 
     return {
       access_token: accessToken,
@@ -388,10 +393,10 @@ export class GoogleAuthProvider implements OAuthServerProvider {
   // --- 4. Verification, per MCP request --------------------------------------
 
   async verifyAccessToken(token: string): Promise<AuthInfo> {
-    const stored = this.opts.tokenStore.get(token);
+    const stored = await this.opts.tokenStore.get(token);
     if (!stored) throw new Error('invalid_token: unknown access token');
     if (stored.expiresAt <= Date.now()) {
-      this.opts.tokenStore.delete(token);
+      await this.opts.tokenStore.delete(token);
       throw new Error('invalid_token: access token expired');
     }
 
@@ -408,10 +413,10 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     _client: OAuthClientInformationFull,
     request: { token: string; token_type_hint?: string },
   ): Promise<void> {
-    if (this.opts.tokenStore.get(request.token)) {
-      this.opts.tokenStore.delete(request.token);
+    if (await this.opts.tokenStore.get(request.token)) {
+      await this.opts.tokenStore.delete(request.token);
       return;
     }
-    this.opts.tokenStore.deleteByRefreshToken(request.token);
+    await this.opts.tokenStore.deleteByRefreshToken(request.token);
   }
 }
