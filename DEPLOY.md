@@ -34,6 +34,15 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   `src/auth/capabilities.ts` is a conservative approximation of it and is the
   one place to change it. Rights are re-derived on every token refresh.
   Without this, every `@phoneware.us` account had the API user's full access.
+- **Redirect policy.** `/register` is open and unauthenticated, as MCP clients
+  require, so a `client_id` proves nothing and is not treated as a secret: an
+  unrecognised one is adopted rather than refused, which is what keeps a client
+  from being stuck forever holding a registration the server has lost. The real
+  boundary is where the authorization code goes, so codes are only returned to
+  loopback (any port, per RFC 8252) or to something named in
+  `AUTOTASK_OAUTH_REDIRECT_ALLOWLIST`, defaulting to the hosted connector
+  callback. Without that policy, anyone could register
+  `redirect_uri=https://evil.example` and collect a real phoneware.us sign-in.
 - **No shared bearer.** Google sign-in is the only way in. A static token with
   no identity, no expiry and no domain allowlist would be a weaker parallel
   door, and its writes would land as the API user, which is the audit hole

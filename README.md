@@ -154,27 +154,28 @@ docker compose up -d
 
 ## Configuration
 
-| Variable                        | Required | Description                                                                                                                              |
-| ------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `AUTOTASK_USERNAME`             | yes      | Autotask API user name                                                                                                                   |
-| `AUTOTASK_SECRET`               | yes      | Autotask API secret                                                                                                                      |
-| `AUTOTASK_INTEGRATION_CODE`     | yes      | Integration code / API tracking identifier                                                                                               |
-| `AUTOTASK_API_URL`              | no       | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`)                                 |
-| `AUTOTASK_READ_ONLY`            | no       | `true` to disable all write tools                                                                                                        |
-| `AUTOTASK_CLOSED_STATUS_IDS`    | no       | Ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)                                                    |
-| `AUTOTASK_TRANSPORT`            | no       | `http` or `stdio`. Defaults to `stdio`, except on Cloud Run / Knative (`K_SERVICE` set) where it defaults to `http`                      |
-| `AUTOTASK_HTTP_HOST`            | no       | HTTP bind host (default `127.0.0.1`, or `0.0.0.0` when `K_SERVICE` is set)                                                               |
-| `PORT`                          | no       | HTTP port (default `3000`)                                                                                                               |
-| `AUTOTASK_HTTP_ALLOWED_HOSTS`   | no       | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset trusts the proxy                                                      |
-| `AUTOTASK_HTTP_ALLOWED_ORIGINS` | no       | Comma-separated browser `Origin` allowlist. **Unset denies every browser origin**                                                        |
-| `AUTOTASK_RATE_LIMIT`           | no       | Requests per minute per client IP against `/mcp` (default `120`, `0` disables)                                                           |
-| `AUTOTASK_MAX_SESSIONS`         | no       | Concurrent MCP sessions before `/mcp` returns 503 (default `100`)                                                                        |
-| `AUTOTASK_SESSION_TTL_MS`       | no       | Idle session lifetime (default `1800000`, 30 minutes)                                                                                    |
-| `AUTOTASK_MAX_BODY_BYTES`       | no       | Max request body size (default `4194304`, 4 MB)                                                                                          |
-| `AUTOTASK_THRESHOLD_STOP_PCT`   | no       | Refuse Autotask calls at this % of the tenant hourly budget (default `90`)                                                               |
-| `AUTOTASK_THRESHOLD_WARN_PCT`   | no       | Warn at this % (default `75`, where Autotask starts adding latency)                                                                      |
-| `AUTOTASK_MAX_CONCURRENT`       | no       | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)                                              |
-| `AUTOTASK_PERSISTENCE`          | no       | Where OAuth clients and tokens live: `firestore` or `memory`. Defaults to `firestore` on Cloud Run (`K_SERVICE` set), `memory` otherwise |
+| Variable                            | Required | Description                                                                                                                                    |
+| ----------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTOTASK_USERNAME`                 | yes      | Autotask API user name                                                                                                                         |
+| `AUTOTASK_SECRET`                   | yes      | Autotask API secret                                                                                                                            |
+| `AUTOTASK_INTEGRATION_CODE`         | yes      | Integration code / API tracking identifier                                                                                                     |
+| `AUTOTASK_API_URL`                  | no       | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`)                                       |
+| `AUTOTASK_READ_ONLY`                | no       | `true` to disable all write tools                                                                                                              |
+| `AUTOTASK_CLOSED_STATUS_IDS`        | no       | Ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)                                                          |
+| `AUTOTASK_TRANSPORT`                | no       | `http` or `stdio`. Defaults to `stdio`, except on Cloud Run / Knative (`K_SERVICE` set) where it defaults to `http`                            |
+| `AUTOTASK_HTTP_HOST`                | no       | HTTP bind host (default `127.0.0.1`, or `0.0.0.0` when `K_SERVICE` is set)                                                                     |
+| `PORT`                              | no       | HTTP port (default `3000`)                                                                                                                     |
+| `AUTOTASK_HTTP_ALLOWED_HOSTS`       | no       | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset trusts the proxy                                                            |
+| `AUTOTASK_HTTP_ALLOWED_ORIGINS`     | no       | Comma-separated browser `Origin` allowlist. **Unset denies every browser origin**                                                              |
+| `AUTOTASK_RATE_LIMIT`               | no       | Requests per minute per client IP against `/mcp` (default `120`, `0` disables)                                                                 |
+| `AUTOTASK_MAX_SESSIONS`             | no       | Concurrent MCP sessions before `/mcp` returns 503 (default `100`)                                                                              |
+| `AUTOTASK_SESSION_TTL_MS`           | no       | Idle session lifetime (default `1800000`, 30 minutes)                                                                                          |
+| `AUTOTASK_MAX_BODY_BYTES`           | no       | Max request body size (default `4194304`, 4 MB)                                                                                                |
+| `AUTOTASK_THRESHOLD_STOP_PCT`       | no       | Refuse Autotask calls at this % of the tenant hourly budget (default `90`)                                                                     |
+| `AUTOTASK_THRESHOLD_WARN_PCT`       | no       | Warn at this % (default `75`, where Autotask starts adding latency)                                                                            |
+| `AUTOTASK_MAX_CONCURRENT`           | no       | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)                                                    |
+| `AUTOTASK_PERSISTENCE`              | no       | Where OAuth clients and tokens live: `firestore` or `memory`. Defaults to `firestore` on Cloud Run (`K_SERVICE` set), `memory` otherwise       |
+| `AUTOTASK_OAUTH_REDIRECT_ALLOWLIST` | no       | Comma-separated non-loopback redirect URIs a client may use. Loopback is always allowed. Defaults to `https://claude.ai/api/mcp/auth_callback` |
 
 ### Who can do what
 
@@ -211,6 +212,29 @@ which Autotask person a session is acting as and what it is permitted to do.
 > Autotask supports impersonation on **creates only**, so updates and deletes
 > execute as the API user and cannot carry a person's name. That is an Autotask
 > limit. What this layer controls is who can reach those operations at all.
+
+### Where sign-ins may be returned to
+
+Dynamic client registration (`/register`) is open and unauthenticated, because
+MCP clients require it to be. A `client_id` therefore proves nothing about who
+is asking, and is not treated as a secret: a client presenting one this server
+does not have on file is adopted rather than refused, which is what stops a
+client being permanently stuck holding a registration the server has lost.
+
+The boundary that does matter is where the authorization code is delivered,
+since that is the step where a genuine sign-in becomes someone else's access.
+Codes are only ever returned to:
+
+- **loopback** (`localhost`, `127.0.0.1`, `[::1]`) on any port, which is the
+  native-app pattern in RFC 8252 and what Claude Code uses. The port is chosen
+  per attempt, so it cannot be pre-registered.
+- anything named in `AUTOTASK_OAUTH_REDIRECT_ALLOWLIST`, which defaults to the
+  hosted connector callback `https://claude.ai/api/mcp/auth_callback`.
+
+Everything else is refused at both `/register` and `/authorize`: lookalike
+hosts, URLs carrying embedded credentials, plaintext off-machine, and non-HTTP
+schemes. Reaching that refusal page means something sent you a link pointing at
+a destination this server will not deliver to, so it tells you not to sign in.
 
 ### OAuth persistence
 
