@@ -1,20 +1,60 @@
 import { z } from 'zod';
+import type { Capability } from './auth/capabilities.js';
+import { permits } from './auth/capabilities.js';
+
+/**
+ * What each tool does to Autotask. Anything absent is a read.
+ *
+ * This is finer-grained than a single "destructive" flag because the
+ * authorization layer needs it to be: a Service Desk User may open a ticket but
+ * must not delete a company, and those were previously the same category.
+ */
+export const TOOL_CAPABILITY: ReadonlyMap<string, Capability> = new Map<string, Capability>([
+  ['create-entity', 'create'],
+  ['update-entity', 'update'],
+  ['delete-entity', 'delete'],
+  ['create-ticket', 'create'],
+  ['update-ticket', 'update'],
+  ['create-company', 'create'],
+  ['update-company', 'update'],
+  ['create-contact', 'create'],
+  ['update-contact', 'update'],
+  ['create-time-entry', 'create'],
+  ['create-ticket-note', 'create'],
+]);
+
+/** The capability a tool needs. Unlisted tools only read. */
+export function capabilityForTool(toolName: string): Capability {
+  return TOOL_CAPABILITY.get(toolName) ?? 'read';
+}
 
 // Tools that mutate Autotask data. In read-only mode none of these are
-// registered, so a misconfigured agent physically cannot write.
-export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set([
-  'create-entity',
-  'update-entity',
-  'delete-entity',
-  'create-ticket',
-  'update-ticket',
-  'create-company',
-  'update-company',
-  'create-contact',
-  'update-contact',
-  'create-time-entry',
-  'create-ticket-note',
-]);
+// registered, so a misconfigured agent physically cannot write. Derived from
+// TOOL_CAPABILITY so the two can never drift.
+export const DESTRUCTIVE_TOOLS: ReadonlySet<string> = new Set(TOOL_CAPABILITY.keys());
+
+/**
+ * Throw unless `capabilities` covers what the tool needs.
+ *
+ * This is the runtime half of the gate. The registration half (only building
+ * the tools a person may use) is the one they actually see, but a tool that is
+ * never registered is not the same as a tool that refuses: sessions outlive a
+ * single request, and identity is bound per request, so the call itself is
+ * checked too.
+ */
+export function assertCapability(
+  toolName: string,
+  capabilities: readonly Capability[] | undefined,
+  who?: string,
+): void {
+  const needed = capabilityForTool(toolName);
+  if (capabilities && permits(capabilities, needed)) return;
+  throw new Error(
+    `"${toolName}" requires the "${needed}" capability${
+      who ? `, which ${who} does not have` : ', which this session does not have'
+    }. Autotask security level governs this; ask an Autotask administrator if it is wrong.`,
+  );
+}
 
 // Every mutating tool requires an explicit confirm token. Derived from
 // DESTRUCTIVE_TOOLS so the two sets can never drift: any tool that can write

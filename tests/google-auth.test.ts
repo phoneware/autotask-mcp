@@ -155,12 +155,34 @@ describe('authorize', () => {
     expect(url.searchParams.get('state')).toBeTruthy();
     expect(url.searchParams.get('state')).not.toBe('client-state');
   });
+
+  it('always makes the person pick an account', async () => {
+    // Without prompt=select_account Google silently reuses whatever session the
+    // browser already has. The account chosen here decides which Autotask
+    // resource we impersonate and what rights the session gets, so it must be
+    // a deliberate choice rather than inherited browser state.
+    const provider = makeProvider();
+    const res = mockRes();
+    await provider.authorize(
+      CLIENT,
+      { codeChallenge: 'challenge', redirectUri: 'https://claude.ai/cb' },
+      res as never,
+    );
+
+    expect(new URL(res.redirectedTo).searchParams.get('prompt')).toBe('select_account');
+  });
 });
 
 // --- callback ----------------------------------------------------------------
 
 /** Stub Google's token endpoint and Autotask's Resources query. */
-function stubUpstream(claims: Record<string, unknown>, resources: unknown[] = [{ id: 77 }]) {
+// The default resource is active and a System Administrator, because that is
+// what a real Autotask row looks like: sign-in now requires exactly one active
+// resource, and rights come from userType.
+function stubUpstream(
+  claims: Record<string, unknown>,
+  resources: unknown[] = [{ id: 77, isActive: true, userType: 14 }],
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: unknown) => {
@@ -300,14 +322,19 @@ describe('token exchange', () => {
     expect((auth.extra as { resourceId?: number }).resourceId).toBe(22);
   });
 
-  it('still signs in when the person has no Autotask resource', async () => {
+  it('refuses sign-in when the person has no Autotask resource', async () => {
+    // Previously they signed in and their writes silently landed as the API
+    // user. That is an unattributable write against a root credential, which is
+    // the whole thing this layer exists to stop.
     stubUpstream(baseClaims(), []);
     const provider = makeProvider();
-    const code = await signIn(provider);
-    const tokens = await provider.exchangeAuthorizationCode(CLIENT, code);
-    const auth = await provider.verifyAccessToken(tokens.access_token);
-    expect((auth.extra as { resourceId?: number }).resourceId).toBeUndefined();
-    expect((auth.extra as { email?: string }).email).toBe('dave@phoneware.us');
+    const state = await startAuth(provider);
+    const res = mockRes();
+    await provider.handleCallback({ query: { code: 'g-code', state } } as never, res as never);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatch(/No active Autotask resource/i);
+    expect(res.redirectedTo).toBe('');
   });
 
   it('burns the authorization code after one use', async () => {
@@ -349,6 +376,62 @@ describe('token exchange', () => {
     await expect(provider.verifyAccessToken(first.access_token)).rejects.toThrow(/invalid_token/);
     const auth = await provider.verifyAccessToken(second.access_token);
     expect((auth.extra as { email?: string }).email).toBe('dave@phoneware.us');
+  });
+
+  it('re-derives rights on refresh when the security level changed', async () => {
+    // A refresh is the only checkpoint we get between sign-in and expiry, so
+    // a demotion in Autotask has to take effect there rather than being
+    // carried forward from whatever was true at sign-in.
+    stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
+    const provider = makeProvider();
+    const code = await signIn(provider);
+    const first = await provider.exchangeAuthorizationCode(CLIENT, code);
+    expect(
+      ((await provider.verifyAccessToken(first.access_token)).extra as { capabilities?: string[] })
+        .capabilities,
+    ).toEqual(['read', 'create', 'update', 'delete']);
+
+    // Demoted to Service Desk User, and the cached lookup has expired.
+    resetResourceCache();
+    stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 20 }]);
+    const second = await provider.exchangeRefreshToken(CLIENT, first.refresh_token!);
+    const auth = await provider.verifyAccessToken(second.access_token);
+
+    expect((auth.extra as { capabilities?: string[] }).capabilities).toEqual(['read', 'create']);
+  });
+
+  it('refuses to refresh someone who has since been deactivated', async () => {
+    stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
+    const provider = makeProvider();
+    const code = await signIn(provider);
+    const first = await provider.exchangeAuthorizationCode(CLIENT, code);
+
+    resetResourceCache();
+    stubUpstream(baseClaims(), [{ id: 77, isActive: false, userType: 14 }]);
+
+    await expect(provider.exchangeRefreshToken(CLIENT, first.refresh_token!)).rejects.toThrow(
+      /invalid_grant/,
+    );
+  });
+
+  it('refuses a token minted before authorization existed', async () => {
+    // Nobody checked whether that person should have been let in, so it must
+    // not be honoured. The client still holds a refresh token, and refreshing
+    // re-resolves them properly.
+    const tokenStore = new TokenStore();
+    const provider = makeProvider({ tokenStore });
+    tokenStore.set({
+      accessToken: 'legacy-token',
+      refreshToken: 'legacy-refresh',
+      clientId: 'mcp-client-1',
+      expiresAt: Date.now() + 3_600_000,
+      email: 'dave@phoneware.us',
+      resourceId: 77,
+    });
+
+    await expect(provider.verifyAccessToken('legacy-token')).rejects.toThrow(
+      /issued before authorization/,
+    );
   });
 
   it('revokes an access token', async () => {

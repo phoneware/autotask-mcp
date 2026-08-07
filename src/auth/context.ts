@@ -10,16 +10,22 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { Capability } from './capabilities.js';
 
 export interface CallerIdentity {
   /** Google account email of the person making the request. */
   email: string;
   /**
-   * Autotask Resource id this email maps to, when one was found. Undefined
-   * means the person has no Autotask resource, so writes fall back to being
-   * attributed to the API user.
+   * Autotask Resource id this email maps to. Always present: sign-in is
+   * refused when an email does not resolve to exactly one active resource,
+   * because a write we cannot attribute is a write against the API user's
+   * root-level credential with nobody's name on it.
    */
-  resourceId?: number;
+  resourceId: number;
+  /** Autotask security level (Resource.userType) behind the capabilities. */
+  userType?: number;
+  /** What this person may do, derived from their Autotask security level. */
+  capabilities: readonly Capability[];
 }
 
 const storage = new AsyncLocalStorage<CallerIdentity>();

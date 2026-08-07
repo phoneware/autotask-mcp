@@ -19,8 +19,21 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   the person who asked rather than as the API user. Autotask supports
   impersonation on **create** operations only, and only for tickets, ticket and
   task notes, attachments, project notes and status, and service calls, so the
-  header is restricted to entity creates. Someone with no matching Autotask
-  resource still signs in; their writes fall back to the API user.
+  header is restricted to entity creates. Sign-in requires the email to resolve
+  to exactly one **active** resource: no match, a deactivated record, a
+  duplicate, or a service-account security level are all refused, because none
+  of them identify a single person we can act as, and a write we cannot
+  attribute is a root-level write with nobody's name on it.
+- **Authorization.** The REST API authenticates as one API user with full
+  system-administrator rights, and those rights apply to every call whoever
+  asked. Impersonation does not narrow them, so this server narrows them
+  itself: capabilities (read / create / update / delete) are derived from the
+  person's Autotask `userType`, tools beyond them are never registered for that
+  session, and the call is checked again at runtime. Autotask does not expose
+  the permission matrix behind its security levels over REST, so the mapping in
+  `src/auth/capabilities.ts` is a conservative approximation of it and is the
+  one place to change it. Rights are re-derived on every token refresh.
+  Without this, every `@phoneware.us` account had the API user's full access.
 - **No shared bearer.** Google sign-in is the only way in. A static token with
   no identity, no expiry and no domain allowlist would be a weaker parallel
   door, and its writes would land as the API user, which is the audit hole

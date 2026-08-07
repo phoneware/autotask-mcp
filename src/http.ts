@@ -40,6 +40,7 @@ import { MemoryClientsStore, TokenStore, type TokenStoreLike } from './auth/stor
 import { FirestoreClientsStore, FirestoreTokenStore } from './auth/firestore-stores.js';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
 import { withCaller, type CallerIdentity } from './auth/context.js';
+import type { Capability } from './auth/capabilities.js';
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '127.0.0.1';
@@ -199,14 +200,21 @@ export interface SessionHooks {
   onsessionclosed: (id: string) => void;
 }
 
-export type SessionFactory = (hooks: SessionHooks) => {
+export type SessionFactory = (
+  hooks: SessionHooks,
+  caller?: CallerIdentity,
+) => {
   server: McpServer;
   transport: StreamableHTTPServerTransport;
 };
 
-/** Default session factory: a fresh, fully configured MCP server per client. */
-export const defaultCreateSession: SessionFactory = (hooks) => {
-  const { server } = buildServer();
+/**
+ * Default session factory: an MCP server carrying only the tools this person is
+ * allowed to use, so the surface a client sees already matches their Autotask
+ * rights instead of advertising tools that would be refused.
+ */
+export const defaultCreateSession: SessionFactory = (hooks, caller) => {
+  const { server } = buildServer(caller?.capabilities);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     onsessioninitialized: hooks.onsessioninitialized,
@@ -503,7 +511,19 @@ export function callerFrom(req: Request): CallerIdentity | undefined {
   const email = auth?.extra?.email;
   if (typeof email !== 'string') return undefined;
   const resourceId = auth?.extra?.resourceId;
-  return { email, resourceId: typeof resourceId === 'number' ? resourceId : undefined };
+  // A token with no resource id predates authorization. Treat it as having no
+  // rights at all rather than inheriting the API user's: it will be refused and
+  // re-issued on the next refresh, which re-resolves properly.
+  if (typeof resourceId !== 'number') return undefined;
+  const rawCaps = auth?.extra?.capabilities;
+  const capabilities = Array.isArray(rawCaps) ? (rawCaps as Capability[]) : [];
+  const userType = auth?.extra?.userType;
+  return {
+    email,
+    resourceId,
+    userType: typeof userType === 'number' ? userType : undefined,
+    capabilities,
+  };
 }
 
 function rpcError(res: Response, status: number, code: number, message: string): void {
@@ -526,17 +546,20 @@ async function handlePost(req: Request, res: Response, opts: AppOptions): Promis
       // transport actually assigned, not one we guessed. `holder` closes the
       // loop between the hooks and the objects the factory is constructing.
       const holder: { server?: McpServer; transport?: StreamableHTTPServerTransport } = {};
-      const { server, transport } = opts.createSession({
-        onsessioninitialized: (id) => {
-          opts.sessions.set({
-            id,
-            transport: holder.transport!,
-            server: holder.server!,
-            lastSeen: Date.now(),
-          });
+      const { server, transport } = opts.createSession(
+        {
+          onsessioninitialized: (id) => {
+            opts.sessions.set({
+              id,
+              transport: holder.transport!,
+              server: holder.server!,
+              lastSeen: Date.now(),
+            });
+          },
+          onsessionclosed: (id) => opts.sessions.delete(id),
         },
-        onsessionclosed: (id) => opts.sessions.delete(id),
-      });
+        caller,
+      );
       holder.server = server;
       holder.transport = transport;
 

@@ -176,6 +176,42 @@ docker compose up -d
 | `AUTOTASK_MAX_CONCURRENT`       | no       | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)                                              |
 | `AUTOTASK_PERSISTENCE`          | no       | Where OAuth clients and tokens live: `firestore` or `memory`. Defaults to `firestore` on Cloud Run (`K_SERVICE` set), `memory` otherwise |
 
+### Who can do what
+
+The Autotask REST API authenticates as a single API user, and that user's
+security level applies to every call regardless of who asked for it.
+`ImpersonationResourceId` changes _attribution_ on creates; it does not change
+_permission_. Autotask therefore cannot enforce a signed-in person's own rights
+for us, so this server enforces them itself.
+
+Sign-in requires the Google email to resolve to **exactly one active Autotask
+resource**. No match, only a deactivated record, more than one match, or an
+API/service-account security level are each refused, because none of them
+identify a single person we can legitimately act as. Capabilities then come
+from that resource's Autotask `userType`:
+
+| Autotask security level                      | read            | create | update | delete |
+| -------------------------------------------- | --------------- | ------ | ------ | ------ |
+| System Administrator, Full Access            | yes             | yes    | yes    | yes    |
+| Manager, Project Manager                     | yes             | yes    | yes    | no     |
+| Service Desk User, Team Member, Sales        | yes             | yes    | no     | no     |
+| Anything else, including unrecognised levels | yes             | no     | no     | no     |
+| API User                                     | sign-in refused |
+
+Autotask does not expose the permission matrix behind its security levels over
+REST, so this is a deliberate approximation of it rather than a mirror. The
+mapping lives in `src/auth/capabilities.ts` and is the single place to change
+it. Rights are re-derived on every token refresh, so a change in Autotask takes
+effect without waiting for the session to expire.
+
+Enforcement happens twice: tools a person may not use are never registered for
+their session, and the call is checked again at runtime. Ask `whoami` to see
+which Autotask person a session is acting as and what it is permitted to do.
+
+> Autotask supports impersonation on **creates only**, so updates and deletes
+> execute as the API user and cannot carry a person's name. That is an Autotask
+> limit. What this layer controls is who can reach those operations at all.
+
 ### OAuth persistence
 
 An MCP client registers once, caches the `client_id` it is issued, and presents
@@ -188,6 +224,15 @@ collections in the project's default Firestore database. `memory` is for local
 runs and tests, where a restart is expected. `/health` reports which is live.
 
 ## Tools
+
+Which of these a session actually gets depends on the signed-in person's
+Autotask rights; see [Who can do what](#who-can-do-what).
+
+### Identity
+
+| Tool     | Description                                                                          |
+| -------- | ------------------------------------------------------------------------------------ |
+| `whoami` | Which Autotask person this session acts as, their security level, and what it may do |
 
 ### Generic (any entity)
 
@@ -388,7 +433,8 @@ The probe costs one call per minute and its reading is surfaced on `/health`.
 
 ## Security model
 
-- **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, all write tools are never registered (11 of 29 tools) — a misconfigured agent cannot mutate data.
+- **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, all write tools are never registered (11 of 30 tools) — a misconfigured agent cannot mutate data.
+- **Per-person authorization** (HTTP transport): what each signed-in person may do is derived from their Autotask security level, and tools beyond it are never registered for their session. See below.
 - **Confirmation tokens**: _every_ mutating tool — generic and convenience alike (`create-*`, `update-*`, `delete-*`) — requires a `confirm` argument equal to the upper-snake-cased tool name (e.g. `CREATE_TICKET`, `DELETE_ENTITY`) before it executes. This blocks accidental single-call writes to production data.
 - **Strict argument validation**: numeric tool arguments are validated; non-numeric input is rejected with a clear error instead of being sent to Autotask as `null`.
 - **Secret redaction**: credentials and tokens are stripped from error messages before they reach the model or logs.
