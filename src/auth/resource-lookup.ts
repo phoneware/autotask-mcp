@@ -88,11 +88,15 @@ function isActive(row: ResourceRow): boolean {
  * gates access rather than decorating it, so failing open would hand out the
  * API user's rights exactly when Autotask is unreachable.
  */
-export async function resolveResourceForEmail(email: string): Promise<Resolution> {
+export async function resolveResourceForEmail(
+  email: string,
+  opts: { cache?: boolean } = {},
+): Promise<Resolution> {
   const key = email.trim().toLowerCase();
   if (!key) return { reason: 'No email address was provided.' };
 
-  const hit = cache.get(key);
+  const useCache = opts.cache !== false;
+  const hit = useCache ? cache.get(key) : undefined;
   if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) {
     return hit.resolution;
   }
@@ -114,7 +118,7 @@ export async function resolveResourceForEmail(email: string): Promise<Resolution
   }
 
   const resolution = classify(key, items);
-  cache.set(key, { resolution, fetchedAt: Date.now() });
+  if (useCache) cache.set(key, { resolution, fetchedAt: Date.now() });
   return resolution;
 }
 

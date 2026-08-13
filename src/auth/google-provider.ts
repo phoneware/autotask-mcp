@@ -35,6 +35,11 @@ import type {
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+import {
+  InvalidGrantError,
+  InvalidScopeError,
+  TemporarilyUnavailableError,
+} from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type { StoredToken, TokenStoreLike } from './stores.js';
 import { resolveResourceForEmail, isResolved } from './resource-lookup.js';
 import type { Capability } from './capabilities.js';
@@ -379,7 +384,7 @@ account, start the connection again and pick the right one.</p>
   ): Promise<OAuthTokens> {
     const entry = this.authCodes.get(authorizationCode);
     if (!entry || entry.mcpClientId !== client.client_id) {
-      throw new Error('invalid_grant: unknown authorization code');
+      throw new InvalidGrantError('unknown authorization code');
     }
     // Single use, whatever happens next.
     this.authCodes.delete(authorizationCode);
@@ -400,28 +405,70 @@ account, start the connection again and pick the right one.</p>
     scopes?: string[],
   ): Promise<OAuthTokens> {
     const stored = await this.opts.tokenStore.getByRefreshToken(refreshToken);
-    if (!stored || stored.clientId !== client.client_id) {
-      throw new Error('invalid_grant: unknown refresh token');
+    if (stored?.clientId !== undefined && stored.clientId !== client.client_id) {
+      throw new InvalidGrantError('unknown refresh token');
     }
-    await this.opts.tokenStore.delete(stored.accessToken);
+    if (!stored) {
+      const rotation = await this.opts.tokenStore.rotateRefreshToken(
+        refreshToken,
+        this.unusedRefreshReplacement(client.client_id),
+        client.client_id,
+      );
+      if (rotation.status === 'retry' && rotation.token.clientId === client.client_id) {
+        return this.tokensFromStored(rotation.token);
+      }
+      throw new InvalidGrantError('unknown refresh token');
+    }
 
-    // Re-resolve on every refresh: someone may have been deactivated, or had
-    // their security level changed, since they first signed in. A refresh is
-    // the only checkpoint we get, so rights must be re-derived here rather than
-    // carried forward from the original sign-in.
-    const resolution = await resolveResourceForEmail(stored.email);
-    if (!isResolved(resolution)) {
-      throw new Error(`invalid_grant: ${resolution.reason}`);
+    if (scopes) {
+      const granted = new Set(stored.scopes ?? []);
+      const unauthorized = scopes.find((scope) => !granted.has(scope));
+      if (unauthorized) {
+        throw new InvalidScopeError(`refresh requested ungranted scope: ${unauthorized}`);
+      }
     }
-    return this.issueTokens(
+
+    // Re-resolve before consuming the refresh token, and bypass the positive
+    // cache used for interactive sign-in. A refresh is the checkpoint where a
+    // disabled Autotask user must lose access immediately.
+    const resolution = await resolveResourceForEmail(stored.email, { cache: false });
+    if (!isResolved(resolution)) {
+      if (resolution.reason.startsWith('Could not reach Autotask')) {
+        throw new TemporarilyUnavailableError(resolution.reason);
+      }
+      await this.opts.tokenStore.deleteByRefreshToken(refreshToken);
+      throw new InvalidGrantError(resolution.reason);
+    }
+
+    const issued = this.buildStoredToken(
       client.client_id,
       stored.email,
       resolution.resourceId,
       resolution.userType,
       resolution.capabilities,
       scopes ?? stored.scopes,
-      refreshToken,
+      stored.refreshFamilyId,
     );
+    const rotation = await this.opts.tokenStore.rotateRefreshToken(
+      refreshToken,
+      issued.stored,
+      client.client_id,
+    );
+    if (rotation.status !== 'claimed' && rotation.status !== 'retry') {
+      throw new InvalidGrantError('unknown refresh token');
+    }
+    return this.tokensFromStored(rotation.token);
+  }
+
+  private unusedRefreshReplacement(clientId: string): StoredToken {
+    return {
+      accessToken: 'unused-refresh-replacement-access-token',
+      refreshToken: 'unused-refresh-replacement-refresh-token',
+      clientId,
+      expiresAt: 0,
+      email: 'unused@invalid',
+      capabilities: [],
+    };
   }
 
   private async issueTokens(
@@ -431,15 +478,36 @@ account, start the connection again and pick the right one.</p>
     userType: number | undefined,
     capabilities: readonly Capability[],
     scopes?: string[],
-    reuseRefreshToken?: string,
   ): Promise<OAuthTokens> {
+    const issued = this.buildStoredToken(
+      clientId,
+      email,
+      resourceId,
+      userType,
+      capabilities,
+      scopes,
+    );
+    await this.opts.tokenStore.set(issued.stored);
+    return issued.tokens;
+  }
+
+  private buildStoredToken(
+    clientId: string,
+    email: string,
+    resourceId: number,
+    userType: number | undefined,
+    capabilities: readonly Capability[],
+    scopes?: string[],
+    refreshFamilyId?: string,
+  ): { stored: StoredToken; tokens: OAuthTokens } {
     const accessToken = randomBytes(32).toString('hex');
-    const refreshToken = reuseRefreshToken ?? randomBytes(32).toString('hex');
+    const refreshToken = randomBytes(32).toString('hex');
 
     const stored: StoredToken = {
       accessToken,
       refreshToken,
       clientId,
+      refreshFamilyId,
       expiresAt: Date.now() + this.tokenTtlMs,
       scopes,
       email,
@@ -447,14 +515,26 @@ account, start the connection again and pick the right one.</p>
       userType,
       capabilities: [...capabilities],
     };
-    await this.opts.tokenStore.set(stored);
 
     return {
-      access_token: accessToken,
+      stored,
+      tokens: {
+        access_token: accessToken,
+        token_type: 'Bearer',
+        expires_in: Math.floor(this.tokenTtlMs / 1000),
+        refresh_token: refreshToken,
+        scope: scopes?.join(' '),
+      },
+    };
+  }
+
+  private tokensFromStored(stored: StoredToken): OAuthTokens {
+    return {
+      access_token: stored.accessToken,
       token_type: 'Bearer',
-      expires_in: Math.floor(this.tokenTtlMs / 1000),
-      refresh_token: refreshToken,
-      scope: scopes?.join(' '),
+      expires_in: Math.max(0, Math.floor((stored.expiresAt - Date.now()) / 1000)),
+      refresh_token: stored.refreshToken,
+      scope: stored.scopes?.join(' '),
     };
   }
 
@@ -495,7 +575,7 @@ account, start the connection again and pick the right one.</p>
     request: { token: string; token_type_hint?: string },
   ): Promise<void> {
     if (await this.opts.tokenStore.get(request.token)) {
-      await this.opts.tokenStore.delete(request.token);
+      await this.opts.tokenStore.revokeByAccessToken(request.token);
       return;
     }
     await this.opts.tokenStore.deleteByRefreshToken(request.token);
