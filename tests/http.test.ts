@@ -260,25 +260,75 @@ describe('routing and auth', () => {
     }
   });
 
-  it('404s unknown paths', async () => {
-    expect((await fetch(`${base}/nope`)).status).toBe(404);
-  });
-
-  it('404s a POST carrying an unknown session id', async () => {
+  it('does not retain or validate stale MCP session ids', async () => {
     const resp = await fetch(`${base}/mcp`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${TOKEN}`,
         'content-type': 'application/json',
-        'mcp-session-id': 'does-not-exist',
+        accept: 'application/json, text/event-stream',
+        'mcp-session-id': 'stale-after-restart',
+        'mcp-protocol-version': '2025-06-18',
       },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
     });
-    expect(resp.status).toBe(404);
-    expect(JSON.stringify(await resp.json())).toContain('Session not found');
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get('mcp-session-id')).toBeNull();
+  });
+
+  it('registers Claude clients as public clients without an expiring secret', async () => {
+    const { base, server } = await listen(options({ baseUrl: new URL('http://127.0.0.1') }));
+    try {
+      const resp = await fetch(`${base}/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+          grant_types: ['authorization_code', 'refresh_token'],
+          response_types: ['code'],
+        }),
+      });
+      expect(resp.status).toBe(201);
+      const body = await resp.json();
+      expect(body.token_endpoint_auth_method).toBe('none');
+      expect(body.client_secret).toBeUndefined();
+      expect(body.client_secret_expires_at).toBeUndefined();
+    } finally {
+      await close(server);
+    }
   });
 });
 
+describe('oauth token endpoint', () => {
+  it('returns OAuth invalid_grant JSON for a terminal refresh failure', async () => {
+    const { base, server } = await listen(options({ baseUrl: new URL('http://127.0.0.1') }));
+    try {
+      const reg = await fetch(`${base}/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+          grant_types: ['authorization_code', 'refresh_token'],
+          response_types: ['code'],
+        }),
+      });
+      const client = await reg.json();
+      const resp = await fetch(`${base}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: client.client_id,
+          refresh_token: 'never-issued',
+        }),
+      });
+      expect(resp.status).toBe(400);
+      expect(await resp.json()).toMatchObject({ error: 'invalid_grant' });
+    } finally {
+      await close(server);
+    }
+  });
+});
 describe('origin, CORS and limits', () => {
   it('rejects a disallowed Origin and a disallowed Host', async () => {
     const { base, server } = await listen(options({ allowedHosts: ['good.example'] }));
@@ -292,7 +342,7 @@ describe('origin, CORS and limits', () => {
     }
   });
 
-  it('echoes CORS and exposes Mcp-Session-Id for an allowlisted origin', async () => {
+  it('echoes CORS for an allowlisted origin without exposing a session contract', async () => {
     const { base, server } = await listen(options({ allowedOrigins: ['https://ok.example'] }));
     try {
       const resp = await fetch(`${base}/health`, { headers: { origin: 'https://ok.example' } });
@@ -328,19 +378,17 @@ describe('origin, CORS and limits', () => {
     }
   });
 
-  it('503s a new initialize once at session capacity', async () => {
-    const sessions = new SessionStore(1, 60_000);
-    sessions.set({
-      id: 'taken',
-      lastSeen: Date.now(),
-      server: {} as never,
-      transport: {} as never,
-    });
+  it('does not reject initialize because another request initialized earlier', async () => {
+    const sessions = new SessionStore(0, 0);
     const { base, server } = await listen(options({ sessions }));
     try {
       const resp = await fetch(`${base}/mcp`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+        headers: {
+          authorization: `Bearer ${TOKEN}`,
+          accept: 'application/json, text/event-stream',
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({
           jsonrpc: '2.0',
           method: 'initialize',
@@ -352,7 +400,9 @@ describe('origin, CORS and limits', () => {
           },
         }),
       });
-      expect(resp.status).toBe(503);
+      expect(resp.status).toBe(200);
+      expect(resp.headers.get('mcp-session-id')).toBeNull();
+      expect(sessions.size).toBe(0);
     } finally {
       await close(server);
     }
@@ -404,26 +454,19 @@ describe('end-to-end MCP over HTTP', () => {
     await client.close();
   });
 
-  it('serves two concurrent clients with independent sessions', async () => {
-    // The regression test for the single-shared-transport bug: before the
-    // session store, the second client's initialize returned 400 "Server
-    // already initialized" and only the first client could ever connect.
+  it('serves two concurrent clients without retained server-side sessions', async () => {
     const a = await connect();
     const b = await connect();
 
-    expect(a.transport.sessionId).toBeTruthy();
-    expect(b.transport.sessionId).toBeTruthy();
-    expect(a.transport.sessionId).not.toBe(b.transport.sessionId);
+    expect(a.transport.sessionId).toBeUndefined();
+    expect(b.transport.sessionId).toBeUndefined();
+    expect(sessions.size).toBe(0);
 
     const [toolsA, toolsB] = await Promise.all([a.client.listTools(), b.client.listTools()]);
     expect(toolsA.tools.length).toBe(toolsB.tools.length);
 
-    // Terminating one leaves the other working.
-    await a.transport.terminateSession();
     await a.client.close();
     await expect(b.client.listTools()).resolves.toBeDefined();
-
-    await b.transport.terminateSession();
     await b.client.close();
   });
 

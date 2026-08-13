@@ -38,6 +38,10 @@ const { FakeFirestore, fakeDb } = vi.hoisted(() => {
       bucket(this.collectionName).set(this.id, strip(doc));
       return Promise.resolve();
     }
+    delete(): Promise<void> {
+      bucket(this.collectionName).delete(this.id);
+      return Promise.resolve();
+    }
   }
 
   class FakeQuery {
@@ -60,8 +64,11 @@ const { FakeFirestore, fakeDb } = vi.hoisted(() => {
       const matches = [...bucket(this.collectionName).entries()]
         .filter(([, doc]) =>
           this.filters.every(([field, op, value]) => {
-            if (op !== '<=') throw new Error(`fake Firestore: unsupported operator ${op}`);
-            return (doc[field] as number) <= (value as number);
+            if (op === '<=') return (doc[field] as number) <= (value as number);
+            if (op === 'array-contains') {
+              return Array.isArray(doc[field]) && doc[field].includes(value);
+            }
+            throw new Error(`fake Firestore: unsupported operator ${op}`);
           }),
         )
         .slice(0, this.lim === Infinity ? undefined : this.lim)
@@ -99,6 +106,20 @@ const { FakeFirestore, fakeDb } = vi.hoisted(() => {
     }
     batch(): FakeBatch {
       return new FakeBatch();
+    }
+    runTransaction<T>(
+      fn: (tx: {
+        get: (ref: FakeDocRef) => Promise<unknown>;
+        set: (ref: FakeDocRef, doc: Record<string, unknown>) => void;
+        delete: (ref: FakeDocRef) => void;
+      }) => Promise<T>,
+    ): Promise<T> {
+      const batch = new FakeBatch();
+      return fn({
+        get: (ref) => ref.get(),
+        set: (ref, doc) => batch.set(ref, doc),
+        delete: (ref) => batch.delete(ref),
+      }).then((result) => batch.commit().then(() => result));
     }
   }
 
@@ -213,23 +234,24 @@ describe('FirestoreClientsStore', () => {
 // --- token store -------------------------------------------------------------
 
 describe('FirestoreTokenStore', () => {
-  it('writes both the token and its refresh pointer', async () => {
+  it('writes independent access and refresh credentials', async () => {
     await new FirestoreTokenStore().set(token());
 
     expect(fakeDb.docs(DEFAULT_TOKENS_COLLECTION).has('access-aaa')).toBe(true);
-    expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh`).get('refresh-bbb')).toEqual({
-      accessToken: 'access-aaa',
+    expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh`).get('refresh-bbb')).toMatchObject({
+      status: 'active',
+      token: { accessToken: 'access-aaa', email: 'dave@phoneware.us' },
     });
   });
 
-  it('deletes the refresh pointer alongside the token', async () => {
+  it('deletes only the access credential by access token', async () => {
     const store = new FirestoreTokenStore();
     await store.set(token());
     await store.delete('access-aaa');
 
     expect(await store.get('access-aaa')).toBeUndefined();
-    expect(await store.getByRefreshToken('refresh-bbb')).toBeUndefined();
-    expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh`).size).toBe(0);
+    expect((await store.getByRefreshToken('refresh-bbb'))?.email).toBe('dave@phoneware.us');
+    expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh`).size).toBe(1);
   });
 
   it('deletes by refresh token too', async () => {
@@ -257,19 +279,82 @@ describe('FirestoreTokenStore', () => {
     expect(await store.sweep(now)).toBe(1);
     expect(await store.get('dead')).toBeUndefined();
     expect(await store.get('live')).toBeDefined();
-    // The pointer must go with it, or a refresh would resolve to nothing.
-    expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh`).has('dead-r')).toBe(false);
+    // Refresh credentials own their subject data and survive access expiry.
+    expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh`).has('dead-r')).toBe(true);
     expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh`).has('live-r')).toBe(true);
   });
 
-  it('drops swept tokens from the cache, not just from Firestore', async () => {
+  it('atomically rotates refresh tokens and rejects replay by revoking the family', async () => {
+    const store = new FirestoreTokenStore();
+    await store.set(token());
+
+    const rotated = await store.rotateRefreshToken(
+      'refresh-bbb',
+      token({ accessToken: 'access-new', refreshToken: 'refresh-new' }),
+      'mcp-client-1',
+    );
+    expect(rotated.status).toBe('claimed');
+    expect(await store.getByRefreshToken('refresh-bbb')).toBeUndefined();
+    expect((await store.getByRefreshToken('refresh-new'))?.accessToken).toBe('access-new');
+    expect(await store.get('access-aaa')).toBeUndefined();
+
+    const replay = await store.rotateRefreshToken(
+      'refresh-bbb',
+      token({ accessToken: 'access-replay', refreshToken: 'refresh-replay' }),
+      'mcp-client-1',
+      Date.now() + 60_000,
+    );
+    expect(replay.status).toBe('replay');
+    expect(await store.getByRefreshToken('refresh-new')).toBeUndefined();
+    expect(await store.get('access-new')).toBeUndefined();
+  });
+
+  it('revokes the family when the oldest deleted refresh token is replayed', async () => {
+    const store = new FirestoreTokenStore();
+    const now = Date.now();
+    await store.set(token());
+
+    await store.rotateRefreshToken(
+      'refresh-bbb',
+      token({ accessToken: 'access-2', refreshToken: 'refresh-2' }),
+      'mcp-client-1',
+      now,
+    );
+    await store.rotateRefreshToken(
+      'refresh-2',
+      token({ accessToken: 'access-3', refreshToken: 'refresh-3' }),
+      'mcp-client-1',
+      now + 1,
+    );
+    await store.rotateRefreshToken(
+      'refresh-3',
+      token({ accessToken: 'access-4', refreshToken: 'refresh-4' }),
+      'mcp-client-1',
+      now + 2,
+    );
+
+    expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh`).has('refresh-bbb')).toBe(false);
+    const replay = await store.rotateRefreshToken(
+      'refresh-bbb',
+      token({ accessToken: 'access-replay', refreshToken: 'refresh-replay' }),
+      'mcp-client-1',
+      now + 3,
+    );
+
+    expect(replay.status).toBe('replay');
+    expect(await store.getByRefreshToken('refresh-4')).toBeUndefined();
+    expect(await store.get('access-4')).toBeUndefined();
+    expect(fakeDb.docs(`${DEFAULT_TOKENS_COLLECTION}_refresh_families`).size).toBe(0);
+  });
+
+  it('removes swept tokens from durable storage', async () => {
     const store = new FirestoreTokenStore();
     const now = Date.now();
     await store.set(token({ accessToken: 'dead', refreshToken: 'dead-r', expiresAt: now - 1 }));
     await store.sweep(now);
 
-    expect(await store.get('dead')).toBeUndefined();
-    expect(store.size).toBe(0);
+    expect(await new FirestoreTokenStore().get('dead')).toBeUndefined();
+    expect(fakeDb.docs(DEFAULT_TOKENS_COLLECTION).size).toBe(0);
   });
 
   it('stores a token that has no resource id', async () => {
@@ -305,6 +390,7 @@ describe('GoogleAuthProvider against an async store', () => {
 
     await provider.revokeToken({ client_id: 'mcp-client-1' } as never, { token: 'access-aaa' });
     await expect(provider.verifyAccessToken('access-aaa')).rejects.toThrow(/invalid_token/);
+    expect(await tokenStore.getByRefreshToken('refresh-bbb')).toBeUndefined();
   });
 
   it('rejects an expired token and clears it out', async () => {
@@ -321,6 +407,7 @@ describe('GoogleAuthProvider against an async store', () => {
 
     await expect(provider.verifyAccessToken('access-aaa')).rejects.toThrow(/expired/);
     expect(await tokenStore.get('access-aaa')).toBeUndefined();
+    expect((await tokenStore.getByRefreshToken('refresh-bbb'))?.email).toBe('dave@phoneware.us');
   });
 
   it('revokes by refresh token as well', async () => {
@@ -337,5 +424,6 @@ describe('GoogleAuthProvider against an async store', () => {
 
     await provider.revokeToken({ client_id: 'mcp-client-1' } as never, { token: 'refresh-bbb' });
     expect(await tokenStore.get('access-aaa')).toBeUndefined();
+    expect(await tokenStore.getByRefreshToken('refresh-bbb')).toBeUndefined();
   });
 });

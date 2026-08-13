@@ -8,7 +8,7 @@ vi.hoisted(() => {
 });
 
 import { GoogleAuthProvider, decodeIdToken, isEmailAllowed } from '../src/auth/google-provider.js';
-import { MemoryClientsStore, TokenStore } from '../src/auth/stores.js';
+import { REFRESH_RETRY_WINDOW_MS, MemoryClientsStore, TokenStore } from '../src/auth/stores.js';
 import { resetResourceCache } from '../src/auth/resource-lookup.js';
 import { isImpersonatableWrite } from '../src/autotask-api.js';
 import { governor } from '../src/governor.js';
@@ -210,11 +210,16 @@ function stubUpstream(
   );
 }
 
-async function startAuth(provider: GoogleAuthProvider) {
+async function startAuth(provider: GoogleAuthProvider, scopes?: string[]) {
   const res = mockRes();
   await provider.authorize(
     CLIENT,
-    { codeChallenge: 'challenge', redirectUri: 'https://claude.ai/cb', state: 'client-state' },
+    {
+      codeChallenge: 'challenge',
+      redirectUri: 'https://claude.ai/cb',
+      state: 'client-state',
+      scopes,
+    },
     res as never,
   );
   return new URL(res.redirectedTo).searchParams.get('state')!;
@@ -287,8 +292,8 @@ describe('callback', () => {
 
 // --- token exchange and verification ----------------------------------------
 
-async function signIn(provider: GoogleAuthProvider): Promise<string> {
-  const state = await startAuth(provider);
+async function signIn(provider: GoogleAuthProvider, scopes?: string[]): Promise<string> {
+  const state = await startAuth(provider, scopes);
   const res = mockRes();
   await provider.handleCallback({ query: { code: 'g-code', state } } as never, res as never);
   return new URL(res.redirectedTo).searchParams.get('code')!;
@@ -363,7 +368,7 @@ describe('token exchange', () => {
     expect(await provider.challengeForAuthorizationCode(CLIENT, code)).toBe('challenge');
   });
 
-  it('rotates the access token on refresh and keeps the identity', async () => {
+  it('rotates access and refresh tokens on refresh and keeps the identity', async () => {
     stubUpstream(baseClaims());
     const provider = makeProvider();
     const code = await signIn(provider);
@@ -371,8 +376,9 @@ describe('token exchange', () => {
 
     const second = await provider.exchangeRefreshToken(CLIENT, first.refresh_token!);
     expect(second.access_token).not.toBe(first.access_token);
+    expect(second.refresh_token).toBeTruthy();
+    expect(second.refresh_token).not.toBe(first.refresh_token);
 
-    // The old access token is dead, the new one carries the same person.
     await expect(provider.verifyAccessToken(first.access_token)).rejects.toThrow(/invalid_token/);
     const auth = await provider.verifyAccessToken(second.access_token);
     expect((auth.extra as { email?: string }).email).toBe('dave@phoneware.us');
@@ -400,17 +406,68 @@ describe('token exchange', () => {
     expect((auth.extra as { capabilities?: string[] }).capabilities).toEqual(['read', 'create']);
   });
 
-  it('refuses to refresh someone who has since been deactivated', async () => {
+  it('revokes definitive identity failures but preserves transient failures', async () => {
     stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
-    const provider = makeProvider();
+    const tokenStore = new TokenStore();
+    const provider = makeProvider({ tokenStore });
     const code = await signIn(provider);
     const first = await provider.exchangeAuthorizationCode(CLIENT, code);
 
     resetResourceCache();
     stubUpstream(baseClaims(), [{ id: 77, isActive: false, userType: 14 }]);
-
     await expect(provider.exchangeRefreshToken(CLIENT, first.refresh_token!)).rejects.toThrow(
-      /invalid_grant/,
+      /deactivated/,
+    );
+    await expect(provider.verifyAccessToken(first.access_token)).rejects.toThrow(/invalid_token/);
+    await expect(provider.exchangeRefreshToken(CLIENT, first.refresh_token!)).rejects.toThrow(
+      /unknown refresh token/,
+    );
+
+    resetResourceCache();
+    stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
+    const code2 = await signIn(provider);
+    const second = await provider.exchangeAuthorizationCode(CLIENT, code2);
+    resetResourceCache();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('down', { status: 500 })),
+    );
+    await expect(provider.exchangeRefreshToken(CLIENT, second.refresh_token!)).rejects.toThrow(
+      /Could not reach Autotask/,
+    );
+    expect(await tokenStore.getByRefreshToken(second.refresh_token!)).toBeDefined();
+  });
+
+  it('allows refresh scope narrowing and rejects expansion', async () => {
+    stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
+    const provider = makeProvider();
+    const code = await signIn(provider, ['read', 'write']);
+    const first = await provider.exchangeAuthorizationCode(CLIENT, code);
+
+    const narrowed = await provider.exchangeRefreshToken(CLIENT, first.refresh_token!, ['read']);
+    expect(narrowed.scope).toBe('read');
+    await expect(
+      provider.exchangeRefreshToken(CLIENT, narrowed.refresh_token!, ['read', 'admin']),
+    ).rejects.toThrow(/ungranted scope: admin/);
+  });
+
+  it('revokes the refresh family when a consumed refresh token is replayed', async () => {
+    stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
+    const provider = makeProvider();
+    const code = await signIn(provider);
+    const first = await provider.exchangeAuthorizationCode(CLIENT, code);
+    const second = await provider.exchangeRefreshToken(CLIENT, first.refresh_token!);
+
+    const retried = await provider.exchangeRefreshToken(CLIENT, first.refresh_token!);
+    expect(retried.refresh_token).toBe(second.refresh_token);
+
+    const afterRetryWindow = Date.now() + REFRESH_RETRY_WINDOW_MS + 1;
+    vi.spyOn(Date, 'now').mockReturnValue(afterRetryWindow);
+    await expect(provider.exchangeRefreshToken(CLIENT, first.refresh_token!)).rejects.toThrow(
+      /unknown refresh token/,
+    );
+    await expect(provider.exchangeRefreshToken(CLIENT, second.refresh_token!)).rejects.toThrow(
+      /unknown refresh token/,
     );
   });
 
@@ -444,12 +501,14 @@ describe('token exchange', () => {
     await expect(provider.verifyAccessToken(tokens.access_token)).rejects.toThrow(/invalid_token/);
   });
 
-  it('rejects an expired access token', async () => {
+  it('rejects an expired access token but leaves its refresh token usable', async () => {
     stubUpstream(baseClaims());
     const provider = makeProvider({ tokenTtlSeconds: -1 });
     const code = await signIn(provider);
     const tokens = await provider.exchangeAuthorizationCode(CLIENT, code);
     await expect(provider.verifyAccessToken(tokens.access_token)).rejects.toThrow(/expired/);
+    const refreshed = await provider.exchangeRefreshToken(CLIENT, tokens.refresh_token!);
+    expect(refreshed.access_token).not.toBe(tokens.access_token);
   });
 
   it('rejects a token it never issued', async () => {

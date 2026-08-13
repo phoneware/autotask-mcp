@@ -1,12 +1,10 @@
 /**
  * HTTP (Streamable HTTP) transport for the Autotask MCP server.
  *
- * One MCP session per client. The SDK's StreamableHTTPServerTransport is a
- * *per-session* object: it latches its session id on the first `initialize` and
- * rejects both a second `initialize` and any request carrying a different
- * Mcp-Session-Id. Sharing one transport across clients therefore serves exactly
- * one client and 400s everyone else, so each `initialize` here mints its own
- * McpServer + transport pair and registers it in a session store.
+ * Streamable HTTP runs statelessly: every request gets a fresh MCP server and a
+ * fresh SDK transport with `sessionIdGenerator: undefined`. The server never
+ * retains Mcp-Session-Id state, so idle periods, restarts and deploys cannot
+ * strand a client on a vanished in-memory session.
  *
  * Google sign-in is the only way in. Autotask has no OAuth of its own, so
  * Google is not standing in for Autotask auth: its only job is to produce a
@@ -21,12 +19,10 @@
  * (a Google service-account ID token) rather than a shared secret.
  */
 
-import { randomUUID } from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import {
   mcpAuthRouter,
   getOAuthProtectedResourceMetadataUrl,
@@ -49,8 +45,8 @@ import {
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_MAX_SESSIONS = 100;
-const DEFAULT_SESSION_TTL_MS = 30 * 60_000;
+const DEFAULT_MAX_SESSIONS = 0;
+const DEFAULT_SESSION_TTL_MS = 0;
 const DEFAULT_RATE_LIMIT = 120;
 const RATE_WINDOW_MS = 60_000;
 const DEFAULT_MAX_BODY_BYTES = 4 * 1024 * 1024;
@@ -221,7 +217,7 @@ export type SessionFactory = (
 export const defaultCreateSession: SessionFactory = (hooks, caller) => {
   const { server } = buildServer(caller?.capabilities);
   const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
+    sessionIdGenerator: undefined,
     onsessioninitialized: hooks.onsessioninitialized,
     onsessionclosed: hooks.onsessionclosed,
   });
@@ -331,20 +327,60 @@ export function createApp(opts: AppOptions): Express {
       const bad = uris.filter(
         (u) => typeof u !== 'string' || !isAllowedRedirectUri(u, opts.redirectAllowlist),
       );
-      if (bad.length === 0) {
-        next();
+      if (bad.length !== 0) {
+        console.error(
+          `[autotask-mcp] refused registration for redirect_uri ${JSON.stringify(bad)}`,
+        );
+        res.status(400).json({
+          error: 'invalid_redirect_uri',
+          error_description:
+            'redirect_uri must be a loopback address or an allowlisted callback for this server.',
+        });
         return;
       }
-      console.error(`[autotask-mcp] refused registration for redirect_uri ${JSON.stringify(bad)}`);
-      res.status(400).json({
-        error: 'invalid_redirect_uri',
-        error_description:
-          'redirect_uri must be a loopback address or an allowlisted callback for this server.',
-      });
+
+      const body = (req.body ?? {}) as {
+        token_endpoint_auth_method?: unknown;
+        grant_types?: unknown;
+        response_types?: unknown;
+      };
+      if (
+        body.token_endpoint_auth_method !== undefined &&
+        body.token_endpoint_auth_method !== 'none'
+      ) {
+        res.status(400).json({
+          error: 'invalid_client_metadata',
+          error_description: 'Autotask MCP registers OAuth clients as public clients only.',
+        });
+        return;
+      }
+      body.token_endpoint_auth_method = 'none';
+      body.grant_types = Array.isArray(body.grant_types)
+        ? body.grant_types
+        : ['authorization_code', 'refresh_token'];
+      body.response_types = Array.isArray(body.response_types) ? body.response_types : ['code'];
+      req.body = body;
+      next();
     });
 
     app.all('/authorize', (req: Request, res: Response, next: NextFunction) => {
       void resolveClient(req, res, next, opts);
+    });
+
+    app.get('/.well-known/oauth-authorization-server', (_req: Request, res: Response) => {
+      res.json({
+        issuer: opts.baseUrl!.href,
+        authorization_endpoint: new URL('/authorize', opts.baseUrl).href,
+        token_endpoint: new URL('/token', opts.baseUrl).href,
+        registration_endpoint: new URL('/register', opts.baseUrl).href,
+        revocation_endpoint: new URL('/revoke', opts.baseUrl).href,
+        response_types_supported: ['code'],
+        grant_types_supported: ['authorization_code', 'refresh_token'],
+        code_challenge_methods_supported: ['S256'],
+        token_endpoint_auth_methods_supported: ['none'],
+        revocation_endpoint_auth_methods_supported: ['none'],
+        scopes_supported: ['openid', 'email'],
+      });
     });
 
     app.use(
@@ -354,6 +390,7 @@ export function createApp(opts: AppOptions): Express {
         resourceServerUrl: mcpUrl,
         resourceName: 'Autotask MCP',
         scopesSupported: ['openid', 'email'],
+        clientRegistrationOptions: { clientSecretExpirySeconds: 0 },
       }),
     );
     // RFC 9728 discovery is path-suffixed (/.well-known/oauth-protected-resource/mcp)
@@ -613,77 +650,39 @@ function rpcError(res: Response, status: number, code: number, message: string):
 }
 
 async function handlePost(req: Request, res: Response, opts: AppOptions): Promise<void> {
-  const caller = callerFrom(req);
-  const sid = req.headers['mcp-session-id'];
-  const sessionId = typeof sid === 'string' ? sid : undefined;
-
-  try {
-    if (isInitializeRequest(req.body)) {
-      if (opts.sessions.full) {
-        rpcError(res, 503, -32004, 'Server at session capacity, try again later');
-        return;
-      }
-
-      // Registration happens in onsessioninitialized so the id is the one the
-      // transport actually assigned, not one we guessed. `holder` closes the
-      // loop between the hooks and the objects the factory is constructing.
-      const holder: { server?: McpServer; transport?: StreamableHTTPServerTransport } = {};
-      const { server, transport } = opts.createSession(
-        {
-          onsessioninitialized: (id) => {
-            opts.sessions.set({
-              id,
-              transport: holder.transport!,
-              server: holder.server!,
-              lastSeen: Date.now(),
-            });
-          },
-          onsessionclosed: (id) => opts.sessions.delete(id),
-        },
-        caller,
-      );
-      holder.server = server;
-      holder.transport = transport;
-
-      await server.connect(transport);
-      await withCaller(caller, () => transport.handleRequest(req, res, req.body));
-      return;
-    }
-
-    const session = sessionId ? opts.sessions.get(sessionId) : undefined;
-    if (!session) {
-      rpcError(
-        res,
-        404,
-        -32001,
-        sessionId ? 'Session not found or expired' : 'Missing Mcp-Session-Id header',
-      );
-      return;
-    }
-    // Identity is bound per request, not per session: the same session's later
-    // calls still carry whoever is making them.
-    await withCaller(caller, () => session.transport.handleRequest(req, res, req.body));
-  } catch (err) {
-    failed(res, err);
-  }
+  await handleStatelessMcpRequest(req, res, opts, req.body);
 }
 
 async function handleSessionScoped(
   req: Request,
   res: Response,
   opts: AppOptions,
-  terminate: boolean,
+  _terminate: boolean,
 ): Promise<void> {
-  const sid = req.headers['mcp-session-id'];
-  const sessionId = typeof sid === 'string' ? sid : undefined;
-  const session = sessionId ? opts.sessions.get(sessionId) : undefined;
-  if (!session) {
-    rpcError(res, 404, -32001, 'Session not found');
-    return;
-  }
+  await handleStatelessMcpRequest(req, res, opts);
+}
+
+async function handleStatelessMcpRequest(
+  req: Request,
+  res: Response,
+  opts: AppOptions,
+  body?: unknown,
+): Promise<void> {
+  const caller = callerFrom(req);
+  const { server, transport } = opts.createSession(
+    {
+      onsessioninitialized: () => undefined,
+      onsessionclosed: () => undefined,
+    },
+    caller,
+  );
+  res.once('close', () => {
+    void transport.close();
+  });
+
   try {
-    await withCaller(callerFrom(req), () => session.transport.handleRequest(req, res));
-    if (terminate) opts.sessions.delete(session.id);
+    await server.connect(transport);
+    await withCaller(caller, () => transport.handleRequest(req, res, body));
   } catch (err) {
     failed(res, err);
   }
@@ -829,7 +828,6 @@ export async function runHttp(): Promise<RunningServer> {
   const app = createApp(opts);
 
   const reaper = setInterval(() => {
-    void sessions.reap();
     limiter?.reap();
     // Persistent stores sweep over the network, so a failure here must not
     // reject into an unhandled rejection and take the process down.
@@ -854,15 +852,13 @@ export async function runHttp(): Promise<RunningServer> {
 
   const close = async (): Promise<void> => {
     clearInterval(reaper);
-    await sessions.closeAll();
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   };
 
-  // Cloud Run sends SIGTERM before pulling an instance; drain rather than drop
-  // live sessions mid-call.
+  // Cloud Run sends SIGTERM before pulling an instance.
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     process.once(signal, () => {
-      console.error(`[autotask-mcp] ${signal} received, draining sessions`);
+      console.error(`[autotask-mcp] ${signal} received, closing HTTP listener`);
       void close().then(() => process.exit(0));
     });
   }
