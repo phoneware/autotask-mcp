@@ -348,7 +348,9 @@ describe('token exchange', () => {
     const code = await signIn(provider);
 
     await provider.exchangeAuthorizationCode(CLIENT, code);
-    await expect(provider.exchangeAuthorizationCode(CLIENT, code)).rejects.toThrow(/invalid_grant/);
+    await expect(provider.exchangeAuthorizationCode(CLIENT, code)).rejects.toMatchObject({
+      errorCode: 'invalid_grant',
+    });
   });
 
   it('refuses a code issued to a different MCP client', async () => {
@@ -358,7 +360,7 @@ describe('token exchange', () => {
 
     await expect(
       provider.exchangeAuthorizationCode({ client_id: 'someone-else' } as never, code),
-    ).rejects.toThrow(/invalid_grant/);
+    ).rejects.toMatchObject({ errorCode: 'invalid_grant' });
   });
 
   it('returns the PKCE challenge that started the flow', async () => {

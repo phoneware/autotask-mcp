@@ -384,7 +384,7 @@ account, start the connection again and pick the right one.</p>
   ): Promise<OAuthTokens> {
     const entry = this.authCodes.get(authorizationCode);
     if (!entry || entry.mcpClientId !== client.client_id) {
-      throw new Error('invalid_grant: unknown authorization code');
+      throw new InvalidGrantError('unknown authorization code');
     }
     // Single use, whatever happens next.
     this.authCodes.delete(authorizationCode);

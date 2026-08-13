@@ -16,8 +16,8 @@
  *   {tokenCollection}_refresh         - refresh credentials, keyed by refresh token
  *   {tokenCollection}_refresh_families - bounded current/previous refresh family state
  *
- * Each store keeps a read-through in-process cache. Every cache entry is
- * invalidated on the write path that would make it stale.
+ * Registered DCR clients use a read-through cache because they are immutable
+ * after registration. Tokens are always read from Firestore at the point of use.
  */
 
 import { randomUUID } from 'node:crypto';
