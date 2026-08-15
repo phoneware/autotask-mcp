@@ -117,7 +117,9 @@ export function collectClauses(...clauses: Array<FilterClause | null>): FilterCl
  */
 export function searchResponse(filter: FilterClause[], result: unknown): ToolResponse {
   const body =
-    result !== null && typeof result === 'object' ? (result as Record<string, unknown>) : { result };
+    result !== null && typeof result === 'object'
+      ? (result as Record<string, unknown>)
+      : { result };
   return jsonResponse({ filter, unfiltered: isUnfiltered(filter), ...body });
 }
 
