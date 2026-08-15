@@ -372,14 +372,25 @@ describe('contact tools', () => {
 });
 
 describe('generic tools: pagination', () => {
-  it('get-next-page follows the supplied url verbatim', async () => {
+  it('get-next-page passes the url verbatim and the parsed query model', async () => {
     const { genericTools } = await import('../src/tools/generic.js');
     const next = genericTools.find((t) => t.name === 'get-next-page')!;
     getPage.mockResolvedValueOnce({ items: [] });
 
-    const url = 'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query?search=x';
-    await next.handler({ nextPageUrl: url });
+    const url =
+      'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query/next?paging=x';
+    const query = '{"filter":[{"op":"eq","field":"id","value":1}],"MaxRecords":1}';
+    await next.handler({ nextPageUrl: url, query });
 
-    expect(getPage).toHaveBeenCalledWith(url);
+    expect(getPage).toHaveBeenCalledWith(url, JSON.parse(query));
+  });
+
+  it('get-next-page rejects a query that is not valid JSON', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const next = genericTools.find((t) => t.name === 'get-next-page')!;
+    getPage.mockReset();
+
+    await expect(next.handler({ nextPageUrl: 'https://x/', query: 'not json' })).rejects.toThrow();
+    expect(getPage).not.toHaveBeenCalled();
   });
 });

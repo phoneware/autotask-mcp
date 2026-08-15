@@ -152,21 +152,25 @@ describe('AutotaskApi', () => {
     );
   });
 
-  // POST, not GET: the real cursor is `/query/next?paging=...`, and Autotask
-  // answers a GET there with 405. Asserting the method is the only thing
-  // standing between us and shipping that 405 again.
-  it('getPage POSTs to a nextPageUrl under the zone base, with no body', async () => {
+  // The live API taught both halves of this: a GET returns 405, and a bodyless
+  // POST returns 500 "Parameter name: queryModel". Asserting the method and the
+  // body is the only thing standing between us and shipping either again.
+  it('getPage POSTs the original query model to a nextPageUrl under the zone base', async () => {
     fetchMock.mockResolvedValueOnce(jsonResp({ items: [{ id: 2 }] }));
     const api = new AutotaskApi();
     const url =
       'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query/next?paging=%7B%22pageSize%22%3A1%7D';
-    await api.getPage(url);
+    const model = {
+      filter: [{ op: 'contains', field: 'companyName', value: 'Zucker' }],
+      MaxRecords: 1,
+    };
+    await api.getPage(url, model);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [called, opts] = fetchMock.mock.calls[0];
     expect(called).toBe(url);
     expect(opts.method).toBe('POST');
-    expect(opts.body).toBeUndefined();
+    expect(JSON.parse(opts.body)).toEqual(model);
     expect(opts.headers.ApiIntegrationCode).toBe('INTCODE123');
     expect(opts.headers.UserName).toBe('apiuser@example.com');
     expect(opts.headers.Secret).toBe('super-secret-value');
@@ -174,7 +178,7 @@ describe('AutotaskApi', () => {
 
   it('getPage refuses a url outside the zone base', async () => {
     const api = new AutotaskApi();
-    await expect(api.getPage('https://evil.example.com/V1.0/Companies/query')).rejects.toThrow(
+    await expect(api.getPage('https://evil.example.com/V1.0/Companies/query', {})).rejects.toThrow(
       /must start with/,
     );
     expect(fetchMock).not.toHaveBeenCalled();
