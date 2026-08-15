@@ -49,9 +49,17 @@ export function optionalIntArg(name: string, raw: string | undefined): number | 
 
 export interface FilterClause {
   op: string;
-  field: string;
+  field?: string;
   value?: unknown;
+  items?: FilterClause[];
 }
+
+/**
+ * The Autotask "match every record" idiom. Identity matters: `isUnfiltered`
+ * compares by reference, so a caller-supplied clause that happens to look the
+ * same is still a real filter.
+ */
+export const MATCH_ALL: FilterClause = { op: 'gte', field: 'id', value: 0 };
 
 /**
  * Autotask /query requires at least one filter clause. When a convenience tool
@@ -60,7 +68,15 @@ export interface FilterClause {
  */
 export function ensureFilter(clauses: FilterClause[]): FilterClause[] {
   if (clauses.length > 0) return clauses;
-  return [{ op: 'gte', field: 'id', value: 0 }];
+  return [MATCH_ALL];
+}
+
+/**
+ * True when the filter is only the fetch-all fallback, i.e. the caller supplied
+ * nothing to search on.
+ */
+export function isUnfiltered(filter: FilterClause[]): boolean {
+  return filter.length === 1 && filter[0] === MATCH_ALL;
 }
 
 /**
@@ -78,8 +94,33 @@ export function containsClause(field: string, value: string | undefined): Filter
   return { op: 'contains', field, value };
 }
 
+/**
+ * OR-group of `contains` clauses across several fields, for a single free-text
+ * term that could match any of them.
+ */
+export function anyContainsClause(
+  fields: string[],
+  value: string | undefined,
+): FilterClause | null {
+  if (value === undefined || value === '') return null;
+  return { op: 'or', items: fields.map((field) => ({ op: 'contains', field, value })) };
+}
+
 export function collectClauses(...clauses: Array<FilterClause | null>): FilterClause[] {
   return ensureFilter(clauses.filter((c): c is FilterClause => c !== null));
+}
+
+/**
+ * A search result plus the filter that produced it. `unfiltered: true` means no
+ * criteria were supplied and Autotask returned an arbitrary first page: the
+ * shape that previously read like a real search result.
+ */
+export function searchResponse(filter: FilterClause[], result: unknown): ToolResponse {
+  const body =
+    result !== null && typeof result === 'object'
+      ? (result as Record<string, unknown>)
+      : { result };
+  return jsonResponse({ filter, unfiltered: isUnfiltered(filter), ...body });
 }
 
 /**

@@ -266,6 +266,7 @@ Autotask rights; see [Who can do what](#who-can-do-what).
 | `describe-entity-fields`    | Field names, types and picklist values for an entity |
 | `query-entity`              | Query any entity with the Autotask filter syntax     |
 | `count-entity`              | Count matching records without fetching them         |
+| `get-next-page`             | Follow a `pageDetails.nextPageUrl` past the 500 cap  |
 | `get-entity`                | Fetch a record by id                                 |
 | `create-entity`             | Create a record (confirm token required)             |
 | `update-entity`             | Update a record (confirm token required)             |
@@ -285,15 +286,17 @@ Autotask rights; see [Who can do what](#who-can-do-what).
 
 > Status, priority, queue and similar values are numeric picklist codes. Use `describe-entity-fields` to discover the valid codes for your Autotask instance.
 
+Every `search-*` tool echoes the filter it actually applied and sets `unfiltered: true` when you supplied no criteria, so an arbitrary first page never reads like a search result. Autotask caps one query at 500 records; pass the response's `pageDetails.nextPageUrl` to `get-next-page` to read further.
+
 ## Resources
 
 Read-only `autotask://` resources are also exposed: `autotask://threshold`, `autotask://companies`, `autotask://tickets`, `autotask://contacts`, and templated `autotask://{companies,tickets,contacts}/{id}`.
 
 ## Tool safety
 
-**Read-only tools** (18) — never mutate data, always available:
+**Read-only tools** (19) — never mutate data, always available:
 
-- **Generic**: `list-known-entities`, `describe-entity-fields`, `query-entity`, `count-entity`, `get-entity`, `get-threshold-information`, `get-version`
+- **Generic**: `list-known-entities`, `describe-entity-fields`, `query-entity`, `count-entity`, `get-next-page`, `get-entity`, `get-threshold-information`, `get-version`
 - **Tickets**: `search-tickets`, `get-ticket`
 - **Companies**: `search-companies`, `get-company`
 - **Contacts**: `search-contacts`, `get-contact`
@@ -457,10 +460,10 @@ The probe costs one call per minute and its reading is surfaced on `/health`.
 
 ## Security model
 
-- **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, all write tools are never registered (11 of 30 tools) — a misconfigured agent cannot mutate data.
+- **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, all write tools are never registered (11 of 31 tools) — a misconfigured agent cannot mutate data.
 - **Per-person authorization** (HTTP transport): what each signed-in person may do is derived from their Autotask security level, and tools beyond it are never registered for their session. See below.
 - **Confirmation tokens**: _every_ mutating tool — generic and convenience alike (`create-*`, `update-*`, `delete-*`) — requires a `confirm` argument equal to the upper-snake-cased tool name (e.g. `CREATE_TICKET`, `DELETE_ENTITY`) before it executes. This blocks accidental single-call writes to production data.
-- **Strict argument validation**: numeric tool arguments are validated; non-numeric input is rejected with a clear error instead of being sent to Autotask as `null`.
+- **Strict argument validation**: every tool rejects an argument it does not declare, naming the offending key, so a wrong parameter name can never be silently dropped and turned into an unfiltered "fetch everything" query. Numeric arguments are validated too; non-numeric input is rejected with a clear error instead of being sent to Autotask as `null`.
 - **Secret redaction**: credentials and tokens are stripped from error messages before they reach the model or logs.
 - **HTTP auth**: `/mcp` requires a bearer issued by this server's own Google sign-in flow, and returns `401` with a `WWW-Authenticate` challenge pointing at the OAuth metadata otherwise. There is no shared static token. `/health` is intentionally unauthenticated, for container/orchestrator health checks only. Default bind host is `127.0.0.1`; expose beyond localhost (e.g. `0.0.0.0` in Docker) only behind your own network controls.
 - **Browser origins denied by default**: an unset `AUTOTASK_HTTP_ALLOWED_ORIGINS` rejects any request carrying an `Origin` header, so a malicious page cannot drive the server via DNS rebinding. `AUTOTASK_HTTP_ALLOWED_HOSTS` adds `Host` pinning on top.

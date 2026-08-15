@@ -10,6 +10,8 @@ vi.hoisted(() => {
 
 import { buildServer } from '../src/server.js';
 import { DESTRUCTIVE_TOOLS } from '../src/security.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 describe('buildServer registration (readonly lock test)', () => {
   const orig = process.env.AUTOTASK_READ_ONLY;
@@ -37,12 +39,38 @@ describe('buildServer registration (readonly lock test)', () => {
     expect(ro.registeredCount).toBe(full.registeredCount - DESTRUCTIVE_TOOLS.size);
   });
 
-  it('locks the documented counts: full=30, readonly=19, skipped=11', () => {
+  it('locks the documented counts: full=31, readonly=20, skipped=11', () => {
     delete process.env.AUTOTASK_READ_ONLY;
-    expect(buildServer().registeredCount).toBe(30);
+    expect(buildServer().registeredCount).toBe(31);
     process.env.AUTOTASK_READ_ONLY = 'true';
     const ro = buildServer();
-    expect(ro.registeredCount).toBe(19);
+    expect(ro.registeredCount).toBe(20);
     expect(ro.skipped).toBe(11);
+  });
+
+  it('rejects an unknown argument instead of silently searching for everything', async () => {
+    delete process.env.AUTOTASK_READ_ONLY;
+    const { server } = buildServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'test', version: '0' });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+    // The dropped-argument bug was silent: the handler saw no filters and
+    // Autotask returned an arbitrary first page. Strict makes it an error
+    // result that names the key, so the agent can fix its own call.
+    const res = await client.callTool({
+      name: 'search-companies',
+      arguments: { searchTerm: 'Zucker' },
+    });
+    expect(res.isError).toBe(true);
+    expect((res.content as Array<{ text: string }>)[0].text).toMatch(
+      /Unrecognized key\(s\).*searchTerm/,
+    );
+
+    const listed = await client.listTools();
+    const schema = listed.tools.find((t) => t.name === 'search-companies')!.inputSchema;
+    expect(schema.additionalProperties).toBe(false);
+
+    await client.close();
   });
 });

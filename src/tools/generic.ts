@@ -133,6 +133,22 @@ export const genericTools: ToolDefinition[] = [
     },
   },
   {
+    name: 'get-next-page',
+    description:
+      'Fetch the next page of a previous query. Pass the "nextPageUrl" from that response\'s pageDetails; a null nextPageUrl means there are no more pages. Autotask caps a single query at 500 records, so this is the only way to read past that.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nextPageUrl: {
+          type: 'string',
+          description: 'pageDetails.nextPageUrl copied verbatim from a prior query response',
+        },
+      },
+      required: ['nextPageUrl'],
+    },
+    handler: async (args) => jsonResponse(await api.getPage(args.nextPageUrl)),
+  },
+  {
     name: 'get-entity',
     description: 'Fetch a single record of any entity by its numeric id.',
     inputSchema: {

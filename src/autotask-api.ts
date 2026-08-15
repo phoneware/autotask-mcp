@@ -260,6 +260,21 @@ export class AutotaskApi {
     return this.request('POST', `V1.0/${this.encodePath(entity)}/query`, query);
   }
 
+  /**
+   * Follow a `pageDetails.nextPageUrl` returned by a previous query. The URL
+   * comes from the agent, so it must live under this account's zone base;
+   * without that check the tool is a fetch-anything proxy wearing Autotask
+   * credentials. Re-entering `request` keeps the governor, retries and auth
+   * headers in play.
+   */
+  async getPage(url: string): Promise<unknown> {
+    const base = await this.getBaseUrl();
+    if (!url.startsWith(base)) {
+      throw new Error(`nextPageUrl must start with ${base}`);
+    }
+    return this.request('GET', url.slice(base.length));
+  }
+
   /** Count records matching a query, without fetching them. */
   async queryCount(entity: string, query: unknown): Promise<unknown> {
     return this.request('POST', `V1.0/${this.encodePath(entity)}/query/count`, query);

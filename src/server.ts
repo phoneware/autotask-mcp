@@ -71,7 +71,13 @@ export function buildServer(capabilities?: readonly Capability[]): {
       shape[key] = zodType;
     }
 
-    server.tool(tool.name, tool.description, shape, async (args: Record<string, unknown>) => {
+    // A ZodRawShape becomes a default (key-stripping) z.object, which silently
+    // discards an argument the agent got wrong and leaves the handler with no
+    // filters at all. Strict turns that into an error naming the bad key, and
+    // publishes additionalProperties:false in tools/list so clients see it too.
+    const inputSchema = z.object(shape).strict() as z.ZodType<Record<string, unknown>>;
+
+    server.registerTool(tool.name, { description: tool.description, inputSchema }, async (args) => {
       try {
         const stringArgs: Record<string, string> = {};
         for (const [k, v] of Object.entries(args)) {

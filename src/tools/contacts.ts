@@ -2,10 +2,12 @@ import { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
 import {
   jsonResponse,
+  searchResponse,
   parseMaxRecords,
   collectClauses,
   eqClause,
   containsClause,
+  anyContainsClause,
   intArg,
 } from './shared.js';
 
@@ -19,6 +21,10 @@ export const contactTools: ToolDefinition[] = [
       type: 'object',
       properties: {
         companyID: { type: 'string', description: 'Filter by company id' },
+        nameContains: {
+          type: 'string',
+          description: 'Substring match on first name, last name or email address',
+        },
         lastNameContains: { type: 'string', description: 'Substring match on last name' },
         emailContains: { type: 'string', description: 'Substring match on email address' },
         maxRecords: { type: 'string', description: 'Max records to return (default 50, max 500)' },
@@ -27,11 +33,12 @@ export const contactTools: ToolDefinition[] = [
     handler: async (args) => {
       const filter = collectClauses(
         eqClause('companyID', args.companyID),
+        anyContainsClause(['firstName', 'lastName', 'emailAddress'], args.nameContains),
         containsClause('lastName', args.lastNameContains),
         containsClause('emailAddress', args.emailContains),
       );
       const query = { filter, MaxRecords: parseMaxRecords(args.maxRecords) };
-      return jsonResponse(await api.query('Contacts', query));
+      return searchResponse(filter, await api.query('Contacts', query));
     },
   },
   {

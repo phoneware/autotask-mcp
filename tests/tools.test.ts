@@ -4,7 +4,9 @@ import {
   ensureFilter,
   eqClause,
   containsClause,
+  anyContainsClause,
   collectClauses,
+  isUnfiltered,
   intArg,
   numberArg,
   optionalIntArg,
@@ -15,11 +17,13 @@ import { CONFIRM_REQUIRED_TOOLS, DESTRUCTIVE_TOOLS } from '../src/security.js';
 const query = vi.fn();
 const create = vi.fn();
 const queryCount = vi.fn();
+const getPage = vi.fn();
 vi.mock('../src/autotask-api.js', () => ({
   api: {
     query,
     create,
     queryCount,
+    getPage,
     getById: vi.fn(),
     update: vi.fn(),
     deleteById: vi.fn(),
@@ -79,6 +83,25 @@ describe('shared helpers', () => {
     expect(optionalIntArg('x', '')).toBeUndefined();
     expect(optionalIntArg('x', '7')).toBe(7);
     expect(() => optionalIntArg('x', 'no')).toThrow(/must be an integer/);
+  });
+
+  it('anyContainsClause ORs a term across fields', () => {
+    expect(anyContainsClause(['a', 'b'], 'x')).toEqual({
+      op: 'or',
+      items: [
+        { op: 'contains', field: 'a', value: 'x' },
+        { op: 'contains', field: 'b', value: 'x' },
+      ],
+    });
+    expect(anyContainsClause(['a'], undefined)).toBeNull();
+    expect(anyContainsClause(['a'], '')).toBeNull();
+  });
+
+  it('isUnfiltered only recognises the fetch-all fallback itself', () => {
+    expect(isUnfiltered(collectClauses(null, null))).toBe(true);
+    expect(isUnfiltered(collectClauses(eqClause('a', '1')))).toBe(false);
+    // A caller-supplied lookalike is a real filter, so shape alone is not enough.
+    expect(isUnfiltered([{ op: 'gte', field: 'id', value: 0 }])).toBe(false);
   });
 });
 
@@ -304,5 +327,59 @@ describe('generic tools: path-traversal hardening', () => {
     expect(query).toHaveBeenLastCalledWith('Tickets/123/Notes', {
       filter: [{ op: 'gte', field: 'id', value: 0 }],
     });
+  });
+});
+
+describe('contact tools', () => {
+  beforeEach(() => {
+    query.mockReset();
+  });
+
+  it('search-contacts ORs a name term across first, last and email', async () => {
+    const { contactTools } = await import('../src/tools/contacts.js');
+    const search = contactTools.find((t) => t.name === 'search-contacts')!;
+    query.mockResolvedValueOnce({ items: [] });
+
+    await search.handler({ nameContains: 'Zucker' });
+
+    expect(query).toHaveBeenCalledWith('Contacts', {
+      filter: [
+        {
+          op: 'or',
+          items: [
+            { op: 'contains', field: 'firstName', value: 'Zucker' },
+            { op: 'contains', field: 'lastName', value: 'Zucker' },
+            { op: 'contains', field: 'emailAddress', value: 'Zucker' },
+          ],
+        },
+      ],
+      MaxRecords: 50,
+    });
+  });
+
+  it('labels an unfiltered search so it cannot pass for a real result', async () => {
+    const { contactTools } = await import('../src/tools/contacts.js');
+    const search = contactTools.find((t) => t.name === 'search-contacts')!;
+
+    query.mockResolvedValueOnce({ items: [] });
+    const bare = await search.handler({});
+    expect(JSON.parse(bare.content[0].text).unfiltered).toBe(true);
+
+    query.mockResolvedValueOnce({ items: [] });
+    const scoped = await search.handler({ companyID: '7' });
+    expect(JSON.parse(scoped.content[0].text).unfiltered).toBe(false);
+  });
+});
+
+describe('generic tools: pagination', () => {
+  it('get-next-page follows the supplied url verbatim', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const next = genericTools.find((t) => t.name === 'get-next-page')!;
+    getPage.mockResolvedValueOnce({ items: [] });
+
+    const url = 'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query?search=x';
+    await next.handler({ nextPageUrl: url });
+
+    expect(getPage).toHaveBeenCalledWith(url);
   });
 });
