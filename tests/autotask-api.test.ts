@@ -152,6 +152,30 @@ describe('AutotaskApi', () => {
     );
   });
 
+  it('getPage follows a nextPageUrl under the zone base', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResp({ items: [{ id: 2 }] }));
+    const api = new AutotaskApi();
+    const url =
+      'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query?search=%7B%22x%22%3A1%7D';
+    await api.getPage(url);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [called, opts] = fetchMock.mock.calls[0];
+    expect(called).toBe(url);
+    expect(opts.method).toBe('GET');
+    expect(opts.headers.ApiIntegrationCode).toBe('INTCODE123');
+    expect(opts.headers.UserName).toBe('apiuser@example.com');
+    expect(opts.headers.Secret).toBe('super-secret-value');
+  });
+
+  it('getPage refuses a url outside the zone base', async () => {
+    const api = new AutotaskApi();
+    await expect(api.getPage('https://evil.example.com/V1.0/Companies/query')).rejects.toThrow(
+      /must start with/,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   describe('impersonation fallback', () => {
     const caller = {
       email: 'jason@example.com',

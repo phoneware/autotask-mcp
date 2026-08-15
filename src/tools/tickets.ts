@@ -2,6 +2,7 @@ import { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
 import {
   jsonResponse,
+  searchResponse,
   parseMaxRecords,
   eqClause,
   containsClause,
@@ -81,8 +82,9 @@ export const ticketTools: ToolDefinition[] = [
         }
       }
 
-      const query = { filter: ensureFilter(clauses), MaxRecords: parseMaxRecords(args.maxRecords) };
-      return jsonResponse(await api.query('Tickets', query));
+      const filter = ensureFilter(clauses);
+      const query = { filter, MaxRecords: parseMaxRecords(args.maxRecords) };
+      return searchResponse(filter, await api.query('Tickets', query));
     },
   },
   {

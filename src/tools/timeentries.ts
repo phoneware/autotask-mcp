@@ -2,6 +2,7 @@ import { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
 import {
   jsonResponse,
+  searchResponse,
   parseMaxRecords,
   collectClauses,
   eqClause,
@@ -31,7 +32,7 @@ export const timeEntryTools: ToolDefinition[] = [
         eqClause('resourceID', args.resourceID),
       );
       const query = { filter, MaxRecords: parseMaxRecords(args.maxRecords) };
-      return jsonResponse(await api.query('TimeEntries', query));
+      return searchResponse(filter, await api.query('TimeEntries', query));
     },
   },
   {

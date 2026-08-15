@@ -285,7 +285,7 @@ describe('resolveResourceForEmail', () => {
 describe('buildServer capability filtering', () => {
   // Registration, not just refusal: a tool a person may not use is never built,
   // so the model is not offered a capability it would only be denied.
-  const FULL = 30;
+  const FULL = 31;
   const MUTATING = 11;
 
   it('builds everything when no capabilities are given (stdio)', () => {
