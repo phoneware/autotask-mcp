@@ -266,7 +266,7 @@ Autotask rights; see [Who can do what](#who-can-do-what).
 | `describe-entity-fields`    | Field names, types and picklist values for an entity |
 | `query-entity`              | Query any entity with the Autotask filter syntax     |
 | `count-entity`              | Count matching records without fetching them         |
-| `get-next-page`             | Follow a `pageDetails.nextPageUrl` past the 500 cap  |
+| `get-next-page`             | Next page of a query (`nextPageUrl` + same `query`)  |
 | `get-entity`                | Fetch a record by id                                 |
 | `create-entity`             | Create a record (confirm token required)             |
 | `update-entity`             | Update a record (confirm token required)             |
@@ -286,7 +286,7 @@ Autotask rights; see [Who can do what](#who-can-do-what).
 
 > Status, priority, queue and similar values are numeric picklist codes. Use `describe-entity-fields` to discover the valid codes for your Autotask instance.
 
-Every `search-*` tool echoes the filter it actually applied and sets `unfiltered: true` when you supplied no criteria, so an arbitrary first page never reads like a search result. Autotask caps one query at 500 records; pass the response's `pageDetails.nextPageUrl` to `get-next-page` to read further.
+Every `search-*` tool echoes the filter it actually applied and sets `unfiltered: true` when you supplied no criteria, so an arbitrary first page never reads like a search result. Autotask caps one query at 500 records. To read further, pass the response's `pageDetails.nextPageUrl` to `get-next-page` along with the same `query` you sent originally: Autotask keeps only the page position in the URL and still wants the query model in the body, and it must not change between pages. The echoed `filter` is there so you can pass it straight back.
 
 ## Resources
 

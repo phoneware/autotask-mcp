@@ -135,7 +135,7 @@ export const genericTools: ToolDefinition[] = [
   {
     name: 'get-next-page',
     description:
-      'Fetch the next page of a previous query. Pass the "nextPageUrl" from that response\'s pageDetails; a null nextPageUrl means there are no more pages. Autotask caps a single query at 500 records, so this is the only way to read past that.',
+      'Fetch the next page of a previous query. Pass the "nextPageUrl" from that response\'s pageDetails plus the SAME query you sent originally: Autotask carries only the page position in the URL and still requires the query model in the body, and changing filter/MaxRecords/IncludeFields between pages breaks the cursor. Every search-* tool echoes the `filter` it applied so you can pass it straight back. A null nextPageUrl means there are no more pages. Autotask caps a single query at 500 records, so this is the only way to read past that.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -143,10 +143,18 @@ export const genericTools: ToolDefinition[] = [
           type: 'string',
           description: 'pageDetails.nextPageUrl copied verbatim from a prior query response',
         },
+        query: {
+          type: 'string',
+          description:
+            'The same JSON query object the previous page was fetched with, e.g. {"filter":[{"op":"contains","field":"companyName","value":"Zucker"}],"MaxRecords":50}',
+        },
       },
-      required: ['nextPageUrl'],
+      required: ['nextPageUrl', 'query'],
     },
-    handler: async (args) => jsonResponse(await api.getPage(args.nextPageUrl)),
+    handler: async (args) => {
+      const query = parseJsonBody(args.query, querySchema, 'query');
+      return jsonResponse(await api.getPage(args.nextPageUrl, query));
+    },
   },
   {
     name: 'get-entity',
