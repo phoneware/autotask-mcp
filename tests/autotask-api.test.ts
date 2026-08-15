@@ -152,17 +152,21 @@ describe('AutotaskApi', () => {
     );
   });
 
-  it('getPage follows a nextPageUrl under the zone base', async () => {
+  // POST, not GET: the real cursor is `/query/next?paging=...`, and Autotask
+  // answers a GET there with 405. Asserting the method is the only thing
+  // standing between us and shipping that 405 again.
+  it('getPage POSTs to a nextPageUrl under the zone base, with no body', async () => {
     fetchMock.mockResolvedValueOnce(jsonResp({ items: [{ id: 2 }] }));
     const api = new AutotaskApi();
     const url =
-      'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query?search=%7B%22x%22%3A1%7D';
+      'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query/next?paging=%7B%22pageSize%22%3A1%7D';
     await api.getPage(url);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [called, opts] = fetchMock.mock.calls[0];
     expect(called).toBe(url);
-    expect(opts.method).toBe('GET');
+    expect(opts.method).toBe('POST');
+    expect(opts.body).toBeUndefined();
     expect(opts.headers.ApiIntegrationCode).toBe('INTCODE123');
     expect(opts.headers.UserName).toBe('apiuser@example.com');
     expect(opts.headers.Secret).toBe('super-secret-value');
