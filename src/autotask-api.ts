@@ -60,12 +60,18 @@ export function redactSecrets(text: string): string {
  * and status, service calls). It also requires the API user's security level to
  * permit impersonation on that entity type, so sending the header where it is
  * not supported risks failing a call that would otherwise have worked. Restrict
- * it to entity creates: a POST that is not a /query or /query/count.
+ * it to entity creates: a POST that is not one of the /query reads.
+ *
+ * The query string is stripped before matching. Paging cursors are POSTs that
+ * carry one (`/query/next?paging=...`), and impersonating one makes Autotask
+ * judge the *impersonated* resource's rights on a read, which it answers with
+ * `500 The logged in Resource does not have the adequate permissions to query
+ * this entity type`.
  */
 export function isImpersonatableWrite(method: string, path: string): boolean {
   if (method !== 'POST') return false;
-  const clean = path.replace(/\/+$/, '').toLowerCase();
-  return !clean.endsWith('/query') && !clean.endsWith('/query/count');
+  const clean = path.split('?')[0].replace(/\/+$/, '').toLowerCase();
+  return !/\/query(\/count|\/next)?$/.test(clean);
 }
 
 export class AutotaskApi {

@@ -184,6 +184,23 @@ describe('AutotaskApi', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  // A paging cursor is a read wearing POST. Impersonating it makes Autotask
+  // judge the impersonated resource's rights on a query, which it refuses with
+  // "does not have the adequate permissions to query this entity type".
+  it('getPage does not impersonate: a paging cursor is a read, not a create', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResp({ items: [{ id: 2 }] }));
+    const api = new AutotaskApi();
+    const url =
+      'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query/next?paging=%7B%22pageSize%22%3A1%7D';
+    await withCaller(
+      { email: 'jason@example.com', resourceId: 29682893, capabilities: ['read'] },
+      () => api.getPage(url, { filter: [{ op: 'gte', field: 'id', value: 0 }], MaxRecords: 1 }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1].headers.ImpersonationResourceId).toBeUndefined();
+  });
+
   describe('impersonation fallback', () => {
     const caller = {
       email: 'jason@example.com',
