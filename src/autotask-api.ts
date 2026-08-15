@@ -261,18 +261,25 @@ export class AutotaskApi {
   }
 
   /**
-   * Follow a `pageDetails.nextPageUrl` returned by a previous query. The URL
-   * comes from the agent, so it must live under this account's zone base;
-   * without that check the tool is a fetch-anything proxy wearing Autotask
-   * credentials. Re-entering `request` keeps the governor, retries and auth
-   * headers in play.
+   * Follow a `pageDetails.nextPageUrl` returned by a previous query.
+   *
+   * POST, not GET: Autotask requires the follow-up to use the same method as
+   * the query that produced the cursor. `query` posts, so the cursor comes back
+   * as `/query/next?paging=...`, and that resource answers a GET with
+   * `405 The requested resource does not support http method 'GET'`. The paging
+   * state lives entirely in the query string, so no body is sent.
+   *
+   * The URL comes from the agent, so it must live under this account's zone
+   * base; without that check the tool is a fetch-anything proxy wearing
+   * Autotask credentials. Re-entering `request` keeps the governor, retries and
+   * auth headers in play.
    */
   async getPage(url: string): Promise<unknown> {
     const base = await this.getBaseUrl();
     if (!url.startsWith(base)) {
       throw new Error(`nextPageUrl must start with ${base}`);
     }
-    return this.request('GET', url.slice(base.length));
+    return this.request('POST', url.slice(base.length));
   }
 
   /** Count records matching a query, without fetching them. */
