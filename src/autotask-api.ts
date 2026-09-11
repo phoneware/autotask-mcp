@@ -71,7 +71,9 @@ export function redactSecrets(text: string): string {
 export function isImpersonatableWrite(method: string, path: string): boolean {
   if (method !== 'POST') return false;
   const clean = path.split('?')[0].replace(/\/+$/, '').toLowerCase();
-  return !/\/query(\/count|\/next)?$/.test(clean);
+  if (/\/query(\/count|\/next)?$/.test(clean)) return false;
+  if (/\/contacts$/.test(clean)) return false;
+  return true;
 }
 
 export class AutotaskApi {
@@ -301,17 +303,63 @@ export class AutotaskApi {
 
   /** Create a record. */
   async create(entity: string, fields: unknown): Promise<unknown> {
-    return this.request('POST', `V1.0/${this.encodePath(entity)}`, fields);
+    let resolvedEntity = entity;
+    if (resolvedEntity.toLowerCase() === 'contacts' && fields && typeof fields === 'object') {
+      const rec = fields as Record<string, unknown>;
+      const companyID = rec.companyID ?? rec.CompanyID;
+      if (
+        typeof companyID === 'number' ||
+        (typeof companyID === 'string' && /^\d+$/.test(companyID))
+      ) {
+        resolvedEntity = `Companies/${companyID}/Contacts`;
+      }
+    }
+    return this.request('POST', `V1.0/${this.encodePath(resolvedEntity)}`, fields);
   }
 
   /** Partially update a record. Body must include the record `id`. */
   async update(entity: string, fields: unknown): Promise<unknown> {
-    return this.request('PATCH', `V1.0/${this.encodePath(entity)}`, fields);
+    let resolvedEntity = entity;
+    if (resolvedEntity.toLowerCase() === 'contacts' && fields && typeof fields === 'object') {
+      const rec = fields as Record<string, unknown>;
+      let companyID = rec.companyID ?? rec.CompanyID;
+      if (companyID === undefined && rec.id !== undefined) {
+        try {
+          const existing = (await this.getById('Contacts', String(rec.id))) as {
+            item?: { companyID?: number };
+          };
+          companyID = existing?.item?.companyID;
+        } catch {
+          // Fall through to original entity path
+        }
+      }
+      if (companyID !== undefined) {
+        resolvedEntity = `Companies/${companyID}/Contacts`;
+      }
+    }
+    return this.request('PATCH', `V1.0/${this.encodePath(resolvedEntity)}`, fields);
   }
 
   /** Delete a record by id. */
   async deleteById(entity: string, id: string): Promise<unknown> {
-    return this.request('DELETE', `V1.0/${this.encodePath(entity)}/${encodeURIComponent(id)}`);
+    let resolvedEntity = entity;
+    if (resolvedEntity.toLowerCase() === 'contacts') {
+      try {
+        const existing = (await this.getById('Contacts', id)) as {
+          item?: { companyID?: number };
+        };
+        const companyID = existing?.item?.companyID;
+        if (companyID !== undefined) {
+          resolvedEntity = `Companies/${companyID}/Contacts`;
+        }
+      } catch {
+        // Fall through to original entity path
+      }
+    }
+    return this.request(
+      'DELETE',
+      `V1.0/${this.encodePath(resolvedEntity)}/${encodeURIComponent(id)}`,
+    );
   }
 
   /** Describe an entity's fields (names, types, picklist values). */

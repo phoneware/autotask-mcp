@@ -281,4 +281,78 @@ describe('AutotaskApi', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('Contacts child-collection routing', () => {
+    it('routes create("Contacts", fields) to Companies/{companyID}/Contacts', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResp({ itemId: 123 }));
+      const api = new AutotaskApi();
+      await api.create('Contacts', { companyID: 1482, firstName: 'Chris', lastName: 'Galeotti' });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe(
+        'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/1482/Contacts',
+      );
+      expect(opts.method).toBe('POST');
+      expect(JSON.parse(opts.body)).toEqual({
+        companyID: 1482,
+        firstName: 'Chris',
+        lastName: 'Galeotti',
+      });
+    });
+
+    it('routes update("Contacts", fields) with companyID to Companies/{companyID}/Contacts', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResp({ itemId: 123 }));
+      const api = new AutotaskApi();
+      await api.update('Contacts', { id: 123, companyID: 1482, title: 'Sales Director' });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe(
+        'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/1482/Contacts',
+      );
+      expect(opts.method).toBe('PATCH');
+      expect(JSON.parse(opts.body)).toEqual({
+        id: 123,
+        companyID: 1482,
+        title: 'Sales Director',
+      });
+    });
+
+    it('routes update("Contacts", fields) without companyID by looking up contact', async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResp({ item: { id: 123, companyID: 1482 } }))
+        .mockResolvedValueOnce(jsonResp({ itemId: 123 }));
+      const api = new AutotaskApi();
+      await api.update('Contacts', { id: 123, title: 'Sales Director' });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'https://webservices2.autotask.net/atservicesrest/V1.0/Contacts/123',
+      );
+      expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/1482/Contacts',
+      );
+      expect(fetchMock.mock.calls[1][1].method).toBe('PATCH');
+    });
+
+    it('routes deleteById("Contacts", id) by looking up contact companyID', async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResp({ item: { id: 123, companyID: 1482 } }))
+        .mockResolvedValueOnce(jsonResp({ itemId: 123 }));
+      const api = new AutotaskApi();
+      await api.deleteById('Contacts', '123');
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'https://webservices2.autotask.net/atservicesrest/V1.0/Contacts/123',
+      );
+      expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/1482/Contacts/123',
+      );
+      expect(fetchMock.mock.calls[1][1].method).toBe('DELETE');
+    });
+  });
 });

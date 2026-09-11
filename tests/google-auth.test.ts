@@ -535,6 +535,9 @@ describe('isImpersonatableWrite', () => {
     expect(isImpersonatableWrite('GET', 'V1.0/Tickets/1')).toBe(false);
     expect(isImpersonatableWrite('PATCH', 'V1.0/Tickets')).toBe(false);
     expect(isImpersonatableWrite('DELETE', 'V1.0/Tickets/1')).toBe(false);
+    // Contacts: Autotask explicitly refuses impersonation on contact creation.
+    expect(isImpersonatableWrite('POST', 'V1.0/Companies/123/Contacts')).toBe(false);
+    expect(isImpersonatableWrite('POST', 'V1.0/Contacts')).toBe(false);
     // Paging cursors: a read that travels as POST and carries a query string.
     expect(isImpersonatableWrite('POST', 'V1.0/Tickets/query/next?paging=%7B%7D')).toBe(false);
     expect(isImpersonatableWrite('POST', 'V1.0/Tickets/query?x=1')).toBe(false);
