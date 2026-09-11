@@ -18,15 +18,18 @@ const query = vi.fn();
 const create = vi.fn();
 const queryCount = vi.fn();
 const getPage = vi.fn();
+const getById = vi.fn();
+const update = vi.fn();
+const deleteById = vi.fn();
 vi.mock('../src/autotask-api.js', () => ({
   api: {
     query,
     create,
     queryCount,
     getPage,
-    getById: vi.fn(),
-    update: vi.fn(),
-    deleteById: vi.fn(),
+    getById,
+    update,
+    deleteById,
     entityFields: vi.fn(),
     version: vi.fn(),
     thresholdInformation: vi.fn(),
@@ -333,6 +336,9 @@ describe('generic tools: path-traversal hardening', () => {
 describe('contact tools', () => {
   beforeEach(() => {
     query.mockReset();
+    create.mockReset();
+    update.mockReset();
+    getById.mockReset();
   });
 
   it('search-contacts ORs a name term across first, last and email', async () => {
@@ -368,6 +374,152 @@ describe('contact tools', () => {
     query.mockResolvedValueOnce({ items: [] });
     const scoped = await search.handler({ companyID: '7' });
     expect(JSON.parse(scoped.content[0].text).unfiltered).toBe(false);
+  });
+
+  it('create-contact routes to Companies/{companyID}/Contacts and passes title', async () => {
+    const { contactTools } = await import('../src/tools/contacts.js');
+    const createContact = contactTools.find((t) => t.name === 'create-contact')!;
+    create.mockResolvedValueOnce({ itemId: 123 });
+
+    const res = await createContact.handler({
+      companyID: '1482',
+      firstName: 'Chris',
+      lastName: 'Galeotti',
+      title: 'Sales Director',
+      emailAddress: 'cgaleotti@crexendo.com',
+      phone: '(858) 764-5215',
+    });
+
+    expect(create).toHaveBeenCalledWith('Companies/1482/Contacts', {
+      companyID: 1482,
+      firstName: 'Chris',
+      lastName: 'Galeotti',
+      title: 'Sales Director',
+      emailAddress: 'cgaleotti@crexendo.com',
+      phone: '(858) 764-5215',
+    });
+    expect(JSON.parse(res.content[0].text)).toEqual({ itemId: 123 });
+  });
+
+  it('update-contact routes to Companies/{companyID}/Contacts when companyID is provided', async () => {
+    const { contactTools } = await import('../src/tools/contacts.js');
+    const updateContact = contactTools.find((t) => t.name === 'update-contact')!;
+    update.mockResolvedValueOnce({ itemId: 456 });
+
+    await updateContact.handler({
+      id: '456',
+      companyID: '1482',
+      title: 'VP of Sales',
+    });
+
+    expect(update).toHaveBeenCalledWith('Companies/1482/Contacts', {
+      id: 456,
+      title: 'VP of Sales',
+    });
+    expect(getById).not.toHaveBeenCalled();
+  });
+
+  it('update-contact looks up companyID when omitted from args', async () => {
+    const { contactTools } = await import('../src/tools/contacts.js');
+    const updateContact = contactTools.find((t) => t.name === 'update-contact')!;
+    getById.mockResolvedValueOnce({ item: { id: 456, companyID: 1482 } });
+    update.mockResolvedValueOnce({ itemId: 456 });
+
+    await updateContact.handler({
+      id: '456',
+      title: 'VP of Sales',
+    });
+
+    expect(getById).toHaveBeenCalledWith('Contacts', '456');
+    expect(update).toHaveBeenCalledWith('Companies/1482/Contacts', {
+      id: 456,
+      title: 'VP of Sales',
+    });
+  });
+});
+
+describe('generic tools: Contacts auto-routing', () => {
+  beforeEach(() => {
+    create.mockReset();
+    update.mockReset();
+    deleteById.mockReset();
+    getById.mockReset();
+  });
+
+  it('create-entity auto-routes Contacts to Companies/{companyID}/Contacts when companyID in fields', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+    create.mockResolvedValueOnce({ itemId: 789 });
+
+    await createEntity.handler({
+      entity: 'Contacts',
+      fields: JSON.stringify({ companyID: 1482, firstName: 'Jon', lastName: 'Almond' }),
+    });
+
+    expect(create).toHaveBeenCalledWith('Companies/1482/Contacts', {
+      companyID: 1482,
+      firstName: 'Jon',
+      lastName: 'Almond',
+    });
+  });
+
+  it('create-entity throws clear error when Contacts lacks companyID and parent props', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+
+    await expect(
+      createEntity.handler({
+        entity: 'Contacts',
+        fields: JSON.stringify({ firstName: 'Jon', lastName: 'Almond' }),
+      }),
+    ).rejects.toThrow(/Contacts in Autotask must be created under a company/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('update-entity auto-routes Contacts using companyID from fields or getById lookup', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const updateEntity = genericTools.find((t) => t.name === 'update-entity')!;
+    update.mockResolvedValueOnce({ itemId: 123 });
+
+    // with companyID in fields:
+    await updateEntity.handler({
+      entity: 'Contacts',
+      fields: JSON.stringify({ id: 123, companyID: 1482, title: 'Engineer' }),
+    });
+    expect(update).toHaveBeenCalledWith('Companies/1482/Contacts', {
+      id: 123,
+      companyID: 1482,
+      title: 'Engineer',
+    });
+    expect(getById).not.toHaveBeenCalled();
+
+    // without companyID in fields:
+    getById.mockResolvedValueOnce({ item: { id: 123, companyID: 1482 } });
+    update.mockResolvedValueOnce({ itemId: 123 });
+    await updateEntity.handler({
+      entity: 'Contacts',
+      fields: JSON.stringify({ id: 123, title: 'Lead Engineer' }),
+    });
+    expect(getById).toHaveBeenCalledWith('Contacts', '123');
+    expect(update).toHaveBeenCalledWith('Companies/1482/Contacts', {
+      id: 123,
+      title: 'Lead Engineer',
+    });
+  });
+
+  it('delete-entity auto-routes Contacts to Companies/{companyID}/Contacts/{id}', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const deleteEntity = genericTools.find((t) => t.name === 'delete-entity')!;
+    getById.mockResolvedValueOnce({ item: { id: 123, companyID: 1482 } });
+    deleteById.mockResolvedValueOnce({ success: true });
+
+    await deleteEntity.handler({
+      entity: 'Contacts',
+      id: '123',
+    });
+
+    expect(getById).toHaveBeenCalledWith('Contacts', '123');
+    expect(deleteById).toHaveBeenCalledWith('Companies/1482/Contacts', '123');
   });
 });
 

@@ -61,20 +61,23 @@ export const contactTools: ToolDefinition[] = [
         companyID: { type: 'string', description: 'Company id the contact belongs to' },
         firstName: { type: 'string', description: 'First name' },
         lastName: { type: 'string', description: 'Last name' },
+        title: { type: 'string', description: 'Job title' },
         emailAddress: { type: 'string', description: 'Email address' },
         phone: { type: 'string', description: 'Phone number' },
       },
       required: ['companyID', 'firstName', 'lastName'],
     },
     handler: async (args) => {
+      const companyID = intArg('companyID', args.companyID);
       const body: Record<string, unknown> = {
-        companyID: intArg('companyID', args.companyID),
+        companyID,
         firstName: args.firstName,
         lastName: args.lastName,
       };
+      if (args.title) body.title = args.title;
       if (args.emailAddress) body.emailAddress = args.emailAddress;
       if (args.phone) body.phone = args.phone;
-      return jsonResponse(await api.create('Contacts', body));
+      return jsonResponse(await api.create(`Companies/${companyID}/Contacts`, body));
     },
   },
   {
@@ -85,20 +88,41 @@ export const contactTools: ToolDefinition[] = [
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Contact id to update' },
+        companyID: {
+          type: 'string',
+          description:
+            'Company id the contact belongs to (recommended; looked up from contact if omitted)',
+        },
         firstName: { type: 'string', description: 'New first name' },
         lastName: { type: 'string', description: 'New last name' },
+        title: { type: 'string', description: 'New job title' },
         emailAddress: { type: 'string', description: 'New email address' },
         phone: { type: 'string', description: 'New phone number' },
       },
       required: ['id'],
     },
     handler: async (args) => {
-      const body: Record<string, unknown> = { id: intArg('id', args.id) };
+      const contactId = intArg('id', args.id);
+      const body: Record<string, unknown> = { id: contactId };
       if (args.firstName) body.firstName = args.firstName;
       if (args.lastName) body.lastName = args.lastName;
+      if (args.title) body.title = args.title;
       if (args.emailAddress) body.emailAddress = args.emailAddress;
       if (args.phone) body.phone = args.phone;
-      return jsonResponse(await api.update('Contacts', body));
+
+      let companyID = args.companyID ? intArg('companyID', args.companyID) : undefined;
+      if (companyID === undefined) {
+        const contact = (await api.getById('Contacts', String(contactId))) as {
+          item?: { companyID?: number };
+        };
+        companyID = contact?.item?.companyID;
+        if (!companyID) {
+          throw new Error(
+            `Unable to determine companyID for contact ${contactId}. Specify companyID explicitly.`,
+          );
+        }
+      }
+      return jsonResponse(await api.update(`Companies/${companyID}/Contacts`, body));
     },
   },
 ];

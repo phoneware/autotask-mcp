@@ -191,7 +191,20 @@ export const genericTools: ToolDefinition[] = [
     },
     handler: async (args) => {
       const body = parseJsonBody(args.fields, recordBodySchema, 'fields');
-      const entity = resolveEntity(args.entity, args.parentEntity, args.parentId);
+      let entity = resolveEntity(args.entity, args.parentEntity, args.parentId);
+      if (!args.parentEntity && !args.parentId && args.entity.toLowerCase() === 'contacts') {
+        const companyID = body.companyID ?? body.CompanyID;
+        if (
+          typeof companyID === 'number' ||
+          (typeof companyID === 'string' && /^\d+$/.test(companyID))
+        ) {
+          entity = `Companies/${companyID}/Contacts`;
+        } else {
+          throw new Error(
+            'Contacts in Autotask must be created under a company. Specify parentEntity: "Companies" and parentId: "<companyID>", or include "companyID" in fields.',
+          );
+        }
+      }
       return jsonResponse(await api.create(entity, body));
     },
   },
@@ -212,7 +225,20 @@ export const genericTools: ToolDefinition[] = [
     },
     handler: async (args) => {
       const body = parseJsonBody(args.fields, updateBodySchema, 'fields');
-      return jsonResponse(await api.update(resolveEntity(args.entity), body));
+      let entity = resolveEntity(args.entity);
+      if (args.entity.toLowerCase() === 'contacts') {
+        let companyID = body.companyID ?? body.CompanyID;
+        if (companyID === undefined) {
+          const contact = (await api.getById('Contacts', String(body.id))) as {
+            item?: { companyID?: number };
+          };
+          companyID = contact?.item?.companyID;
+        }
+        if (companyID !== undefined) {
+          entity = `Companies/${companyID}/Contacts`;
+        }
+      }
+      return jsonResponse(await api.update(entity, body));
     },
   },
   {
@@ -227,10 +253,20 @@ export const genericTools: ToolDefinition[] = [
       },
       required: ['entity', 'id'],
     },
-    handler: async (args) =>
-      jsonResponse(
-        await api.deleteById(resolveEntity(args.entity), assertSafeNumericId(args.id, 'id')),
-      ),
+    handler: async (args) => {
+      let entity = resolveEntity(args.entity);
+      const safeId = assertSafeNumericId(args.id, 'id');
+      if (args.entity.toLowerCase() === 'contacts') {
+        const contact = (await api.getById('Contacts', safeId)) as {
+          item?: { companyID?: number };
+        };
+        const companyID = contact?.item?.companyID;
+        if (companyID !== undefined) {
+          entity = `Companies/${companyID}/Contacts`;
+        }
+      }
+      return jsonResponse(await api.deleteById(entity, safeId));
+    },
   },
   {
     name: 'get-threshold-information',
