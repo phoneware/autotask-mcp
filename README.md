@@ -287,7 +287,7 @@ Autotask rights; see [Who can do what](#who-can-do-what).
 ### Convenience
 
 - **Tickets**: `search-tickets`, `get-ticket`, `create-ticket`, `update-ticket`, `create-ticket-note`, `search-ticket-notes`
-- **Ticket Charges**: `list-ticket-charges`, `get-ticket-charge`, `create-ticket-charge`, `update-ticket-charge`, `cancel-ticket-charge`
+- **Ticket Charges**: `list-ticket-charges`, `get-ticket-charge`, `create-ticket-charge`, `update-ticket-charge`
 - **Companies**: `search-companies`, `get-company`, `create-company`, `update-company`
 - **Contacts**: `search-contacts`, `get-contact`, `create-contact`, `update-contact`
 - **Contracts & Services**: `search-contracts`, `get-contract`, `search-contract-services`, `get-contract-service`, `search-services`, `get-service`
@@ -319,7 +319,7 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 - **Projects & Tasks**: `search-projects`, `get-project`, `search-tasks`, `get-task`
 - **Time entries**: `search-time-entries`
 
-**Mutating tools** (14): require a matching `confirm` token, and are not registered at all in read-only mode:
+**Mutating tools** (13): require a matching `confirm` token, and are not registered at all in read-only mode:
 
 | Tool                   | Required `confirm`     |
 | ---------------------- | ---------------------- |
@@ -331,13 +331,34 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 | `create-ticket-note`   | `CREATE_TICKET_NOTE`   |
 | `create-ticket-charge` | `CREATE_TICKET_CHARGE` |
 | `update-ticket-charge` | `UPDATE_TICKET_CHARGE` |
-| `cancel-ticket-charge` | `CANCEL_TICKET_CHARGE` |
 | `create-company`       | `CREATE_COMPANY`       |
 | `update-company`       | `UPDATE_COMPANY`       |
 | `create-contact`       | `CREATE_CONTACT`       |
 | `update-contact`       | `UPDATE_CONTACT`       |
 | `create-time-entry`    | `CREATE_TIME_ENTRY`    |
 | `call_api`             | (Per-op confirm token) |
+
+### Read-only API fields
+
+Autotask PSA designates certain entity fields as read-only in its REST API metadata (`isReadOnly: true`). In Autotask, `isReadOnly` means "cannot be updated", not "cannot be set". Several required creation fields are marked read-only in Autotask metadata: for example, `Contacts.companyID` is `isReadOnly: true` and `isRequired: true` on create, and `ContractServices.contractID` and `serviceID` are also `isReadOnly: true` and `isRequired: true`.
+
+When a client sends a `PATCH` or `PUT` setting a read-only field, Autotask silently accepts the HTTP request and returns success, but drops the field and leaves the record unchanged.
+
+To prevent silent data loss, this server validates update requests against the target entity field metadata (`/entityInformation/fields` and `/entityInformation/userDefinedFields`) before sending any request over the wire. Creates (`POST`) are not checked against read-only metadata so required creation fields can be set normally.
+
+On updates (`PATCH` and `PUT`):
+
+- `id` is permitted because it addresses the target record.
+- The route's parent foreign-key field (such as `companyID` on `Companies/{parentId}/Contacts`, resolved from the registry's child collection metadata) is permitted when its value matches the parent record ID in the route URL. If a different parent foreign key is supplied, the update is refused.
+- All other fields marked `isReadOnly: true` (standard fields and user-defined fields) are refused before any request reaches the wire, naming the affected fields.
+
+Common fields that cannot be updated through the REST API include:
+
+- **`TicketCharges.status`** (measured 2026-10-07): charge status codes (such as `8` for Canceled) cannot be modified via the REST API. Autotask accepts the patch but ignores the status field.
+- **Parent foreign keys**: fields such as `Contacts.companyID`, `ContractServices.contractID`, and `ContractServices.serviceID` cannot be moved or updated to a different parent.
+- **Audit and financial rollups**: fields such as `billableAmount`, `extendedCost`, `createDate`, and `creatorResourceID` are calculated or set by Autotask internally.
+
+Modifications to these fields must be made directly in the Autotask web UI.
 
 ## Examples
 

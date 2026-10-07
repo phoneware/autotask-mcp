@@ -176,7 +176,7 @@ export const ticketChargeTools: ToolDefinition[] = [
         },
         fields: {
           type: 'string',
-          description: 'JSON object of fields to update, e.g. {"id":2712,"status":8}',
+          description: 'JSON object of fields to update, e.g. {"id":2712,"unitPrice":50}',
         },
       },
       required: ['id', 'fields'],
@@ -199,116 +199,9 @@ export const ticketChargeTools: ToolDefinition[] = [
         ? `Tickets/${assertSafeNumericId(ticketId, 'ticketId')}/Charges`
         : 'TicketCharges';
 
+      await api.assertWritableFields(entity, body, true);
       const result = await api.update(entity, body);
       return jsonResponse(result);
-    },
-  },
-  {
-    name: 'cancel-ticket-charge',
-    title: 'Cancel Ticket Charge',
-    description:
-      'Cancel a charge on an Autotask ticket by setting its status code to 8. DESTRUCTIVE: requires a confirm token. Surfaces any refusal from Autotask verbatim and reads the record back to verify current status.',
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: true,
-      idempotentHint: true,
-      openWorldHint: true,
-    },
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: {
-          type: 'string',
-          description: 'Numeric charge ID to cancel',
-        },
-        ticketId: {
-          type: 'string',
-          description: 'Optional parent ticket ID (auto-resolved from charge if omitted)',
-        },
-      },
-      required: ['id'],
-    },
-    handler: async (args) => {
-      const id = assertSafeNumericId(args.id, 'id');
-      let ticketId = args.ticketId;
-
-      if (!ticketId) {
-        try {
-          const existing = (await api.getById('TicketCharges', id)) as {
-            item?: { ticketID?: number };
-          };
-          const resolved = existing?.item?.ticketID;
-          if (resolved) ticketId = String(resolved);
-        } catch (fetchErr: unknown) {
-          throw new Error(
-            `Failed to resolve parent ticket for charge ${id}: ${
-              fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
-            }`,
-          );
-        }
-      }
-
-      if (!ticketId) {
-        throw new Error(
-          `Could not determine parent ticket ID for charge ${id}. Specify ticketId explicitly.`,
-        );
-      }
-
-      const safeTicketId = assertSafeNumericId(ticketId, 'ticketId');
-      const patchRoute = `Tickets/${safeTicketId}/Charges`;
-
-      let refusalMessage: string | undefined;
-      try {
-        await api.update(patchRoute, { id: Number(id), status: 8 });
-      } catch (err: unknown) {
-        // Surface Autotask refusal verbatim
-        refusalMessage = err instanceof Error ? err.message : String(err);
-      }
-
-      // Read the record back to report verified current state
-      let currentRecord: unknown;
-      try {
-        currentRecord = await api.getById('TicketCharges', id);
-      } catch (readBackErr: unknown) {
-        currentRecord = {
-          readError: readBackErr instanceof Error ? readBackErr.message : String(readBackErr),
-        };
-      }
-
-      if (refusalMessage) {
-        return jsonResponse(
-          {
-            cancelled: false,
-            refusal: refusalMessage,
-            currentRecord,
-          },
-          true,
-        );
-      }
-
-      const readBackStatus =
-        (currentRecord as { item?: { status?: unknown } })?.item?.status ??
-        (currentRecord as { status?: unknown })?.status;
-
-      if (readBackStatus !== 8) {
-        const errorDetail =
-          (currentRecord as { readError?: string })?.readError ||
-          `status is ${readBackStatus !== undefined ? readBackStatus : 'unknown'} (expected 8)`;
-        return jsonResponse(
-          {
-            cancelled: false,
-            error: `Cancellation could not be verified: ${errorDetail}`,
-            currentRecord,
-          },
-          true,
-        );
-      }
-
-      return jsonResponse({
-        cancelled: true,
-        message: `Charge ${id} cancelled successfully (status: 8)`,
-        currentRecord,
-      });
     },
   },
 ];

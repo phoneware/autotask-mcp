@@ -8,7 +8,12 @@ vi.hoisted(() => {
   process.env.AUTOTASK_API_URL = 'https://webservices2.autotask.net/atservicesrest/';
 });
 
-import { AutotaskApi, redactSecrets } from '../src/autotask-api.js';
+import {
+  AutotaskApi,
+  redactSecrets,
+  primeMetadataCache,
+  clearMetadataCache,
+} from '../src/autotask-api.js';
 import { governor } from '../src/governor.js';
 import { withCaller } from '../src/auth/context.js';
 
@@ -59,6 +64,10 @@ describe('AutotaskApi', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
+    clearMetadataCache();
+    primeMetadataCache('Tickets', []);
+    primeMetadataCache('Tickets/123/Notes', []);
+    primeMetadataCache('Contacts', []);
     await primeGovernor();
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
