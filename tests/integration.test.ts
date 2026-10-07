@@ -9,7 +9,7 @@ vi.hoisted(() => {
   process.env.AUTOTASK_INTEGRATION_CODE = 'INTCODE123';
 });
 
-import { AutotaskApi } from '../src/autotask-api.js';
+import { AutotaskApi, primeMetadataCache, clearMetadataCache } from '../src/autotask-api.js';
 import { governor } from '../src/governor.js';
 import { withCaller } from '../src/auth/context.js';
 
@@ -60,6 +60,8 @@ afterAll(async () => {
 // `recorded` ahead of the call under test. The guard stays active; it simply
 // has a fresh reading already.
 beforeEach(async () => {
+  clearMetadataCache();
+  primeMetadataCache('Tickets', []);
   governor.reset();
   await governor.assertBudget(async () => ({
     externalRequestThreshold: 10_000,

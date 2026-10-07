@@ -38,13 +38,13 @@ describe('buildServer registration (readonly lock test)', () => {
     expect(ro.registeredCount).toBe(full.registeredCount - DESTRUCTIVE_TOOLS.size);
   });
 
-  it('locks the documented counts: full=47, readonly=33, skipped=14', () => {
+  it('locks the documented counts: full=46, readonly=33, skipped=13', () => {
     delete process.env.AUTOTASK_READ_ONLY;
-    expect(buildServer().registeredCount).toBe(47);
+    expect(buildServer().registeredCount).toBe(46);
     process.env.AUTOTASK_READ_ONLY = 'true';
     const ro = buildServer();
     expect(ro.registeredCount).toBe(33);
-    expect(ro.skipped).toBe(14);
+    expect(ro.skipped).toBe(13);
   });
 
   it('rejects an unknown argument instead of silently searching for everything', async () => {

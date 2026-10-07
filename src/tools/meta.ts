@@ -389,7 +389,18 @@ export const callApiTool: ToolDefinition = {
         }
       }
     }
-    // 8. Execute via AutotaskApi (which runs through budget governor and auth headers)
+    // 8. Validate writable fields on create/update operations before sending request
+    if (
+      body &&
+      typeof body === 'object' &&
+      op.classification === 'write' &&
+      (op.method === 'POST' || op.method === 'PATCH' || op.method === 'PUT')
+    ) {
+      const route = resolvedPath.replace(/^\/?(v1\.0\/)?/i, '');
+      await api.assertWritableFields(route, body, op.method !== 'POST');
+    }
+
+    // 9. Execute via AutotaskApi (which runs through budget governor and auth headers)
     const result = await api.request(op.method, finalPath, body);
 
     // 9. Record call for tool promotion (best effort)

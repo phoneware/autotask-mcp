@@ -9,7 +9,6 @@ import {
 import { EXCLUDED_OPERATIONS, AUTH_HEADER_PARAMS } from '../scripts/generate-registry.js';
 import { allTools } from '../src/tools/index.js';
 import { searchApiTool, callApiTool } from '../src/tools/meta.js';
-import { ticketChargeTools } from '../src/tools/ticket-charges.js';
 import {
   getPromotedToolNames,
   recordCallApiInvocation,
@@ -180,72 +179,6 @@ describe('spec-conformance: search_api and call_api', () => {
         args: JSON.stringify({ parentId: 23836, restModelInput: { foo: 'bar' } }),
       }),
     ).rejects.toThrow(/Unknown argument "restModelInput"/);
-  });
-});
-
-describe('spec-conformance: cancel-ticket-charge', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('cancel-ticket-charge sets status 8 and reads record back on success', async () => {
-    const cancelTool = ticketChargeTools.find((t) => t.name === 'cancel-ticket-charge')!;
-    const testApi = getApi();
-    vi.spyOn(testApi, 'getById').mockResolvedValueOnce({
-      item: { id: 2712, ticketID: 23836, status: 8 },
-    });
-    const updateSpy = vi.spyOn(testApi, 'update').mockResolvedValueOnce({ itemId: 2712 });
-
-    const res = await cancelTool.handler({ id: '2712', ticketId: '23836' });
-    expect(updateSpy).toHaveBeenCalledWith('Tickets/23836/Charges', { id: 2712, status: 8 });
-    const body = JSON.parse(res.content[0].text);
-    expect(body.cancelled).toBe(true);
-    expect(body.currentRecord.item.status).toBe(8);
-  });
-
-  it('cancel-ticket-charge surfaces refusal verbatim and reads record back on error', async () => {
-    const cancelTool = ticketChargeTools.find((t) => t.name === 'cancel-ticket-charge')!;
-    const testApi = getApi();
-    vi.spyOn(testApi, 'update').mockRejectedValueOnce(
-      new Error('Autotask API error (500): Charge is already billed'),
-    );
-    vi.spyOn(testApi, 'getById').mockResolvedValueOnce({
-      item: { id: 2712, ticketID: 23836, status: 3 },
-    });
-
-    const res = await cancelTool.handler({ id: '2712', ticketId: '23836' });
-    const body = JSON.parse(res.content[0].text);
-    expect(body.cancelled).toBe(false);
-    expect(body.refusal).toContain('Charge is already billed');
-    expect(body.currentRecord.item.status).toBe(3);
-  });
-
-  it('cancel-ticket-charge reports failure when read-back status is not 8', async () => {
-    const cancelTool = ticketChargeTools.find((t) => t.name === 'cancel-ticket-charge')!;
-    const testApi = getApi();
-    vi.spyOn(testApi, 'update').mockResolvedValueOnce({ itemId: 2712 });
-    vi.spyOn(testApi, 'getById').mockResolvedValueOnce({
-      item: { id: 2712, ticketID: 23836, status: 3 },
-    });
-
-    const res = await cancelTool.handler({ id: '2712', ticketId: '23836' });
-    const body = JSON.parse(res.content[0].text);
-    expect(res.isError).toBe(true);
-    expect(body.cancelled).toBe(false);
-    expect(body.error).toContain('Cancellation could not be verified: status is 3 (expected 8)');
-  });
-
-  it('cancel-ticket-charge reports failure when read-back encounters an error', async () => {
-    const cancelTool = ticketChargeTools.find((t) => t.name === 'cancel-ticket-charge')!;
-    const testApi = getApi();
-    vi.spyOn(testApi, 'update').mockResolvedValueOnce({ itemId: 2712 });
-    vi.spyOn(testApi, 'getById').mockRejectedValueOnce(new Error('Autotask timeout'));
-
-    const res = await cancelTool.handler({ id: '2712', ticketId: '23836' });
-    const body = JSON.parse(res.content[0].text);
-    expect(res.isError).toBe(true);
-    expect(body.cancelled).toBe(false);
-    expect(body.error).toContain('Cancellation could not be verified: Autotask timeout');
   });
 });
 

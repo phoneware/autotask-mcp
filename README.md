@@ -287,7 +287,7 @@ Autotask rights; see [Who can do what](#who-can-do-what).
 ### Convenience
 
 - **Tickets**: `search-tickets`, `get-ticket`, `create-ticket`, `update-ticket`, `create-ticket-note`, `search-ticket-notes`
-- **Ticket Charges**: `list-ticket-charges`, `get-ticket-charge`, `create-ticket-charge`, `update-ticket-charge`, `cancel-ticket-charge`
+- **Ticket Charges**: `list-ticket-charges`, `get-ticket-charge`, `create-ticket-charge`, `update-ticket-charge`
 - **Companies**: `search-companies`, `get-company`, `create-company`, `update-company`
 - **Contacts**: `search-contacts`, `get-contact`, `create-contact`, `update-contact`
 - **Contracts & Services**: `search-contracts`, `get-contract`, `search-contract-services`, `get-contract-service`, `search-services`, `get-service`
@@ -319,7 +319,7 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 - **Projects & Tasks**: `search-projects`, `get-project`, `search-tasks`, `get-task`
 - **Time entries**: `search-time-entries`
 
-**Mutating tools** (14): require a matching `confirm` token, and are not registered at all in read-only mode:
+**Mutating tools** (13): require a matching `confirm` token, and are not registered at all in read-only mode:
 
 | Tool                   | Required `confirm`     |
 | ---------------------- | ---------------------- |
@@ -331,13 +331,25 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 | `create-ticket-note`   | `CREATE_TICKET_NOTE`   |
 | `create-ticket-charge` | `CREATE_TICKET_CHARGE` |
 | `update-ticket-charge` | `UPDATE_TICKET_CHARGE` |
-| `cancel-ticket-charge` | `CANCEL_TICKET_CHARGE` |
 | `create-company`       | `CREATE_COMPANY`       |
 | `update-company`       | `UPDATE_COMPANY`       |
 | `create-contact`       | `CREATE_CONTACT`       |
 | `update-contact`       | `UPDATE_CONTACT`       |
 | `create-time-entry`    | `CREATE_TIME_ENTRY`    |
 | `call_api`             | (Per-op confirm token) |
+
+### Read-only API fields
+
+Autotask PSA designates certain entity fields as read-only in its REST API metadata (`isReadOnly: true`). When a client sends a `POST`, `PATCH`, or `PUT` setting a read-only field, Autotask silently accepts the HTTP request and returns success, but drops the field and leaves the record unchanged.
+
+To prevent silent data loss, this server validates write requests against the target entity field metadata (`/entityInformation/fields` and `/entityInformation/userDefinedFields`) before sending any request over the wire. If any read-only fields are present in the create or update body, the request is refused immediately with an explanation naming the affected fields.
+
+Common fields that are read-only through the REST API include:
+
+- **`TicketCharges.status`** (measured 2026-10-07): charge status codes (such as `8` for Canceled) cannot be modified via the REST API. Autotask accepts the patch but ignores the status field.
+- **Audit and financial rollups**: fields such as `billableAmount`, `extendedCost`, `createDate`, and `creatorResourceID` are calculated or set by Autotask internally.
+
+Modifications to these fields must be made directly in the Autotask web UI.
 
 ## Examples
 

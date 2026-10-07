@@ -2,6 +2,14 @@ import { ZoneInformation } from './types.js';
 import { governor } from './governor.js';
 import { currentCaller } from './auth/context.js';
 import { resolveWritePath } from './tools/entity-resolver.js';
+import {
+  assertWritableFields,
+  clearMetadataCache,
+  primeMetadataCache,
+  getEntityMetadata,
+} from './readonly-fields.js';
+
+export { assertWritableFields, clearMetadataCache, primeMetadataCache, getEntityMetadata };
 // Unauthenticated endpoint used to discover which Autotask zone (data center)
 // an account lives in. Returns the correct REST base URL for that account.
 const ZONE_INFO_URL = 'https://webservices.autotask.net/atservicesrest/V1.0/zoneInformation';
@@ -256,7 +264,7 @@ export class AutotaskApi {
    * "Tickets/123/Notes" keep their slashes (encodeURIComponent on the whole
    * string would turn "/" into "%2F" and break the URL).
    */
-  private encodePath(entity: string): string {
+  encodePath(entity: string): string {
     return entity
       .split('/')
       .map((seg) => encodeURIComponent(seg))
@@ -319,6 +327,7 @@ export class AutotaskApi {
       rec,
       (e, id) => this.getById(e, id),
     );
+    await this.assertWritableFields(resolvedEntity, fields, false);
     return this.request('POST', `V1.0/${this.encodePath(resolvedEntity)}`, fields);
   }
 
@@ -341,6 +350,7 @@ export class AutotaskApi {
       rec,
       (e, recordId) => this.getById(e, recordId),
     );
+    await this.assertWritableFields(resolvedEntity, fields, true);
     return this.request('PATCH', `V1.0/${this.encodePath(resolvedEntity)}`, fields);
   }
 
@@ -369,6 +379,23 @@ export class AutotaskApi {
   /** Describe an entity's fields (names, types, picklist values). */
   async entityFields(entity: string): Promise<unknown> {
     return this.request('GET', `V1.0/${this.encodePath(entity)}/entityInformation/fields`);
+  }
+
+  /** Describe an entity's user-defined fields. */
+  async entityUserDefinedFields(entity: string): Promise<unknown> {
+    return this.request(
+      'GET',
+      `V1.0/${this.encodePath(entity)}/entityInformation/userDefinedFields`,
+    );
+  }
+
+  /** Refuse create or update if body contains read-only fields. */
+  async assertWritableFields(
+    routeOrEntity: string,
+    body: unknown,
+    isUpdate: boolean,
+  ): Promise<void> {
+    return assertWritableFields(this, routeOrEntity, body, isUpdate);
   }
 
   /** Current API usage against the integration-code rate threshold. */
