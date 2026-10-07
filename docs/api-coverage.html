@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Autotask PSA MCP API Coverage Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 40px; color: #1f2937; }
+    h1 { margin-bottom: 8px; }
+    .subtitle { color: #6b7280; margin-bottom: 24px; }
+    .stats { display: flex; gap: 16px; margin-bottom: 32px; }
+    .stat-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px 24px; min-width: 140px; }
+    .stat-val { font-size: 28px; font-weight: bold; color: #111827; }
+    .stat-lbl { color: #6b7280; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; font-size: 13px; }
+    th { background: #f9fafb; }
+    tr:nth-child(even) { background: #fcfcfd; }
+    .badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .badge-get { background: #e0f2fe; color: #0369a1; }
+    .badge-post { background: #dcfce7; color: #15803d; }
+    .badge-patch { background: #fef3c7; color: #b45309; }
+    .badge-put { background: #fae8ff; color: #86198f; }
+    .badge-delete { background: #fee2e2; color: #b91c1c; }
+    .badge-read { background: #f3f4f6; color: #374151; }
+    .badge-write { background: #ffedd5; color: #9a3412; }
+  </style>
+</head>
+<body>
+  <h1>Autotask PSA MCP API Coverage Report</h1>
+  <div class="subtitle">Generated from Datto:Autotask PSA Rest API v1 specification</div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-val">3017</div>
+      <div class="stat-lbl">Total Spec Operations</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">3014</div>
+      <div class="stat-lbl">Reachable in Registry</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">142</div>
+      <div class="stat-lbl">Child Collections</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">3</div>
+      <div class="stat-lbl">Excluded Infra/Auth</div>
+    </div>
+  </div>
+
+  <h2>Reachable Surface Architecture</h2>
+  <p>
+    Every one of the <strong>3014</strong> reachable operations in the Autotask REST API
+    is accessible through the MCP server:
+  </p>
+  <ul>
+    <li><strong>Curated Tools</strong>: High-frequency workflows for tickets, ticket notes, ticket charges, companies, contacts, projects, tasks, time entries, contracts, contract services, services, and invoices.</li>
+    <li><strong>Full Registry Escape Hatch</strong>: <code>search_api(query, limit?)</code> and <code>call_api(tool_name, args)</code> to search and invoke any operation in the registry.</li>
+    <li><strong>Spec-Driven Generic Tools</strong>: <code>query-entity</code>, <code>get-entity</code>, <code>create-entity</code>, <code>update-entity</code>, <code>delete-entity</code> auto-resolve parent-child routes and foreign keys.</li>
+  </ul>
+
+  <h2>Security and Authorization Controls</h2>
+  <ul>
+    <li><strong>Read-Only Mode</strong>: Mutating operations are never registered or callable when read-only mode is active.</li>
+    <li><strong>Per-User Autotask Rights</strong>: Security level capabilities (read, create, update, delete) are checked per request.</li>
+    <li><strong>Destructive Confirmation</strong>: Destructive operations require confirmation tokens and MCP elicitation.</li>
+    <li><strong>Rate Limiting</strong>: Tenant-wide budget governor gates every call.</li>
+  </ul>
+
+  <h2>Excluded Operations</h2>
+  <table>
+    <thead>
+      <tr><th>Operation ID</th><th>Reason</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>AuthenticateApiIntegration_QueryAuthenticate</td><td>Credential test/verification endpoint. Credentials managed server-side.</td></tr>
+      <tr><td>ZoneInformationApiIntegration_QueryZoneInformation</td><td>Internal zone discovery endpoint managed by client.</td></tr>
+      <tr><td>ApiVersion_ApiVersionInformation</td><td>Unversioned root endpoint redundant with /V1.0/Version.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Sample Registry Operations (First 100)</h2>
+  <table>
+    <thead>
+      <tr><th>Operation ID</th><th>Method</th><th>Path Template</th><th>Entity</th><th>Scope</th><th>Classification</th></tr>
+    </thead>
+    <tbody>
+      
+        <tr>
+          <td><code>AccountInvoiceSettings_Get</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/Companies/{id}/invoiceSettings</code></td>
+          <td>Companies</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AccountInvoiceSettings_Put</code></td>
+          <td><span class="badge badge-put">PUT</span></td>
+          <td><code>/V1.0/Companies/{id}/invoiceSettings</code></td>
+          <td>Companies</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AccountInvoiceSettings_AddContactRecipients</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/Companies/{id}/invoiceSettings/contactRecipients</code></td>
+          <td>Companies</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AccountInvoiceSettings_DeleteContactRecipient</code></td>
+          <td><span class="badge badge-delete">DELETE</span></td>
+          <td><code>/V1.0/Companies/{id}/invoiceSettings/contactRecipients/{contactId}</code></td>
+          <td>Companies</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AccountInvoiceSettings_AddResourceRecipients</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/Companies/{id}/invoiceSettings/resourceRecipients</code></td>
+          <td>Companies</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AccountInvoiceSettings_DeleteResourceRecipient</code></td>
+          <td><span class="badge badge-delete">DELETE</span></td>
+          <td><code>/V1.0/Companies/{id}/invoiceSettings/resourceRecipients/{resourceId}</code></td>
+          <td>Companies</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_UrlParameterQuery</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ActionTypes/query</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_Query</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ActionTypes/query</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ActionTypes/{id}</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_DeleteEntity</code></td>
+          <td><span class="badge badge-delete">DELETE</span></td>
+          <td><code>/V1.0/ActionTypes/{id}</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_UrlParameterQueryCount</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ActionTypes/query/count</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_QueryCount</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ActionTypes/query/count</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_CreateEntity</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ActionTypes</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_UpdateEntity</code></td>
+          <td><span class="badge badge-put">PUT</span></td>
+          <td><code>/V1.0/ActionTypes</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_PatchEntity</code></td>
+          <td><span class="badge badge-patch">PATCH</span></td>
+          <td><code>/V1.0/ActionTypes</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ActionTypes/entityInformation</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ActionTypes/entityInformation/fields</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ActionTypes_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ActionTypes/entityInformation/userDefinedFields</code></td>
+          <td>ActionTypes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AdditionalInvoiceFieldValues_UrlParameterQuery</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/AdditionalInvoiceFieldValues/query</code></td>
+          <td>AdditionalInvoiceFieldValues</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AdditionalInvoiceFieldValues_Query</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/AdditionalInvoiceFieldValues/query</code></td>
+          <td>AdditionalInvoiceFieldValues</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AdditionalInvoiceFieldValues_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/AdditionalInvoiceFieldValues/{id}</code></td>
+          <td>AdditionalInvoiceFieldValues</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AdditionalInvoiceFieldValues_UrlParameterQueryCount</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/AdditionalInvoiceFieldValues/query/count</code></td>
+          <td>AdditionalInvoiceFieldValues</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AdditionalInvoiceFieldValues_QueryCount</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/AdditionalInvoiceFieldValues/query/count</code></td>
+          <td>AdditionalInvoiceFieldValues</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AdditionalInvoiceFieldValues_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/AdditionalInvoiceFieldValues/entityInformation</code></td>
+          <td>AdditionalInvoiceFieldValues</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AdditionalInvoiceFieldValues_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/AdditionalInvoiceFieldValues/entityInformation/fields</code></td>
+          <td>AdditionalInvoiceFieldValues</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>AdditionalInvoiceFieldValues_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/AdditionalInvoiceFieldValues/entityInformation/userDefinedFields</code></td>
+          <td>AdditionalInvoiceFieldValues</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_UrlParameterQuery</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/Appointments/query</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_Query</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/Appointments/query</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/Appointments/{id}</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_DeleteEntity</code></td>
+          <td><span class="badge badge-delete">DELETE</span></td>
+          <td><code>/V1.0/Appointments/{id}</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_UrlParameterQueryCount</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/Appointments/query/count</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_QueryCount</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/Appointments/query/count</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_CreateEntity</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/Appointments</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_UpdateEntity</code></td>
+          <td><span class="badge badge-put">PUT</span></td>
+          <td><code>/V1.0/Appointments</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_PatchEntity</code></td>
+          <td><span class="badge badge-patch">PATCH</span></td>
+          <td><code>/V1.0/Appointments</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/Appointments/entityInformation</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/Appointments/entityInformation/fields</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>Appointments_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/Appointments/entityInformation/userDefinedFields</code></td>
+          <td>Appointments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachments_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleAttachments/entityInformation</code></td>
+          <td>ArticleAttachments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachments_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleAttachments/entityInformation/fields</code></td>
+          <td>ArticleAttachments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachments_UrlParameterQuery</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleAttachments/query</code></td>
+          <td>ArticleAttachments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachments_Query</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticleAttachments/query</code></td>
+          <td>ArticleAttachments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachments_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleAttachments/{id}</code></td>
+          <td>ArticleAttachments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachments_UrlParameterQueryCount</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleAttachments/query/count</code></td>
+          <td>ArticleAttachments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachments_QueryCount</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticleAttachments/query/count</code></td>
+          <td>ArticleAttachments</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachmentsChild_Query</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Attachments</code></td>
+          <td>ArticleAttachments</td>
+          <td>KnowledgeBaseArticles / Attachments</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachmentsChild_CreateEntity</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Attachments</code></td>
+          <td>ArticleAttachments</td>
+          <td>KnowledgeBaseArticles / Attachments</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachmentsChild_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Attachments/{id}</code></td>
+          <td>ArticleAttachments</td>
+          <td>KnowledgeBaseArticles / Attachments</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleAttachmentsChild_DeleteEntity</code></td>
+          <td><span class="badge badge-delete">DELETE</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Attachments/{id}</code></td>
+          <td>ArticleAttachments</td>
+          <td>KnowledgeBaseArticles / Attachments</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociations_UrlParameterQuery</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleConfigurationItemCategoryAssociations/query</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociations_Query</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticleConfigurationItemCategoryAssociations/query</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociations_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleConfigurationItemCategoryAssociations/{id}</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociations_UrlParameterQueryCount</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleConfigurationItemCategoryAssociations/query/count</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociations_QueryCount</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticleConfigurationItemCategoryAssociations/query/count</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociations_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleConfigurationItemCategoryAssociations/entityInformation</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociations_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleConfigurationItemCategoryAssociations/entityInformation/fields</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociations_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleConfigurationItemCategoryAssociations/entityInformation/userDefinedFields</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociationsChild_Query</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/ConfigurationItemCategoryAssociations</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>KnowledgeBaseArticles / ConfigurationItemCategoryAssociations</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociationsChild_CreateEntity</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/ConfigurationItemCategoryAssociations</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>KnowledgeBaseArticles / ConfigurationItemCategoryAssociations</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociationsChild_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/ConfigurationItemCategoryAssociations/{id}</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>KnowledgeBaseArticles / ConfigurationItemCategoryAssociations</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociationsChild_DeleteEntity</code></td>
+          <td><span class="badge badge-delete">DELETE</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/ConfigurationItemCategoryAssociations/{id}</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>KnowledgeBaseArticles / ConfigurationItemCategoryAssociations</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociationsChild_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/ConfigurationItemCategoryAssociations/entityInformation</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>KnowledgeBaseArticles / ConfigurationItemCategoryAssociations</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociationsChild_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/ConfigurationItemCategoryAssociations/entityInformation/fields</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>KnowledgeBaseArticles / ConfigurationItemCategoryAssociations</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleConfigurationItemCategoryAssociationsChild_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/ConfigurationItemCategoryAssociations/entityInformation/userDefinedFields</code></td>
+          <td>ArticleConfigurationItemCategoryAssociations</td>
+          <td>KnowledgeBaseArticles / ConfigurationItemCategoryAssociations</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotes_UrlParameterQuery</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleNotes/query</code></td>
+          <td>ArticleNotes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotes_Query</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticleNotes/query</code></td>
+          <td>ArticleNotes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotes_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleNotes/{id}</code></td>
+          <td>ArticleNotes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotes_UrlParameterQueryCount</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleNotes/query/count</code></td>
+          <td>ArticleNotes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotes_QueryCount</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticleNotes/query/count</code></td>
+          <td>ArticleNotes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotes_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleNotes/entityInformation</code></td>
+          <td>ArticleNotes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotes_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleNotes/entityInformation/fields</code></td>
+          <td>ArticleNotes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotes_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleNotes/entityInformation/userDefinedFields</code></td>
+          <td>ArticleNotes</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_Query</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_CreateEntity</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_UpdateEntity</code></td>
+          <td><span class="badge badge-put">PUT</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_PatchEntity</code></td>
+          <td><span class="badge badge-patch">PATCH</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes/{id}</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_DeleteEntity</code></td>
+          <td><span class="badge badge-delete">DELETE</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes/{id}</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes/entityInformation</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes/entityInformation/fields</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleNotesChild_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/Notes/entityInformation/userDefinedFields</code></td>
+          <td>ArticleNotes</td>
+          <td>KnowledgeBaseArticles / Notes</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContent_UrlParameterQuery</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticlePlainTextContent/query</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContent_Query</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticlePlainTextContent/query</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContent_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticlePlainTextContent/{id}</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContent_UrlParameterQueryCount</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticlePlainTextContent/query/count</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContent_QueryCount</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticlePlainTextContent/query/count</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContent_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticlePlainTextContent/entityInformation</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContent_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticlePlainTextContent/entityInformation/fields</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContent_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticlePlainTextContent/entityInformation/userDefinedFields</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContentChild_Query</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/PlainTextContent</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>KnowledgeBaseArticles / PlainTextContent</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContentChild_UpdateEntity</code></td>
+          <td><span class="badge badge-put">PUT</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/PlainTextContent</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>KnowledgeBaseArticles / PlainTextContent</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContentChild_PatchEntity</code></td>
+          <td><span class="badge badge-patch">PATCH</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/PlainTextContent</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>KnowledgeBaseArticles / PlainTextContent</td>
+          <td><span class="badge badge-write">write</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContentChild_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/PlainTextContent/{id}</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>KnowledgeBaseArticles / PlainTextContent</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContentChild_QueryEntityInformation</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/PlainTextContent/entityInformation</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>KnowledgeBaseArticles / PlainTextContent</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContentChild_QueryFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/PlainTextContent/entityInformation/fields</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>KnowledgeBaseArticles / PlainTextContent</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticlePlainTextContentChild_QueryUserDefinedFieldDefinitions</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/KnowledgeBaseArticles/{parentId}/PlainTextContent/entityInformation/userDefinedFields</code></td>
+          <td>ArticlePlainTextContent</td>
+          <td>KnowledgeBaseArticles / PlainTextContent</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleTagAssociations_UrlParameterQuery</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleTagAssociations/query</code></td>
+          <td>ArticleTagAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleTagAssociations_Query</code></td>
+          <td><span class="badge badge-post">POST</span></td>
+          <td><code>/V1.0/ArticleTagAssociations/query</code></td>
+          <td>ArticleTagAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleTagAssociations_QueryItem</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleTagAssociations/{id}</code></td>
+          <td>ArticleTagAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+        <tr>
+          <td><code>ArticleTagAssociations_UrlParameterQueryCount</code></td>
+          <td><span class="badge badge-get">GET</span></td>
+          <td><code>/V1.0/ArticleTagAssociations/query/count</code></td>
+          <td>ArticleTagAssociations</td>
+          <td>Flat</td>
+          <td><span class="badge badge-read">read</span></td>
+        </tr>
+      
+    </tbody>
+  </table>
+</body>
+</html>
