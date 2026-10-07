@@ -327,7 +327,6 @@ export class AutotaskApi {
       rec,
       (e, id) => this.getById(e, id),
     );
-    await this.assertWritableFields(resolvedEntity, fields, false);
     return this.request('POST', `V1.0/${this.encodePath(resolvedEntity)}`, fields);
   }
 
@@ -389,12 +388,8 @@ export class AutotaskApi {
     );
   }
 
-  /** Refuse create or update if body contains read-only fields. */
-  async assertWritableFields(
-    routeOrEntity: string,
-    body: unknown,
-    isUpdate: boolean,
-  ): Promise<void> {
+  /** Refuse update if body contains read-only fields. */
+  async assertWritableFields(routeOrEntity: string, body: unknown, isUpdate = true): Promise<void> {
     return assertWritableFields(this, routeOrEntity, body, isUpdate);
   }
 

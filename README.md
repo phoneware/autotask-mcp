@@ -340,13 +340,22 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 
 ### Read-only API fields
 
-Autotask PSA designates certain entity fields as read-only in its REST API metadata (`isReadOnly: true`). When a client sends a `POST`, `PATCH`, or `PUT` setting a read-only field, Autotask silently accepts the HTTP request and returns success, but drops the field and leaves the record unchanged.
+Autotask PSA designates certain entity fields as read-only in its REST API metadata (`isReadOnly: true`). In Autotask, `isReadOnly` means "cannot be updated", not "cannot be set". Several required creation fields are marked read-only in Autotask metadata: for example, `Contacts.companyID` is `isReadOnly: true` and `isRequired: true` on create, and `ContractServices.contractID` and `serviceID` are also `isReadOnly: true` and `isRequired: true`.
 
-To prevent silent data loss, this server validates write requests against the target entity field metadata (`/entityInformation/fields` and `/entityInformation/userDefinedFields`) before sending any request over the wire. If any read-only fields are present in the create or update body, the request is refused immediately with an explanation naming the affected fields.
+When a client sends a `PATCH` or `PUT` setting a read-only field, Autotask silently accepts the HTTP request and returns success, but drops the field and leaves the record unchanged.
 
-Common fields that are read-only through the REST API include:
+To prevent silent data loss, this server validates update requests against the target entity field metadata (`/entityInformation/fields` and `/entityInformation/userDefinedFields`) before sending any request over the wire. Creates (`POST`) are not checked against read-only metadata so required creation fields can be set normally.
+
+On updates (`PATCH` and `PUT`):
+
+- `id` is permitted because it addresses the target record.
+- The route's parent foreign-key field (such as `companyID` on `Companies/{parentId}/Contacts`, resolved from the registry's child collection metadata) is permitted when its value matches the parent record ID in the route URL. If a different parent foreign key is supplied, the update is refused.
+- All other fields marked `isReadOnly: true` (standard fields and user-defined fields) are refused before any request reaches the wire, naming the affected fields.
+
+Common fields that cannot be updated through the REST API include:
 
 - **`TicketCharges.status`** (measured 2026-10-07): charge status codes (such as `8` for Canceled) cannot be modified via the REST API. Autotask accepts the patch but ignores the status field.
+- **Parent foreign keys**: fields such as `Contacts.companyID`, `ContractServices.contractID`, and `ContractServices.serviceID` cannot be moved or updated to a different parent.
 - **Audit and financial rollups**: fields such as `billableAmount`, `extendedCost`, `createDate`, and `creatorResourceID` are calculated or set by Autotask internally.
 
 Modifications to these fields must be made directly in the Autotask web UI.

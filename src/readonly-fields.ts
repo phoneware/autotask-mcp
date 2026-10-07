@@ -22,6 +22,10 @@ export interface RouteInfo {
   aliasCacheKey?: string;
   fetchRoute: string;
   entityName: string;
+  parentEntity?: string;
+  parentId?: string;
+  childAlias?: string;
+  parentFkField?: string;
 }
 
 /**
@@ -53,6 +57,10 @@ export function parseRouteInfo(routeOrEntity: string): RouteInfo {
       aliasCacheKey,
       fetchRoute,
       entityName,
+      parentEntity: childMeta?.parentEntity || parent,
+      parentId: isWildcard ? undefined : parentId,
+      childAlias: childMeta?.childAlias || childAlias,
+      parentFkField: childMeta?.parentFkField,
     };
   }
 
@@ -70,6 +78,9 @@ export function parseRouteInfo(routeOrEntity: string): RouteInfo {
       aliasCacheKey,
       fetchRoute: entity,
       entityName,
+      parentEntity: childMeta?.parentEntity,
+      childAlias: childMeta?.childAlias,
+      parentFkField: childMeta?.parentFkField,
     };
   }
 
@@ -233,16 +244,22 @@ export async function getEntityMetadata(
  * request but ignores those fields, so changes must be made in the Autotask UI.
  *
  * Rules:
+ * - Creates (POST) are not checked against isReadOnly.
  * - On update (PATCH/PUT), "id" is permitted because it addresses the target record.
- * - On create (POST), "id" follows the metadata (refused if isReadOnly: true).
+ * - On update (PATCH/PUT), the route's parent foreign-key field is permitted when its value
+ *   equals the route's parentId (route addressing). A parent FK with a different value is refused.
  * - User-defined fields are checked against entityInformation/userDefinedFields.
  */
 export async function assertWritableFields(
   api: EntityFieldsClient,
   routeOrEntity: string,
   body: unknown,
-  isUpdate: boolean,
+  isUpdate = true,
 ): Promise<void> {
+  // Creates are not checked against isReadOnly.
+  if (!isUpdate) {
+    return;
+  }
   if (!body || typeof body !== 'object') {
     return;
   }
@@ -260,18 +277,28 @@ export async function assertWritableFields(
   if (meta.fields.size === 0 && meta.udfs.size === 0) {
     return;
   }
-
+  const routeInfo = parseRouteInfo(routeOrEntity);
   const readOnlyFields: string[] = [];
   const rec = body as Record<string, unknown>;
-
+  const parentFkLower = routeInfo.parentFkField?.toLowerCase();
   for (const [key, value] of Object.entries(rec)) {
     const keyLower = key.toLowerCase();
 
     // On update, id addresses the record and is allowed.
-    if (isUpdate && keyLower === 'id') {
+    if (keyLower === 'id') {
       continue;
     }
 
+    // The route's parent foreign-key field is allowed when its value equals the route's parentId (addressing).
+    // A parent FK with a different value is refused, naming the field.
+    if (parentFkLower && keyLower === parentFkLower && routeInfo.parentId !== undefined) {
+      if (String(value) === String(routeInfo.parentId)) {
+        continue;
+      }
+      const stdField = meta.fields.get(keyLower);
+      readOnlyFields.push(stdField?.name || key);
+      continue;
+    }
     // User-defined fields follow entityInformation/userDefinedFields
     if (keyLower === 'userdefinedfields') {
       if (Array.isArray(value)) {
@@ -317,7 +344,7 @@ export async function assertWritableFields(
   if (readOnlyFields.length > 0) {
     const unique = Array.from(new Set(readOnlyFields));
     throw new Error(
-      `Cannot ${isUpdate ? 'update' : 'set'} read-only field(s) on ${meta.entityName}: ${unique.join(
+      `Cannot update read-only field(s) on ${meta.entityName}: ${unique.join(
         ', ',
       )}. Autotask accepts the request but ignores those fields, so the change has to be made in the Autotask UI.`,
     );

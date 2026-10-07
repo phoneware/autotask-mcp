@@ -8,6 +8,8 @@ vi.hoisted(() => {
 });
 import { AutotaskApi, clearMetadataCache, primeMetadataCache } from '../src/autotask-api.js';
 import { ticketChargeTools } from '../src/tools/ticket-charges.js';
+import { contactTools } from '../src/tools/contacts.js';
+import { genericTools } from '../src/tools/generic.js';
 import { callApiTool } from '../src/tools/meta.js';
 import { governor } from '../src/governor.js';
 
@@ -40,6 +42,21 @@ const RECORDED_TICKET_CHARGES_FIELDS = [
   { name: 'isBilled', isReadOnly: true, isRequired: false },
   { name: 'statusLastModifiedBy', isReadOnly: true, isRequired: false },
   { name: 'statusLastModifiedDate', isReadOnly: true, isRequired: false },
+];
+
+const RECORDED_CONTACTS_FIELDS = [
+  { name: 'id', isReadOnly: true, isRequired: false },
+  { name: 'companyID', isReadOnly: true, isRequired: true },
+  { name: 'firstName', isReadOnly: false, isRequired: true },
+  { name: 'lastName', isReadOnly: false, isRequired: true },
+  { name: 'emailAddress', isReadOnly: false, isRequired: false },
+];
+
+const RECORDED_CONTRACT_SERVICES_FIELDS = [
+  { name: 'id', isReadOnly: true, isRequired: false },
+  { name: 'contractID', isReadOnly: true, isRequired: true },
+  { name: 'serviceID', isReadOnly: true, isRequired: true },
+  { name: 'unitPrice', isReadOnly: false, isRequired: false },
 ];
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -151,23 +168,141 @@ describe('readonly fields validation', () => {
     expect(JSON.parse(res.content[0].text)).toEqual({ itemId: 2711 });
   });
 
-  it('create with read-only field is refused before sending request', async () => {
-    primeMetadataCache('Tickets/23836/Charges', RECORDED_TICKET_CHARGES_FIELDS);
+  it('create-contact allows companyID (readOnly on update, required on create) and reaches wire as POST Companies/1482/Contacts', async () => {
+    primeMetadataCache('Contacts', RECORDED_CONTACTS_FIELDS);
+    primeMetadataCache('Companies/1482/Contacts', RECORDED_CONTACTS_FIELDS);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ itemId: 123 }));
 
-    await expect(
-      api.create('Tickets/23836/Charges', {
-        id: 2711,
-        name: 'Labor',
-        chargeType: 2,
-      }),
-    ).rejects.toThrow(
-      'Cannot set read-only field(s) on TicketCharges: id. Autotask accepts the request but ignores those fields, so the change has to be made in the Autotask UI.',
-    );
+    const createContact = contactTools.find((t) => t.name === 'create-contact')!;
+    const res = await createContact.handler({
+      companyID: '1482',
+      firstName: 'A',
+      lastName: 'B',
+    });
 
     const postCalls = fetchMock.mock.calls.filter(
       ([, opts]) => (opts as RequestInit | undefined)?.method === 'POST',
     );
-    expect(postCalls).toHaveLength(0);
+    expect(postCalls).toHaveLength(1);
+    const [url, opts] = postCalls[0];
+    expect(url).toContain('/V1.0/Companies/1482/Contacts');
+    expect(JSON.parse((opts as RequestInit).body as string)).toEqual({
+      companyID: 1482,
+      firstName: 'A',
+      lastName: 'B',
+    });
+    expect(JSON.parse(res.content[0].text)).toEqual({ itemId: 123 });
+  });
+
+  it('create-entity Contacts with companyID reaches wire as POST Companies/1482/Contacts', async () => {
+    primeMetadataCache('Contacts', RECORDED_CONTACTS_FIELDS);
+    primeMetadataCache('Companies/1482/Contacts', RECORDED_CONTACTS_FIELDS);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ itemId: 124 }));
+
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+    const res = await createEntity.handler({
+      entity: 'Contacts',
+      fields: JSON.stringify({ companyID: 1482, firstName: 'A', lastName: 'B' }),
+    });
+
+    const postCalls = fetchMock.mock.calls.filter(
+      ([, opts]) => (opts as RequestInit | undefined)?.method === 'POST',
+    );
+    expect(postCalls).toHaveLength(1);
+    const [url] = postCalls[0];
+    expect(url).toContain('/V1.0/Companies/1482/Contacts');
+    expect(JSON.parse(res.content[0].text)).toEqual({ itemId: 124 });
+  });
+
+  it('create-entity ContractServices with contractID and serviceID reaches wire as POST Contracts/50/Services', async () => {
+    primeMetadataCache('ContractServices', RECORDED_CONTRACT_SERVICES_FIELDS);
+    primeMetadataCache('Contracts/50/Services', RECORDED_CONTRACT_SERVICES_FIELDS);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ itemId: 201 }));
+
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+    const res = await createEntity.handler({
+      entity: 'ContractServices',
+      fields: JSON.stringify({ contractID: 50, serviceID: 20, unitPrice: 15.0 }),
+    });
+
+    const postCalls = fetchMock.mock.calls.filter(
+      ([, opts]) => (opts as RequestInit | undefined)?.method === 'POST',
+    );
+    expect(postCalls).toHaveLength(1);
+    const [url] = postCalls[0];
+    expect(url).toContain('/V1.0/Contracts/50/Services');
+    expect(JSON.parse(res.content[0].text)).toEqual({ itemId: 201 });
+  });
+
+  it('update-contact with title sends one PATCH to Companies/1482/Contacts whose body has no companyID', async () => {
+    primeMetadataCache('Contacts', RECORDED_CONTACTS_FIELDS);
+    primeMetadataCache('Companies/1482/Contacts', RECORDED_CONTACTS_FIELDS);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ itemId: 123 }));
+
+    const updateContact = contactTools.find((t) => t.name === 'update-contact')!;
+    const res = await updateContact.handler({
+      id: '123',
+      companyID: '1482',
+      title: 'Engineer',
+    });
+
+    const patchCalls = fetchMock.mock.calls.filter(
+      ([, opts]) => (opts as RequestInit | undefined)?.method === 'PATCH',
+    );
+    expect(patchCalls).toHaveLength(1);
+    const [url, opts] = patchCalls[0];
+    expect(url).toContain('/V1.0/Companies/1482/Contacts');
+    const body = JSON.parse((opts as RequestInit).body as string);
+    expect(body).toEqual({ id: 123, title: 'Engineer' });
+    expect(body.companyID).toBeUndefined();
+    expect(JSON.parse(res.content[0].text)).toEqual({ itemId: 123 });
+  });
+
+  it('update-entity Contacts with companyID equal to route parent goes through', async () => {
+    primeMetadataCache('Contacts', RECORDED_CONTACTS_FIELDS);
+    primeMetadataCache('Companies/1482/Contacts', RECORDED_CONTACTS_FIELDS);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ itemId: 123 }));
+
+    const updateEntity = genericTools.find((t) => t.name === 'update-entity')!;
+    const res = await updateEntity.handler({
+      entity: 'Contacts',
+      fields: JSON.stringify({ id: 123, companyID: 1482, firstName: 'Alice' }),
+    });
+
+    const patchCalls = fetchMock.mock.calls.filter(
+      ([, opts]) => (opts as RequestInit | undefined)?.method === 'PATCH',
+    );
+    expect(patchCalls).toHaveLength(1);
+    const [url, opts] = patchCalls[0];
+    expect(url).toContain('/V1.0/Companies/1482/Contacts');
+    expect(JSON.parse((opts as RequestInit).body as string)).toEqual({
+      id: 123,
+      companyID: 1482,
+      firstName: 'Alice',
+    });
+    expect(JSON.parse(res.content[0].text)).toEqual({ itemId: 123 });
+  });
+
+  it('update-entity with companyID in body is refused naming companyID', async () => {
+    primeMetadataCache('Contacts', RECORDED_CONTACTS_FIELDS);
+    primeMetadataCache('Companies/1482/Contacts', RECORDED_CONTACTS_FIELDS);
+
+    const updateEntity = genericTools.find((t) => t.name === 'update-entity')!;
+    await expect(
+      updateEntity.handler({
+        entity: 'Contacts',
+        parentEntity: 'Companies',
+        parentId: '1482',
+        fields: JSON.stringify({ id: 123, companyID: 999 }),
+      }),
+    ).rejects.toThrow(
+      'Cannot update read-only field(s) on Contacts: companyID. Autotask accepts the request but ignores those fields, so the change has to be made in the Autotask UI.',
+    );
+
+    const patchCalls = fetchMock.mock.calls.filter(
+      ([, opts]) => (opts as RequestInit | undefined)?.method === 'PATCH',
+    );
+    expect(patchCalls).toHaveLength(0);
   });
 
   it('fetches metadata on wire when unprimed, then caches for subsequent calls', async () => {
