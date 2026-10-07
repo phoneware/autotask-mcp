@@ -15,9 +15,13 @@ import {
   recordCallApiInvocation,
   _resetUsageStoreForTests,
   InMemoryUsageStore,
+  FirestoreUsageStore,
 } from '../src/tools/promotion/index.js';
 import { elicitConfirmation, setActiveServer } from '../src/tools/elicitation.js';
 import { getApi } from '../src/autotask-api.js';
+import { buildServer } from '../src/server.js';
+import { withCaller } from '../src/auth/context.js';
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 interface SwaggerSpec {
   paths: Record<
     string,
@@ -104,6 +108,27 @@ describe('spec-conformance: search_api and call_api', () => {
     ).rejects.toThrow(/requires confirm: "TICKETCHARGESCHILD_PATCHENTITY"/);
   });
 
+  it('call_api rejects undeclared arguments at top-level', async () => {
+    await expect(
+      callApiTool.handler({
+        tool_name: 'TicketChargesChild_Query',
+        args: JSON.stringify({ parentId: 23836, bogusParam: 'evil' }),
+      }),
+    ).rejects.toThrow(/Unknown argument "bogusParam"/);
+  });
+
+  it('call_api rejects undeclared body fields for operations with request models', async () => {
+    await expect(
+      callApiTool.handler({
+        tool_name: 'TicketChargesChild_PatchEntity',
+        args: JSON.stringify({
+          parentId: 23836,
+          confirm: 'TICKETCHARGESCHILD_PATCHENTITY',
+          restModelInput: { id: 2712, invalidField: 'bad' },
+        }),
+      }),
+    ).rejects.toThrow(/Unknown body field "invalidField"/);
+  });
   it('call_api on a read operation does not require confirm token', async () => {
     const testApi = getApi();
     const reqSpy = vi.spyOn(testApi, 'request').mockResolvedValueOnce({ items: [] });
@@ -113,6 +138,48 @@ describe('spec-conformance: search_api and call_api', () => {
     });
     expect(reqSpy).toHaveBeenCalledWith('GET', '/V1.0/Tickets/23836/Charges', undefined);
     expect(res.content[0].text).toContain('items');
+  });
+
+  it('call_api on mutating GET operation (TimeOffRequestsApproveChild_CreateEntity) is classified as write and destructive', async () => {
+    const op = findOperation('TimeOffRequestsApproveChild_CreateEntity');
+    expect(op).toBeDefined();
+    expect(op?.classification).toBe('write');
+    expect(op?.destructive).toBe(true);
+    expect(op?.method).toBe('GET');
+
+    // Refuses execution without confirmation token
+    await expect(
+      callApiTool.handler({
+        tool_name: 'TimeOffRequestsApproveChild_CreateEntity',
+        args: JSON.stringify({ parentId: 123 }),
+      }),
+    ).rejects.toThrow(/requires confirm:/);
+
+    // Refuses in read-only mode
+    const prev = process.env.AUTOTASK_READ_ONLY;
+    try {
+      process.env.AUTOTASK_READ_ONLY = 'true';
+      await expect(
+        callApiTool.handler({
+          tool_name: 'TimeOffRequestsApproveChild_CreateEntity',
+          args: JSON.stringify({
+            parentId: 123,
+            confirm: 'TIMEOFFREQUESTSAPPROVECHILD_CREATEENTITY',
+          }),
+        }),
+      ).rejects.toThrow(/not permitted in read-only mode/);
+    } finally {
+      process.env.AUTOTASK_READ_ONLY = prev;
+    }
+  });
+
+  it('call_api rejects body parameters for GET operations', async () => {
+    await expect(
+      callApiTool.handler({
+        tool_name: 'TicketChargesChild_Query',
+        args: JSON.stringify({ parentId: 23836, restModelInput: { foo: 'bar' } }),
+      }),
+    ).rejects.toThrow(/Unknown argument "restModelInput"/);
   });
 });
 
@@ -151,6 +218,34 @@ describe('spec-conformance: cancel-ticket-charge', () => {
     expect(body.cancelled).toBe(false);
     expect(body.refusal).toContain('Charge is already billed');
     expect(body.currentRecord.item.status).toBe(3);
+  });
+
+  it('cancel-ticket-charge reports failure when read-back status is not 8', async () => {
+    const cancelTool = ticketChargeTools.find((t) => t.name === 'cancel-ticket-charge')!;
+    const testApi = getApi();
+    vi.spyOn(testApi, 'update').mockResolvedValueOnce({ itemId: 2712 });
+    vi.spyOn(testApi, 'getById').mockResolvedValueOnce({
+      item: { id: 2712, ticketID: 23836, status: 3 },
+    });
+
+    const res = await cancelTool.handler({ id: '2712', ticketId: '23836' });
+    const body = JSON.parse(res.content[0].text);
+    expect(res.isError).toBe(true);
+    expect(body.cancelled).toBe(false);
+    expect(body.error).toContain('Cancellation could not be verified: status is 3 (expected 8)');
+  });
+
+  it('cancel-ticket-charge reports failure when read-back encounters an error', async () => {
+    const cancelTool = ticketChargeTools.find((t) => t.name === 'cancel-ticket-charge')!;
+    const testApi = getApi();
+    vi.spyOn(testApi, 'update').mockResolvedValueOnce({ itemId: 2712 });
+    vi.spyOn(testApi, 'getById').mockRejectedValueOnce(new Error('Autotask timeout'));
+
+    const res = await cancelTool.handler({ id: '2712', ticketId: '23836' });
+    const body = JSON.parse(res.content[0].text);
+    expect(res.isError).toBe(true);
+    expect(body.cancelled).toBe(false);
+    expect(body.error).toContain('Cancellation could not be verified: Autotask timeout');
   });
 });
 
@@ -194,5 +289,107 @@ describe('spec-conformance: promotion and elicitation', () => {
     await expect(
       elicitConfirmation('delete-entity', { entity: 'Tickets', id: '123' }),
     ).rejects.toThrow(/does not support confirmation prompts/);
+  });
+
+  it('buildServer registers promoted tools and exposes them to client', () => {
+    const { server, registeredCount } = buildServer(undefined, ['TicketChargesChild_Query']);
+    expect(registeredCount).toBeGreaterThan(0);
+    const tools = (server as unknown as { _registeredTools: Record<string, unknown> })
+      ._registeredTools;
+    expect(tools?.['promoted_TicketChargesChild_Query']).toBeDefined();
+  });
+
+  it('call_api notifies sendToolListChanged when crossing promotion threshold', async () => {
+    const user = 'testuser@phoneware.us';
+    const toolName = 'TicketChargesChild_Query';
+    const testApi = getApi();
+    vi.spyOn(testApi, 'request').mockResolvedValue({ items: [] });
+
+    const sendToolListChanged = vi.fn().mockResolvedValue(undefined);
+    const mockContext = {
+      server: {
+        sendToolListChanged,
+      },
+    };
+
+    // Pre-record 2 calls
+    await recordCallApiInvocation(user, toolName);
+    await recordCallApiInvocation(user, toolName);
+
+    // 3rd call crosses threshold via call_api with caller context
+    await withCaller(
+      { email: user, capabilities: ['read', 'create', 'update', 'delete'] },
+      async () => {
+        await callApiTool.handler(
+          {
+            tool_name: toolName,
+            args: JSON.stringify({ parentId: 23836 }),
+          },
+          mockContext,
+        );
+      },
+    );
+
+    expect(sendToolListChanged).toHaveBeenCalledOnce();
+  });
+
+  it('elicitConfirmation allows execution when MCP_CONFIRM_FALLBACK=allow on unsupported client', async () => {
+    const prev = process.env.MCP_CONFIRM_FALLBACK;
+    try {
+      process.env.MCP_CONFIRM_FALLBACK = 'allow';
+      const mockServer = {
+        elicitInput: vi
+          .fn()
+          .mockRejectedValue(new Error('Client does not support form elicitation.')),
+      };
+      const result = await elicitConfirmation(
+        'delete-entity',
+        { entity: 'Tickets', id: '123' },
+        mockServer as unknown as Server,
+      );
+      expect(result).toBe(true);
+    } finally {
+      process.env.MCP_CONFIRM_FALLBACK = prev;
+    }
+  });
+
+  it('elicitConfirmation throws McpError when MCP_CONFIRM_FALLBACK=fail on unsupported client', async () => {
+    const prev = process.env.MCP_CONFIRM_FALLBACK;
+    try {
+      process.env.MCP_CONFIRM_FALLBACK = 'fail';
+      const mockServer = {
+        elicitInput: vi
+          .fn()
+          .mockRejectedValue(new Error('Client does not support form elicitation.')),
+      };
+      await expect(
+        elicitConfirmation(
+          'delete-entity',
+          { entity: 'Tickets', id: '123' },
+          mockServer as unknown as Server,
+        ),
+      ).rejects.toThrow(/does not support confirmation prompts/);
+    } finally {
+      process.env.MCP_CONFIRM_FALLBACK = prev;
+    }
+  });
+
+  it('FirestoreUsageStore records calls atomically using FieldValue.increment', async () => {
+    const mockSet = vi.fn().mockResolvedValue(undefined);
+    const mockDoc = vi.fn().mockReturnValue({ set: mockSet });
+    const mockCollection = vi.fn().mockReturnValue({ doc: mockDoc });
+    const store = new FirestoreUsageStore();
+    (store as unknown as { db: { collection: typeof mockCollection } }).db = {
+      collection: mockCollection,
+    };
+
+    await store.recordCall('test@example.com', 'TicketChargesChild_Query');
+    expect(mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userKey: 'test@example.com',
+        toolName: 'TicketChargesChild_Query',
+      }),
+      { merge: true },
+    );
   });
 });

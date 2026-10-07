@@ -112,8 +112,8 @@ export interface GeneratedOperation {
   parentFkField?: string;
   parameters: GeneratedParam[];
   requestModelRef?: string;
+  allowedBodyFields?: string[];
   classification: 'read' | 'write';
-  destructive: boolean;
   tag?: string;
   summary?: string;
   description?: string;
@@ -181,6 +181,8 @@ function findParentFk(
   // Irregular Autotask entity names
   for (const pr of props) {
     const prLower = pr.toLowerCase();
+    if (parentLower === 'userdefinedfields' && (prLower === 'udffieldid' || prLower === 'udfid'))
+      return pr;
     if (parentLower === 'expenses' && prLower === 'expensereportid') return pr;
     if (parentLower === 'purchaseorders' && prLower === 'orderid') return pr;
     if (parentLower === 'knowledgebasearticles' && prLower === 'articleid') return pr;
@@ -333,7 +335,14 @@ function generate(): void {
 
       const method = methodKey.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
       const isQuery = method === 'POST' && /\/query(\/count)?$/i.test(pathTemplate);
-      const isRead = method === 'GET' || isQuery;
+      const isMutatingGet =
+        method === 'GET' &&
+        (opId.endsWith('_CreateEntity') ||
+          opId.endsWith('_UpdateEntity') ||
+          opId.endsWith('_DeleteEntity') ||
+          pathTemplate.endsWith('/Approve') ||
+          pathTemplate.endsWith('/Reject'));
+      const isRead = (method === 'GET' && !isMutatingGet) || isQuery;
       const classification = isRead ? 'read' : 'write';
       const destructive = !isRead;
 
@@ -384,6 +393,12 @@ function generate(): void {
           schemaRef: param.schema?.$ref,
         });
       }
+      let allowedBodyFields: string[] | undefined;
+      if (requestModelRef && spec.definitions[requestModelRef]?.properties) {
+        allowedBodyFields = Object.keys(spec.definitions[requestModelRef].properties);
+      } else if (op.parameters?.some((p) => p.name === 'queryModel')) {
+        allowedBodyFields = ['filter', 'MaxRecords', 'IncludeFields'];
+      }
 
       operations.push({
         operationId: opId,
@@ -395,6 +410,7 @@ function generate(): void {
         parentFkField,
         parameters,
         requestModelRef,
+        allowedBodyFields,
         classification,
         destructive,
         tag: op.tags?.[0],
@@ -432,6 +448,7 @@ export interface RegistryOperation {
   parentFkField?: string;
   parameters: OperationParameter[];
   requestModelRef?: string;
+  allowedBodyFields?: string[];
   classification: 'read' | 'write';
   destructive: boolean;
   tag?: string;

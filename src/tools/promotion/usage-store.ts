@@ -7,8 +7,7 @@
  * - FirestoreUsageStore (for production on Cloud Run)
  */
 
-import { Firestore } from '@google-cloud/firestore';
-
+import { Firestore, FieldValue } from '@google-cloud/firestore';
 export interface UsageRecord {
   count: number;
   lastUsed: number;
@@ -59,15 +58,15 @@ export class FirestoreUsageStore implements UsageStore {
   async recordCall(userKey: string, toolName: string): Promise<void> {
     const docRef = this.db.collection(this.collection).doc(this.docId(userKey, toolName));
     try {
-      const snap = await docRef.get();
-      const existing = snap.exists ? (snap.data() as { count?: number }) : undefined;
-      const next: UsageRecord & { userKey: string; toolName: string } = {
-        count: (existing?.count ?? 0) + 1,
-        lastUsed: Date.now(),
-        userKey,
-        toolName,
-      };
-      await docRef.set(next);
+      await docRef.set(
+        {
+          count: FieldValue.increment(1),
+          lastUsed: Date.now(),
+          userKey,
+          toolName,
+        },
+        { merge: true },
+      );
       this.cache.delete(userKey);
     } catch {
       // Best-effort tracking: never fail tool call on storage error

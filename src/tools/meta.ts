@@ -1,4 +1,5 @@
-import type { ToolDefinition } from '../types.js';
+import type { ToolDefinition, ToolContext } from '../types.js';
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { RegistryOperation } from '../generated/types.js';
 import { OPERATIONS, findOperation, OPERATION_REGISTRY } from '../generated/registry.js';
 import { api } from '../autotask-api.js';
@@ -210,7 +211,7 @@ export const callApiTool: ToolDefinition = {
     },
     required: ['tool_name'],
   },
-  handler: async (rawArgs) => {
+  handler: async (rawArgs, context?: ToolContext) => {
     const toolName = String(rawArgs.tool_name || '').trim();
     if (!toolName) {
       throw new Error('tool_name is required');
@@ -235,12 +236,49 @@ export const callApiTool: ToolDefinition = {
         throw new Error(`Invalid JSON in args: ${(err as Error).message}`);
       }
     }
+    // 2. Validate top-level argument keys against declared parameters
+    const declaredPathParams = new Set(
+      op.parameters.filter((p) => p.in === 'path').map((p) => p.name.toLowerCase()),
+    );
+    const declaredQueryParams = new Set(
+      op.parameters.filter((p) => p.in === 'query').map((p) => p.name.toLowerCase()),
+    );
+    const hasBody =
+      op.parameters.some((p) => p.in === 'body') || (op.method !== 'GET' && op.method !== 'DELETE');
+    const bodyWrappers = hasBody
+      ? new Set(['restmodelinput', 'querymodel', 'model', 'body', 'fields'])
+      : new Set<string>();
+    const allowedBodyFieldSet = hasBody
+      ? new Set((op.allowedBodyFields || []).map((f) => f.toLowerCase()))
+      : new Set<string>();
 
-    // 2. Read-only check
+    const acceptedTopLevel = [
+      ...op.parameters.filter((p) => p.in === 'path').map((p) => p.name),
+      ...op.parameters.filter((p) => p.in === 'query').map((p) => p.name),
+      ...(hasBody ? ['restModelInput', 'queryModel', 'model', 'body', 'fields'] : []),
+      ...(hasBody ? op.allowedBodyFields || [] : []),
+      ...(op.destructive ? ['confirm'] : []),
+    ];
+
+    for (const key of Object.keys(parsedArgs)) {
+      const keyLower = key.toLowerCase();
+      const isPath = declaredPathParams.has(keyLower);
+      const isQuery = declaredQueryParams.has(keyLower);
+      const isWrapper = bodyWrappers.has(keyLower);
+      const isBodyField = allowedBodyFieldSet.has(keyLower);
+      const isConfirm = op.destructive && keyLower === 'confirm';
+
+      if (!isPath && !isQuery && !isWrapper && !isBodyField && !isConfirm) {
+        throw new Error(
+          `Unknown argument "${key}" for operation "${op.operationId}". Accepted arguments: ${acceptedTopLevel.join(', ')}`,
+        );
+      }
+    }
+
+    // 3. Read-only check
     if (isReadonly() && op.destructive) {
       throw new Error(`Tool "${toolName}" is not permitted in read-only mode`);
     }
-
     // 3. Capability authorization check
     const caller = currentCaller();
     if (caller) {
@@ -267,10 +305,9 @@ export const callApiTool: ToolDefinition = {
 
       // Elicitation confirmation if enabled
       if (confirmDestructiveEnabled()) {
-        await elicitConfirmation(op.operationId, parsedArgs);
+        await elicitConfirmation(op.operationId, parsedArgs, context?.server as Server | undefined);
       }
     }
-
     // 5. Build path by replacing placeholders
     let resolvedPath = op.pathTemplate;
     const consumedKeys = new Set<string>();
@@ -333,16 +370,41 @@ export const callApiTool: ToolDefinition = {
           body = remaining;
         }
       }
-    }
 
+      // Validate body fields against request model if defined
+      if (
+        body &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        op.allowedBodyFields &&
+        op.allowedBodyFields.length > 0
+      ) {
+        const allowedKeys = new Set(op.allowedBodyFields.map((f) => f.toLowerCase()));
+        for (const bKey of Object.keys(body as Record<string, unknown>)) {
+          if (!allowedKeys.has(bKey.toLowerCase())) {
+            throw new Error(
+              `Unknown body field "${bKey}" for operation "${op.operationId}" (model: ${op.requestModelRef || 'body'}). Accepted fields: ${op.allowedBodyFields.join(', ')}`,
+            );
+          }
+        }
+      }
+    }
     // 8. Execute via AutotaskApi (which runs through budget governor and auth headers)
     const result = await api.request(op.method, finalPath, body);
 
     // 9. Record call for tool promotion (best effort)
-    if (caller?.email) {
-      await recordCallApiInvocation(caller.email, op.operationId);
+    const userKey = caller?.email ?? 'stdio';
+    const { promoted } = await recordCallApiInvocation(userKey, op.operationId);
+    if (promoted && context?.server) {
+      try {
+        const s = context.server as { sendToolListChanged?: () => Promise<void> };
+        if (typeof s.sendToolListChanged === 'function') {
+          await s.sendToolListChanged();
+        }
+      } catch {
+        // Notification is best-effort
+      }
     }
-
     return jsonResponse(result);
   },
 };

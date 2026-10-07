@@ -56,6 +56,21 @@ export function optionalIntArg(name: string, raw: string | undefined): number | 
   return intArg(name, raw);
 }
 
+/** Like numberArg but for optional args: returns undefined when absent. */
+export function optionalNumberArg(name: string, raw: string | undefined): number | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  return numberArg(name, raw);
+}
+
+/** Parse an optional boolean string ("true" or "false"). Returns undefined when absent/empty, throws on invalid. */
+export function optionalBoolArg(name: string, raw: string | undefined): boolean | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  const lower = raw.trim().toLowerCase();
+  if (lower === 'true' || lower === '1') return true;
+  if (lower === 'false' || lower === '0') return false;
+  throw new Error(`${name} must be "true" or "false" (got "${raw}")`);
+}
+
 export interface FilterClause {
   op: string;
   field?: string;

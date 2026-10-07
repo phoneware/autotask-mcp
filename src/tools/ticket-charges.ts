@@ -1,8 +1,7 @@
 import type { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
 import { assertSafeNumericId, parseJsonBody, updateBodySchema } from '../security.js';
-import { jsonResponse } from './shared.js';
-
+import { jsonResponse, intArg, optionalIntArg, optionalNumberArg } from './shared.js';
 export const ticketChargeTools: ToolDefinition[] = [
   {
     name: 'list-ticket-charges',
@@ -123,20 +122,32 @@ export const ticketChargeTools: ToolDefinition[] = [
     },
     handler: async (args) => {
       const ticketId = assertSafeNumericId(args.ticketId, 'ticketId');
+      const chargeType = optionalIntArg('chargeType', args.chargeType) ?? 1;
       const body: Record<string, unknown> = {
         name: args.name,
-        ticketID: Number(ticketId),
-        chargeType: args.chargeType !== undefined ? Number(args.chargeType) : 1,
+        ticketID: intArg('ticketId', ticketId),
+        chargeType,
       };
 
-      if (args.unitPrice !== undefined) body.unitPrice = Number(args.unitPrice);
-      if (args.unitCost !== undefined) body.unitCost = Number(args.unitCost);
-      if (args.unitQuantity !== undefined) body.unitQuantity = Number(args.unitQuantity);
-      if (args.productID !== undefined) body.productID = Number(args.productID);
-      if (args.billingCodeID !== undefined) body.billingCodeID = Number(args.billingCodeID);
-      if (args.description !== undefined) body.description = args.description;
-      if (args.datePurchased !== undefined) body.datePurchased = args.datePurchased;
+      const unitPrice = optionalNumberArg('unitPrice', args.unitPrice);
+      if (unitPrice !== undefined) body.unitPrice = unitPrice;
 
+      const unitCost = optionalNumberArg('unitCost', args.unitCost);
+      if (unitCost !== undefined) body.unitCost = unitCost;
+
+      const unitQuantity = optionalNumberArg('unitQuantity', args.unitQuantity);
+      if (unitQuantity !== undefined) body.unitQuantity = unitQuantity;
+
+      const productID = optionalIntArg('productID', args.productID);
+      if (productID !== undefined) body.productID = productID;
+
+      const billingCodeID = optionalIntArg('billingCodeID', args.billingCodeID);
+      if (billingCodeID !== undefined) body.billingCodeID = billingCodeID;
+
+      if (args.description !== undefined && args.description !== '')
+        body.description = args.description;
+      if (args.datePurchased !== undefined && args.datePurchased !== '')
+        body.datePurchased = args.datePurchased;
       const result = await api.create(`Tickets/${ticketId}/Charges`, body);
       return jsonResponse(result);
     },
@@ -269,6 +280,24 @@ export const ticketChargeTools: ToolDefinition[] = [
           {
             cancelled: false,
             refusal: refusalMessage,
+            currentRecord,
+          },
+          true,
+        );
+      }
+
+      const readBackStatus =
+        (currentRecord as { item?: { status?: unknown } })?.item?.status ??
+        (currentRecord as { status?: unknown })?.status;
+
+      if (readBackStatus !== 8) {
+        const errorDetail =
+          (currentRecord as { readError?: string })?.readError ||
+          `status is ${readBackStatus !== undefined ? readBackStatus : 'unknown'} (expected 8)`;
+        return jsonResponse(
+          {
+            cancelled: false,
+            error: `Cancellation could not be verified: ${errorDetail}`,
             currentRecord,
           },
           true,

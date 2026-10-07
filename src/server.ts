@@ -24,7 +24,7 @@ import {
 } from './tools/elicitation.js';
 import { findOperation } from './generated/registry.js';
 import { callApiTool } from './tools/meta.js';
-
+import { getPromotedToolNames } from './tools/promotion/index.js';
 const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf-8'),
 ) as { version: string };
@@ -113,7 +113,7 @@ export function buildServer(
             await elicitConfirmation(tool.name, stringArgs, server.server);
           }
 
-          const result = await tool.handler(stringArgs);
+          const result = await tool.handler(stringArgs, { server: server.server });
           return {
             ...result,
             structuredContent: result.structuredContent,
@@ -197,7 +197,7 @@ export function buildServer(
             args: JSON.stringify(innerArgs),
           };
           if (confirmVal !== undefined) callArgs.confirm = confirmVal;
-          const res = await callApiTool.handler(callArgs);
+          const res = await callApiTool.handler(callArgs, { server: server.server });
           return {
             ...res,
             structuredContent: res.structuredContent,
@@ -241,7 +241,8 @@ export function buildServer(
 }
 
 export async function runStdio(): Promise<void> {
-  const { server, registeredCount, skipped } = buildServer();
+  const promoted = await getPromotedToolNames('stdio');
+  const { server, registeredCount, skipped } = buildServer(undefined, promoted);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   const mode = isReadonly() ? 'READONLY' : 'full';

@@ -5,6 +5,9 @@ export interface ToolAnnotations {
   idempotentHint?: boolean;
   openWorldHint?: boolean;
 }
+export interface ToolContext {
+  server?: unknown;
+}
 
 export interface ToolDefinition {
   name: string;
@@ -16,9 +19,8 @@ export interface ToolDefinition {
     properties: Record<string, { type: string; description: string; [key: string]: unknown }>;
     required?: string[];
   };
-  handler: (args: Record<string, string>) => Promise<ToolResponse>;
+  handler: (args: Record<string, string>, context?: ToolContext) => Promise<ToolResponse>;
 }
-
 export interface ToolResponse {
   content: Array<{ type: 'text'; text: string }>;
   structuredContent?: Record<string, unknown>;

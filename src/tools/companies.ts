@@ -9,8 +9,8 @@ import {
   containsClause,
   intArg,
   optionalIntArg,
+  optionalBoolArg,
 } from './shared.js';
-
 /** Convenience tools for Companies (Autotask accounts). */
 export const companyTools: ToolDefinition[] = [
   {
@@ -41,9 +41,10 @@ export const companyTools: ToolDefinition[] = [
         eqClause('companyType', args.companyType),
         eqClause('ownerResourceID', args.ownerResourceID),
         eqClause('phone', args.phone),
-        args.isActive !== undefined
-          ? { op: 'eq', field: 'isActive', value: args.isActive === 'true' }
-          : null,
+        (() => {
+          const active = optionalBoolArg('isActive', args.isActive);
+          return active !== undefined ? { op: 'eq', field: 'isActive', value: active } : null;
+        })(),
       );
       const query = { filter, MaxRecords: parseMaxRecords(args.maxRecords) };
       return searchResponse(filter, await api.query('Companies', query));
@@ -137,7 +138,8 @@ export const companyTools: ToolDefinition[] = [
       const owner = optionalIntArg('ownerResourceID', args.ownerResourceID);
       if (owner !== undefined) body.ownerResourceID = owner;
       if (args.phone) body.phone = args.phone;
-      if (args.isActive !== undefined) body.isActive = args.isActive === 'true';
+      const active = optionalBoolArg('isActive', args.isActive);
+      if (active !== undefined) body.isActive = active;
       return jsonResponse(await api.update('Companies', body));
     },
   },

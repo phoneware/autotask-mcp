@@ -42,6 +42,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UpdateAccountInvoiceSettingsModel",
+    "allowedBodyFields": [
+      "taxExempt",
+      "taxRegionId",
+      "taxId",
+      "invoiceEmailingEnabled",
+      "otherEmails"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "AccountInvoiceSettings"
@@ -67,6 +74,9 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UpdateContactRecipientsModel",
+    "allowedBodyFields": [
+      "items"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "AccountInvoiceSettings"
@@ -115,6 +125,9 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UpdateResourceRecipientsModel",
+    "allowedBodyFields": [
+      "items"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "AccountInvoiceSettings"
@@ -174,6 +187,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ActionTypes"
@@ -244,6 +262,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ActionTypes"
@@ -263,6 +286,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ActionTypeModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "isActive",
+      "isSystemActionType",
+      "view"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ActionTypes"
@@ -282,6 +312,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ActionTypeModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "isActive",
+      "isSystemActionType",
+      "view"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ActionTypes"
@@ -301,6 +338,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ActionTypeModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "isActive",
+      "isSystemActionType",
+      "view"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ActionTypes"
@@ -367,6 +411,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "AdditionalInvoiceFieldValues"
@@ -420,6 +469,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "AdditionalInvoiceFieldValues"
@@ -486,6 +540,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Appointments"
@@ -556,6 +615,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Appointments"
@@ -575,6 +639,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "AppointmentModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "endDateTime",
+      "resourceID",
+      "startDateTime",
+      "title",
+      "updateDateTime"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Appointments"
@@ -594,6 +669,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "AppointmentModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "endDateTime",
+      "resourceID",
+      "startDateTime",
+      "title",
+      "updateDateTime"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Appointments"
@@ -613,6 +699,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "AppointmentModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "endDateTime",
+      "resourceID",
+      "startDateTime",
+      "title",
+      "updateDateTime"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Appointments"
@@ -699,6 +796,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleAttachments"
@@ -752,6 +854,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleAttachments"
@@ -800,6 +907,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "articleID",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentAttachmentID",
+      "parentID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleAttachmentsChild"
@@ -888,6 +1017,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleConfigurationItemCategoryAssociations"
@@ -941,6 +1075,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleConfigurationItemCategoryAssociations"
@@ -1019,6 +1158,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleConfigurationItemCategoryAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "articleID",
+      "installedProductCategoryID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleConfigurationItemCategoryAssociationsChild"
@@ -1167,6 +1312,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleNotes"
@@ -1220,6 +1370,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleNotes"
@@ -1298,6 +1453,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "description",
+      "articleID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleNotesChild"
@@ -1326,6 +1492,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "description",
+      "articleID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleNotesChild"
@@ -1354,6 +1531,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "description",
+      "articleID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleNotesChild"
@@ -1502,6 +1690,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticlePlainTextContent"
@@ -1555,6 +1748,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticlePlainTextContent"
@@ -1631,6 +1829,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticlePlainTextContentModel",
+    "allowedBodyFields": [
+      "id",
+      "contentData",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticlePlainTextContentChild"
@@ -1658,6 +1861,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticlePlainTextContentModel",
+    "allowedBodyFields": [
+      "id",
+      "contentData",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticlePlainTextContentChild"
@@ -1776,6 +1984,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleTagAssociations"
@@ -1829,6 +2042,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleTagAssociations"
@@ -1907,6 +2125,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleTagAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "createdByResourceID",
+      "articleID",
+      "tagID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleTagAssociationsChild"
@@ -2055,6 +2281,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleTicketAssociations"
@@ -2108,6 +2339,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleTicketAssociations"
@@ -2186,6 +2422,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleTicketAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "articleID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleTicketAssociationsChild"
@@ -2334,6 +2576,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleToArticleAssociations"
@@ -2387,6 +2634,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleToArticleAssociations"
@@ -2465,6 +2717,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleToArticleAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "associatedArticleID",
+      "articleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleToArticleAssociationsChild"
@@ -2613,6 +2871,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleToDocumentAssociations"
@@ -2666,6 +2929,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ArticleToDocumentAssociations"
@@ -2744,6 +3012,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ArticleToDocumentAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "associatedDocumentID",
+      "articleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ArticleToDocumentAssociationsChild"
@@ -2892,6 +3166,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "AttachmentInfo"
@@ -2945,6 +3224,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "AttachmentInfo"
@@ -3021,6 +3305,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "BillingCodes"
@@ -3074,6 +3363,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "BillingCodes"
@@ -3140,6 +3434,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "BillingItemApprovalLevels"
@@ -3193,6 +3492,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "BillingItemApprovalLevels"
@@ -3212,6 +3516,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "BillingItemApprovalLevelModel",
+    "allowedBodyFields": [
+      "id",
+      "approvalDateTime",
+      "approvalLevel",
+      "approvalResourceID",
+      "timeEntryID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "BillingItemApprovalLevels"
@@ -3278,6 +3589,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "BillingItems"
@@ -3331,6 +3647,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "BillingItems"
@@ -3350,6 +3671,61 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "BillingItemModel",
+    "allowedBodyFields": [
+      "id",
+      "accountManagerWhenApprovedID",
+      "billingCodeID",
+      "taxCategoryID",
+      "billingItemType",
+      "companyID",
+      "configurationItemID",
+      "contractBlockID",
+      "contractChargeID",
+      "contractID",
+      "contractServiceAdjustmentID",
+      "contractServiceBundleAdjustmentID",
+      "contractServiceBundleID",
+      "contractServiceBundlePeriodID",
+      "contractServiceID",
+      "contractServicePeriodID",
+      "description",
+      "expenseItemID",
+      "extendedPrice",
+      "internalCurrencyExtendedPrice",
+      "internalCurrencyRate",
+      "internalCurrencyTaxDollars",
+      "internalCurrencyTotalAmount",
+      "invoiceID",
+      "itemApproverID",
+      "itemDate",
+      "itemName",
+      "lineItemFullDescription",
+      "lineItemGroupDescription",
+      "milestoneID",
+      "nonBillable",
+      "organizationalLevelAssociationID",
+      "ourCost",
+      "postedDate",
+      "postedOnTime",
+      "projectChargeID",
+      "projectID",
+      "purchaseOrderNumber",
+      "quantity",
+      "rate",
+      "roleID",
+      "serviceBundleID",
+      "serviceID",
+      "sortOrderID",
+      "subType",
+      "taskID",
+      "taxDollars",
+      "ticketChargeID",
+      "ticketID",
+      "timeEntryID",
+      "totalAmount",
+      "vendorID",
+      "webServiceDate"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "BillingItems"
@@ -3369,6 +3745,61 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "BillingItemModel",
+    "allowedBodyFields": [
+      "id",
+      "accountManagerWhenApprovedID",
+      "billingCodeID",
+      "taxCategoryID",
+      "billingItemType",
+      "companyID",
+      "configurationItemID",
+      "contractBlockID",
+      "contractChargeID",
+      "contractID",
+      "contractServiceAdjustmentID",
+      "contractServiceBundleAdjustmentID",
+      "contractServiceBundleID",
+      "contractServiceBundlePeriodID",
+      "contractServiceID",
+      "contractServicePeriodID",
+      "description",
+      "expenseItemID",
+      "extendedPrice",
+      "internalCurrencyExtendedPrice",
+      "internalCurrencyRate",
+      "internalCurrencyTaxDollars",
+      "internalCurrencyTotalAmount",
+      "invoiceID",
+      "itemApproverID",
+      "itemDate",
+      "itemName",
+      "lineItemFullDescription",
+      "lineItemGroupDescription",
+      "milestoneID",
+      "nonBillable",
+      "organizationalLevelAssociationID",
+      "ourCost",
+      "postedDate",
+      "postedOnTime",
+      "projectChargeID",
+      "projectID",
+      "purchaseOrderNumber",
+      "quantity",
+      "rate",
+      "roleID",
+      "serviceBundleID",
+      "serviceID",
+      "sortOrderID",
+      "subType",
+      "taskID",
+      "taxDollars",
+      "ticketChargeID",
+      "ticketID",
+      "timeEntryID",
+      "totalAmount",
+      "vendorID",
+      "webServiceDate"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "BillingItems"
@@ -3435,6 +3866,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ChangeOrderCharges"
@@ -3505,6 +3941,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ChangeOrderCharges"
@@ -3524,6 +3965,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChangeOrderChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "changeOrderHours",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "taskID",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChangeOrderCharges"
@@ -3543,6 +4015,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChangeOrderChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "changeOrderHours",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "taskID",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChangeOrderCharges"
@@ -3562,6 +4065,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChangeOrderChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "changeOrderHours",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "taskID",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChangeOrderCharges"
@@ -3628,6 +4162,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ChangeRequestLinks"
@@ -3698,6 +4237,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ChangeRequestLinks"
@@ -3717,6 +4261,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChangeRequestLinkModel",
+    "allowedBodyFields": [
+      "id",
+      "changeRequestTicketID",
+      "problemOrIncidentTicketID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChangeRequestLinks"
@@ -3783,6 +4332,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ChecklistLibraries"
@@ -3853,6 +4407,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ChecklistLibraries"
@@ -3872,6 +4431,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChecklistLibraryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "entityType",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChecklistLibraries"
@@ -3891,6 +4457,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChecklistLibraryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "entityType",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChecklistLibraries"
@@ -3910,6 +4483,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChecklistLibraryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "entityType",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChecklistLibraries"
@@ -3976,6 +4556,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ChecklistLibraryChecklistItems"
@@ -4029,6 +4614,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ChecklistLibraryChecklistItems"
@@ -4107,6 +4697,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChecklistLibraryChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "checklistLibraryID",
+      "isImportant",
+      "itemName",
+      "knowledgebaseArticleID",
+      "position",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChecklistLibraryChecklistItemsChild"
@@ -4135,6 +4734,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChecklistLibraryChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "checklistLibraryID",
+      "isImportant",
+      "itemName",
+      "knowledgebaseArticleID",
+      "position",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChecklistLibraryChecklistItemsChild"
@@ -4163,6 +4771,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ChecklistLibraryChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "checklistLibraryID",
+      "isImportant",
+      "itemName",
+      "knowledgebaseArticleID",
+      "position",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ChecklistLibraryChecklistItemsChild"
@@ -4311,6 +4928,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ClassificationIcons"
@@ -4364,6 +4986,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ClassificationIcons"
@@ -4430,6 +5057,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ClientPortalUsers"
@@ -4483,6 +5115,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ClientPortalUsers"
@@ -4502,6 +5139,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ClientPortalUserModel",
+    "allowedBodyFields": [
+      "id",
+      "contactID",
+      "dateFormat",
+      "isClientPortalActive",
+      "numberFormat",
+      "password",
+      "securityLevel",
+      "timeFormat",
+      "userName"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ClientPortalUsers"
@@ -4521,6 +5169,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ClientPortalUserModel",
+    "allowedBodyFields": [
+      "id",
+      "contactID",
+      "dateFormat",
+      "isClientPortalActive",
+      "numberFormat",
+      "password",
+      "securityLevel",
+      "timeFormat",
+      "userName"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ClientPortalUsers"
@@ -4540,6 +5199,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ClientPortalUserModel",
+    "allowedBodyFields": [
+      "id",
+      "contactID",
+      "dateFormat",
+      "isClientPortalActive",
+      "numberFormat",
+      "password",
+      "securityLevel",
+      "timeFormat",
+      "userName"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ClientPortalUsers"
@@ -4606,6 +5276,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ComanagedAssociations"
@@ -4676,6 +5351,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ComanagedAssociations"
@@ -4695,6 +5375,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ComanagedAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "isPrimaryComanagedResource",
+      "resourceID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ComanagedAssociations"
@@ -4714,6 +5400,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ComanagedAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "isPrimaryComanagedResource",
+      "resourceID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ComanagedAssociations"
@@ -4733,6 +5425,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ComanagedAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "isPrimaryComanagedResource",
+      "resourceID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ComanagedAssociations"
@@ -4799,6 +5497,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Companies"
@@ -4852,6 +5555,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Companies"
@@ -4871,6 +5579,69 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInformation",
+      "address1",
+      "address2",
+      "alternatePhone1",
+      "alternatePhone2",
+      "apiVendorID",
+      "assetValue",
+      "billToCompanyLocationID",
+      "billToAdditionalAddressInformation",
+      "billingAddress1",
+      "billingAddress2",
+      "billToAddressToUse",
+      "billToAttention",
+      "billToCity",
+      "billToCountryID",
+      "billToState",
+      "billToZipCode",
+      "city",
+      "classification",
+      "companyCategoryID",
+      "companyName",
+      "companyNumber",
+      "companyType",
+      "competitorID",
+      "countryID",
+      "createDate",
+      "createdByResourceID",
+      "currencyID",
+      "fax",
+      "impersonatorCreatorResourceID",
+      "invoiceEmailMessageID",
+      "invoiceMethod",
+      "invoiceNonContractItemsToParentCompany",
+      "invoiceTemplateID",
+      "isActive",
+      "isClientPortalActive",
+      "isEnabledForComanaged",
+      "isSample",
+      "isTaskFireActive",
+      "isTaxExempt",
+      "lastActivityDate",
+      "lastTrackedModifiedDateTime",
+      "marketSegmentID",
+      "ownerResourceID",
+      "parentCompanyID",
+      "phone",
+      "postalCode",
+      "purchaseOrderTemplateID",
+      "quoteEmailMessageID",
+      "quoteTemplateID",
+      "sicCode",
+      "state",
+      "stockMarket",
+      "stockSymbol",
+      "surveyCompanyRating",
+      "taxID",
+      "taxRegionID",
+      "territoryID",
+      "webAddress",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Companies"
@@ -4890,6 +5661,69 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInformation",
+      "address1",
+      "address2",
+      "alternatePhone1",
+      "alternatePhone2",
+      "apiVendorID",
+      "assetValue",
+      "billToCompanyLocationID",
+      "billToAdditionalAddressInformation",
+      "billingAddress1",
+      "billingAddress2",
+      "billToAddressToUse",
+      "billToAttention",
+      "billToCity",
+      "billToCountryID",
+      "billToState",
+      "billToZipCode",
+      "city",
+      "classification",
+      "companyCategoryID",
+      "companyName",
+      "companyNumber",
+      "companyType",
+      "competitorID",
+      "countryID",
+      "createDate",
+      "createdByResourceID",
+      "currencyID",
+      "fax",
+      "impersonatorCreatorResourceID",
+      "invoiceEmailMessageID",
+      "invoiceMethod",
+      "invoiceNonContractItemsToParentCompany",
+      "invoiceTemplateID",
+      "isActive",
+      "isClientPortalActive",
+      "isEnabledForComanaged",
+      "isSample",
+      "isTaskFireActive",
+      "isTaxExempt",
+      "lastActivityDate",
+      "lastTrackedModifiedDateTime",
+      "marketSegmentID",
+      "ownerResourceID",
+      "parentCompanyID",
+      "phone",
+      "postalCode",
+      "purchaseOrderTemplateID",
+      "quoteEmailMessageID",
+      "quoteTemplateID",
+      "sicCode",
+      "state",
+      "stockMarket",
+      "stockSymbol",
+      "surveyCompanyRating",
+      "taxID",
+      "taxRegionID",
+      "territoryID",
+      "webAddress",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Companies"
@@ -4909,6 +5743,69 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInformation",
+      "address1",
+      "address2",
+      "alternatePhone1",
+      "alternatePhone2",
+      "apiVendorID",
+      "assetValue",
+      "billToCompanyLocationID",
+      "billToAdditionalAddressInformation",
+      "billingAddress1",
+      "billingAddress2",
+      "billToAddressToUse",
+      "billToAttention",
+      "billToCity",
+      "billToCountryID",
+      "billToState",
+      "billToZipCode",
+      "city",
+      "classification",
+      "companyCategoryID",
+      "companyName",
+      "companyNumber",
+      "companyType",
+      "competitorID",
+      "countryID",
+      "createDate",
+      "createdByResourceID",
+      "currencyID",
+      "fax",
+      "impersonatorCreatorResourceID",
+      "invoiceEmailMessageID",
+      "invoiceMethod",
+      "invoiceNonContractItemsToParentCompany",
+      "invoiceTemplateID",
+      "isActive",
+      "isClientPortalActive",
+      "isEnabledForComanaged",
+      "isSample",
+      "isTaskFireActive",
+      "isTaxExempt",
+      "lastActivityDate",
+      "lastTrackedModifiedDateTime",
+      "marketSegmentID",
+      "ownerResourceID",
+      "parentCompanyID",
+      "phone",
+      "postalCode",
+      "purchaseOrderTemplateID",
+      "quoteEmailMessageID",
+      "quoteTemplateID",
+      "sicCode",
+      "state",
+      "stockMarket",
+      "stockSymbol",
+      "surveyCompanyRating",
+      "taxID",
+      "taxRegionID",
+      "territoryID",
+      "webAddress",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Companies"
@@ -4975,6 +5872,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyAlerts"
@@ -5028,6 +5930,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyAlerts"
@@ -5106,6 +6013,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyAlertModel",
+    "allowedBodyFields": [
+      "id",
+      "alertText",
+      "alertTypeID",
+      "companyID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyAlertsChild"
@@ -5134,6 +6048,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyAlertModel",
+    "allowedBodyFields": [
+      "id",
+      "alertText",
+      "alertTypeID",
+      "companyID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyAlertsChild"
@@ -5162,6 +6083,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyAlertModel",
+    "allowedBodyFields": [
+      "id",
+      "alertText",
+      "alertTypeID",
+      "companyID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyAlertsChild"
@@ -5330,6 +6258,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyAttachments"
@@ -5383,6 +6316,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyAttachments"
@@ -5431,6 +6369,30 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "companyID",
+      "companyNoteID",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentAttachmentID",
+      "parentID",
+      "publish",
+      "salesOrderID",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyAttachmentsChild"
@@ -5519,6 +6481,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyCategories"
@@ -5572,6 +6539,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyCategories"
@@ -5591,6 +6563,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isApiOnly",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyCategories"
@@ -5610,6 +6591,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isApiOnly",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyCategories"
@@ -5688,6 +6678,54 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInformation",
+      "addressLine",
+      "addressLine1",
+      "alternatePhone",
+      "apiVendorID",
+      "bulkEmailOptOutTime",
+      "city",
+      "companyID",
+      "companyLocationID",
+      "countryID",
+      "createDate",
+      "emailAddress",
+      "emailAddress2",
+      "emailAddress3",
+      "extension",
+      "externalID",
+      "facebookUrl",
+      "faxNumber",
+      "firstName",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "isOptedOutFromBulkEmail",
+      "lastActivityDate",
+      "lastModifiedDate",
+      "lastName",
+      "linkedInUrl",
+      "middleInitial",
+      "mobilePhone",
+      "namePrefix",
+      "nameSuffix",
+      "note",
+      "receivesEmailNotifications",
+      "phone",
+      "primaryContact",
+      "billingContact",
+      "roomNumber",
+      "solicitationOptOut",
+      "solicitationOptOutTime",
+      "state",
+      "surveyOptOut",
+      "title",
+      "twitterUrl",
+      "zipCode",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyContactsChild"
@@ -5716,6 +6754,54 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInformation",
+      "addressLine",
+      "addressLine1",
+      "alternatePhone",
+      "apiVendorID",
+      "bulkEmailOptOutTime",
+      "city",
+      "companyID",
+      "companyLocationID",
+      "countryID",
+      "createDate",
+      "emailAddress",
+      "emailAddress2",
+      "emailAddress3",
+      "extension",
+      "externalID",
+      "facebookUrl",
+      "faxNumber",
+      "firstName",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "isOptedOutFromBulkEmail",
+      "lastActivityDate",
+      "lastModifiedDate",
+      "lastName",
+      "linkedInUrl",
+      "middleInitial",
+      "mobilePhone",
+      "namePrefix",
+      "nameSuffix",
+      "note",
+      "receivesEmailNotifications",
+      "phone",
+      "primaryContact",
+      "billingContact",
+      "roomNumber",
+      "solicitationOptOut",
+      "solicitationOptOutTime",
+      "state",
+      "surveyOptOut",
+      "title",
+      "twitterUrl",
+      "zipCode",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyContactsChild"
@@ -5744,6 +6830,54 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInformation",
+      "addressLine",
+      "addressLine1",
+      "alternatePhone",
+      "apiVendorID",
+      "bulkEmailOptOutTime",
+      "city",
+      "companyID",
+      "companyLocationID",
+      "countryID",
+      "createDate",
+      "emailAddress",
+      "emailAddress2",
+      "emailAddress3",
+      "extension",
+      "externalID",
+      "facebookUrl",
+      "faxNumber",
+      "firstName",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "isOptedOutFromBulkEmail",
+      "lastActivityDate",
+      "lastModifiedDate",
+      "lastName",
+      "linkedInUrl",
+      "middleInitial",
+      "mobilePhone",
+      "namePrefix",
+      "nameSuffix",
+      "note",
+      "receivesEmailNotifications",
+      "phone",
+      "primaryContact",
+      "billingContact",
+      "roomNumber",
+      "solicitationOptOut",
+      "solicitationOptOutTime",
+      "state",
+      "surveyOptOut",
+      "title",
+      "twitterUrl",
+      "zipCode",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyContactsChild"
@@ -5892,6 +7026,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyLocations"
@@ -5945,6 +7084,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyLocations"
@@ -6023,6 +7167,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "address1",
+      "address2",
+      "alternatePhone1",
+      "alternatePhone2",
+      "city",
+      "companyID",
+      "countryID",
+      "description",
+      "fax",
+      "isActive",
+      "isPrimary",
+      "isTaxExempt",
+      "overrideCompanyTaxSettings",
+      "name",
+      "phone",
+      "postalCode",
+      "roundtripDistance",
+      "state",
+      "taxRegionID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyLocationsChild"
@@ -6051,6 +7218,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "address1",
+      "address2",
+      "alternatePhone1",
+      "alternatePhone2",
+      "city",
+      "companyID",
+      "countryID",
+      "description",
+      "fax",
+      "isActive",
+      "isPrimary",
+      "isTaxExempt",
+      "overrideCompanyTaxSettings",
+      "name",
+      "phone",
+      "postalCode",
+      "roundtripDistance",
+      "state",
+      "taxRegionID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyLocationsChild"
@@ -6079,6 +7269,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "address1",
+      "address2",
+      "alternatePhone1",
+      "alternatePhone2",
+      "city",
+      "companyID",
+      "countryID",
+      "description",
+      "fax",
+      "isActive",
+      "isPrimary",
+      "isTaxExempt",
+      "overrideCompanyTaxSettings",
+      "name",
+      "phone",
+      "postalCode",
+      "roundtripDistance",
+      "state",
+      "taxRegionID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyLocationsChild"
@@ -6247,6 +7460,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyNoteAttachments"
@@ -6300,6 +7518,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyNoteAttachments"
@@ -6348,6 +7571,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyNoteAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "companyID",
+      "companyNoteID",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "salesOrderID",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyNoteAttachmentsChild"
@@ -6436,6 +7682,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyNotes"
@@ -6489,6 +7740,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyNotes"
@@ -6567,6 +7823,24 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "actionType",
+      "assignedResourceID",
+      "companyID",
+      "completedDateTime",
+      "contactID",
+      "createDateTime",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastModifiedDate",
+      "name",
+      "note",
+      "opportunityID",
+      "startDateTime",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyNotesChild"
@@ -6595,6 +7869,24 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "actionType",
+      "assignedResourceID",
+      "companyID",
+      "completedDateTime",
+      "contactID",
+      "createDateTime",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastModifiedDate",
+      "name",
+      "note",
+      "opportunityID",
+      "startDateTime",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyNotesChild"
@@ -6623,6 +7915,24 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "actionType",
+      "assignedResourceID",
+      "companyID",
+      "completedDateTime",
+      "contactID",
+      "createDateTime",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastModifiedDate",
+      "name",
+      "note",
+      "opportunityID",
+      "startDateTime",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyNotesChild"
@@ -6745,6 +8055,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanySiteConfigurations"
@@ -6798,6 +8113,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanySiteConfigurations"
@@ -6876,6 +8196,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanySiteConfigurationModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "locationName",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanySiteConfigurationsChild"
@@ -6904,6 +8231,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanySiteConfigurationModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "locationName",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanySiteConfigurationsChild"
@@ -7026,6 +8360,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyTeams"
@@ -7079,6 +8418,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyTeams"
@@ -7157,6 +8501,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyTeamModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "isAssociatedAsComanaged",
+      "resourceID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyTeamsChild"
@@ -7305,6 +8656,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyToDos"
@@ -7358,6 +8714,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyToDos"
@@ -7436,6 +8797,25 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyToDoModel",
+    "allowedBodyFields": [
+      "id",
+      "actionType",
+      "activityDescription",
+      "assignedToResourceID",
+      "companyID",
+      "completedDate",
+      "contactID",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "lastModifiedDate",
+      "opportunityID",
+      "startDateTime",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyToDosChild"
@@ -7464,6 +8844,25 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyToDoModel",
+    "allowedBodyFields": [
+      "id",
+      "actionType",
+      "activityDescription",
+      "assignedToResourceID",
+      "companyID",
+      "completedDate",
+      "contactID",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "lastModifiedDate",
+      "opportunityID",
+      "startDateTime",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyToDosChild"
@@ -7492,6 +8891,25 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyToDoModel",
+    "allowedBodyFields": [
+      "id",
+      "actionType",
+      "activityDescription",
+      "assignedToResourceID",
+      "companyID",
+      "completedDate",
+      "contactID",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "lastModifiedDate",
+      "opportunityID",
+      "startDateTime",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyToDosChild"
@@ -7640,6 +9058,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyWebhookExcludedResources"
@@ -7693,6 +9116,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyWebhookExcludedResources"
@@ -7771,6 +9199,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookExcludedResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhookExcludedResourcesChild"
@@ -7919,6 +9353,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyWebhookFields"
@@ -7972,6 +9411,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyWebhookFields"
@@ -8050,6 +9494,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhookFieldsChild"
@@ -8078,6 +9530,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhookFieldsChild"
@@ -8106,6 +9566,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhookFieldsChild"
@@ -8254,6 +9722,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyWebhooks"
@@ -8324,6 +9797,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyWebhooks"
@@ -8343,6 +9821,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhooks"
@@ -8362,6 +9856,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhooks"
@@ -8381,6 +9891,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhooks"
@@ -8447,6 +9973,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyWebhookUdfFields"
@@ -8500,6 +10031,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "CompanyWebhookUdfFields"
@@ -8578,6 +10114,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhookUdfFieldsChild"
@@ -8606,6 +10150,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhookUdfFieldsChild"
@@ -8634,6 +10186,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CompanyWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "CompanyWebhookUdfFieldsChild"
@@ -8802,6 +10362,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemAttachments"
@@ -8855,6 +10420,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemAttachments"
@@ -8903,6 +10473,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "configurationItemID",
+      "configurationItemNoteID",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentAttachmentID",
+      "parentID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemAttachmentsChild"
@@ -8991,6 +10584,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemBillingProductAssociations"
@@ -9044,6 +10642,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemBillingProductAssociations"
@@ -9122,6 +10725,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemBillingProductAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "billingProductID",
+      "configurationItemID",
+      "effectiveDate",
+      "expirationDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemBillingProductAssociationsChild"
@@ -9150,6 +10761,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemBillingProductAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "billingProductID",
+      "configurationItemID",
+      "effectiveDate",
+      "expirationDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemBillingProductAssociationsChild"
@@ -9178,6 +10797,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemBillingProductAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "billingProductID",
+      "configurationItemID",
+      "effectiveDate",
+      "expirationDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemBillingProductAssociationsChild"
@@ -9326,6 +10953,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemCategories"
@@ -9379,6 +11011,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemCategories"
@@ -9398,6 +11035,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isClientPortalDefault",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemCategories"
@@ -9417,6 +11063,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isClientPortalDefault",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemCategories"
@@ -9436,6 +11091,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isClientPortalDefault",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemCategories"
@@ -9502,6 +11166,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemCategoryUdfAssociations"
@@ -9555,6 +11224,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemCategoryUdfAssociations"
@@ -9633,6 +11307,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemCategoryUdfAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemCategoryID",
+      "isRequired",
+      "userDefinedFieldDefinitionID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemCategoryUdfAssociationsChild"
@@ -9661,6 +11342,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemCategoryUdfAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemCategoryID",
+      "isRequired",
+      "userDefinedFieldDefinitionID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemCategoryUdfAssociationsChild"
@@ -9689,6 +11377,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemCategoryUdfAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemCategoryID",
+      "isRequired",
+      "userDefinedFieldDefinitionID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemCategoryUdfAssociationsChild"
@@ -9837,6 +11532,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemDnsRecords"
@@ -9890,6 +11590,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemDnsRecords"
@@ -10102,6 +11807,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemNoteAttachments"
@@ -10155,6 +11865,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemNoteAttachments"
@@ -10203,6 +11918,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemNoteAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "configurationItemID",
+      "configurationItemNoteID",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemNoteAttachmentsChild"
@@ -10291,6 +12028,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemNotes"
@@ -10344,6 +12086,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemNotes"
@@ -10422,6 +12169,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemNotesChild"
@@ -10450,6 +12210,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemNotesChild"
@@ -10478,6 +12251,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemNotesChild"
@@ -10600,6 +12386,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemRelatedItems"
@@ -10653,6 +12444,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemRelatedItems"
@@ -10731,6 +12527,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemRelatedItemModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "relatedConfigurationItemID",
+      "relationship",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemRelatedItemsChild"
@@ -10879,6 +12682,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItems"
@@ -10932,6 +12740,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItems"
@@ -10951,6 +12764,121 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemModel",
+    "allowedBodyFields": [
+      "id",
+      "apiVendorID",
+      "configurationItemCategoryID",
+      "companyID",
+      "companyLocationID",
+      "configurationItemType",
+      "contactID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "createdByPersonID",
+      "dailyCost",
+      "dattoAvailableKilobytes",
+      "dattoDeviceMemoryMegabytes",
+      "dattoDrivesErrors",
+      "dattoHostname",
+      "dattoInternalIP",
+      "dattoKernelVersionID",
+      "dattoLastCheckInDateTime",
+      "dattoNICSpeedKilobitsPerSecond",
+      "dattoNumberOfAgents",
+      "dattoNumberOfDrives",
+      "dattoNumberOfVolumes",
+      "dattoOffsiteUsedBytes",
+      "dattoOSVersionID",
+      "dattoPercentageUsed",
+      "dattoProtectedKilobytes",
+      "dattoRemoteIP",
+      "dattoSerialNumber",
+      "dattoUptimeSeconds",
+      "dattoUsedKilobytes",
+      "dattoZFSVersionID",
+      "deviceNetworkingID",
+      "domain",
+      "domainRegistrarID",
+      "domainRegistrationDateTime",
+      "domainLastUpdatedDateTime",
+      "domainExpirationDateTime",
+      "hourlyCost",
+      "impersonatorCreatorResourceID",
+      "installDate",
+      "installedByContactID",
+      "installedByID",
+      "isActive",
+      "lastActivityPersonID",
+      "lastActivityPersonType",
+      "lastModifiedTime",
+      "location",
+      "monthlyCost",
+      "notes",
+      "numberOfUsers",
+      "parentConfigurationItemID",
+      "perUseCost",
+      "productID",
+      "referenceNumber",
+      "referenceTitle",
+      "rmmDeviceAuditAntivirusStatusID",
+      "rmmDeviceAuditArchitectureID",
+      "rmmDeviceAuditBackupStatusID",
+      "rmmDeviceAuditDescription",
+      "rmmDeviceAuditDeviceTypeID",
+      "rmmDeviceAuditDisplayAdaptorID",
+      "rmmDeviceAuditDomainID",
+      "rmmDeviceAuditExternalIPAddress",
+      "rmmDeviceAuditHostname",
+      "rmmDeviceAuditIPAddress",
+      "rmmDeviceAuditLastUser",
+      "rmmDeviceAuditMacAddress",
+      "rmmDeviceAuditManufacturerID",
+      "rmmDeviceAuditFirmwareID",
+      "rmmDeviceAuditMemoryBytes",
+      "rmmDeviceAuditMissingPatchCount",
+      "rmmDeviceAuditMobileNetworkOperatorID",
+      "rmmDeviceAuditMobileNumber",
+      "rmmDeviceAuditModelID",
+      "rmmDeviceAuditMotherboardID",
+      "rmmDeviceAuditOperatingSystem",
+      "rmmDeviceAuditPatchStatusID",
+      "rmmDeviceAuditProcessorID",
+      "rmmDeviceAuditServicePackID",
+      "rmmDeviceAuditSNMPContact",
+      "rmmDeviceAuditSNMPLocation",
+      "rmmDeviceAuditSNMPName",
+      "rmmDeviceAuditSoftwareStatusID",
+      "rmmDeviceAuditStorageBytes",
+      "rmmDeviceID",
+      "rmmDeviceUID",
+      "rmmVsaxDeviceID",
+      "rmmOpenAlertCount",
+      "serialNumber",
+      "serviceBundleID",
+      "serviceID",
+      "serviceLevelAgreementID",
+      "setupFee",
+      "sourceChargeID",
+      "sourceChargeType",
+      "sslSource",
+      "sslCommonName",
+      "sslValidFromDateTime",
+      "sslValidUntilDateTime",
+      "sslIssuedBy",
+      "sslOrganization",
+      "sslOrganizationUnit",
+      "sslLocation",
+      "sslSerialNumber",
+      "sslSignatureAlgorithm",
+      "vendorID",
+      "warrantyExpirationDate",
+      "rmmIsInMaintenanceMode",
+      "rmmIsMobileDeviceManagementEnrolled",
+      "rmmDeviceUrl",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItems"
@@ -10970,6 +12898,121 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemModel",
+    "allowedBodyFields": [
+      "id",
+      "apiVendorID",
+      "configurationItemCategoryID",
+      "companyID",
+      "companyLocationID",
+      "configurationItemType",
+      "contactID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "createdByPersonID",
+      "dailyCost",
+      "dattoAvailableKilobytes",
+      "dattoDeviceMemoryMegabytes",
+      "dattoDrivesErrors",
+      "dattoHostname",
+      "dattoInternalIP",
+      "dattoKernelVersionID",
+      "dattoLastCheckInDateTime",
+      "dattoNICSpeedKilobitsPerSecond",
+      "dattoNumberOfAgents",
+      "dattoNumberOfDrives",
+      "dattoNumberOfVolumes",
+      "dattoOffsiteUsedBytes",
+      "dattoOSVersionID",
+      "dattoPercentageUsed",
+      "dattoProtectedKilobytes",
+      "dattoRemoteIP",
+      "dattoSerialNumber",
+      "dattoUptimeSeconds",
+      "dattoUsedKilobytes",
+      "dattoZFSVersionID",
+      "deviceNetworkingID",
+      "domain",
+      "domainRegistrarID",
+      "domainRegistrationDateTime",
+      "domainLastUpdatedDateTime",
+      "domainExpirationDateTime",
+      "hourlyCost",
+      "impersonatorCreatorResourceID",
+      "installDate",
+      "installedByContactID",
+      "installedByID",
+      "isActive",
+      "lastActivityPersonID",
+      "lastActivityPersonType",
+      "lastModifiedTime",
+      "location",
+      "monthlyCost",
+      "notes",
+      "numberOfUsers",
+      "parentConfigurationItemID",
+      "perUseCost",
+      "productID",
+      "referenceNumber",
+      "referenceTitle",
+      "rmmDeviceAuditAntivirusStatusID",
+      "rmmDeviceAuditArchitectureID",
+      "rmmDeviceAuditBackupStatusID",
+      "rmmDeviceAuditDescription",
+      "rmmDeviceAuditDeviceTypeID",
+      "rmmDeviceAuditDisplayAdaptorID",
+      "rmmDeviceAuditDomainID",
+      "rmmDeviceAuditExternalIPAddress",
+      "rmmDeviceAuditHostname",
+      "rmmDeviceAuditIPAddress",
+      "rmmDeviceAuditLastUser",
+      "rmmDeviceAuditMacAddress",
+      "rmmDeviceAuditManufacturerID",
+      "rmmDeviceAuditFirmwareID",
+      "rmmDeviceAuditMemoryBytes",
+      "rmmDeviceAuditMissingPatchCount",
+      "rmmDeviceAuditMobileNetworkOperatorID",
+      "rmmDeviceAuditMobileNumber",
+      "rmmDeviceAuditModelID",
+      "rmmDeviceAuditMotherboardID",
+      "rmmDeviceAuditOperatingSystem",
+      "rmmDeviceAuditPatchStatusID",
+      "rmmDeviceAuditProcessorID",
+      "rmmDeviceAuditServicePackID",
+      "rmmDeviceAuditSNMPContact",
+      "rmmDeviceAuditSNMPLocation",
+      "rmmDeviceAuditSNMPName",
+      "rmmDeviceAuditSoftwareStatusID",
+      "rmmDeviceAuditStorageBytes",
+      "rmmDeviceID",
+      "rmmDeviceUID",
+      "rmmVsaxDeviceID",
+      "rmmOpenAlertCount",
+      "serialNumber",
+      "serviceBundleID",
+      "serviceID",
+      "serviceLevelAgreementID",
+      "setupFee",
+      "sourceChargeID",
+      "sourceChargeType",
+      "sslSource",
+      "sslCommonName",
+      "sslValidFromDateTime",
+      "sslValidUntilDateTime",
+      "sslIssuedBy",
+      "sslOrganization",
+      "sslOrganizationUnit",
+      "sslLocation",
+      "sslSerialNumber",
+      "sslSignatureAlgorithm",
+      "vendorID",
+      "warrantyExpirationDate",
+      "rmmIsInMaintenanceMode",
+      "rmmIsMobileDeviceManagementEnrolled",
+      "rmmDeviceUrl",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItems"
@@ -10989,6 +13032,121 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemModel",
+    "allowedBodyFields": [
+      "id",
+      "apiVendorID",
+      "configurationItemCategoryID",
+      "companyID",
+      "companyLocationID",
+      "configurationItemType",
+      "contactID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "createdByPersonID",
+      "dailyCost",
+      "dattoAvailableKilobytes",
+      "dattoDeviceMemoryMegabytes",
+      "dattoDrivesErrors",
+      "dattoHostname",
+      "dattoInternalIP",
+      "dattoKernelVersionID",
+      "dattoLastCheckInDateTime",
+      "dattoNICSpeedKilobitsPerSecond",
+      "dattoNumberOfAgents",
+      "dattoNumberOfDrives",
+      "dattoNumberOfVolumes",
+      "dattoOffsiteUsedBytes",
+      "dattoOSVersionID",
+      "dattoPercentageUsed",
+      "dattoProtectedKilobytes",
+      "dattoRemoteIP",
+      "dattoSerialNumber",
+      "dattoUptimeSeconds",
+      "dattoUsedKilobytes",
+      "dattoZFSVersionID",
+      "deviceNetworkingID",
+      "domain",
+      "domainRegistrarID",
+      "domainRegistrationDateTime",
+      "domainLastUpdatedDateTime",
+      "domainExpirationDateTime",
+      "hourlyCost",
+      "impersonatorCreatorResourceID",
+      "installDate",
+      "installedByContactID",
+      "installedByID",
+      "isActive",
+      "lastActivityPersonID",
+      "lastActivityPersonType",
+      "lastModifiedTime",
+      "location",
+      "monthlyCost",
+      "notes",
+      "numberOfUsers",
+      "parentConfigurationItemID",
+      "perUseCost",
+      "productID",
+      "referenceNumber",
+      "referenceTitle",
+      "rmmDeviceAuditAntivirusStatusID",
+      "rmmDeviceAuditArchitectureID",
+      "rmmDeviceAuditBackupStatusID",
+      "rmmDeviceAuditDescription",
+      "rmmDeviceAuditDeviceTypeID",
+      "rmmDeviceAuditDisplayAdaptorID",
+      "rmmDeviceAuditDomainID",
+      "rmmDeviceAuditExternalIPAddress",
+      "rmmDeviceAuditHostname",
+      "rmmDeviceAuditIPAddress",
+      "rmmDeviceAuditLastUser",
+      "rmmDeviceAuditMacAddress",
+      "rmmDeviceAuditManufacturerID",
+      "rmmDeviceAuditFirmwareID",
+      "rmmDeviceAuditMemoryBytes",
+      "rmmDeviceAuditMissingPatchCount",
+      "rmmDeviceAuditMobileNetworkOperatorID",
+      "rmmDeviceAuditMobileNumber",
+      "rmmDeviceAuditModelID",
+      "rmmDeviceAuditMotherboardID",
+      "rmmDeviceAuditOperatingSystem",
+      "rmmDeviceAuditPatchStatusID",
+      "rmmDeviceAuditProcessorID",
+      "rmmDeviceAuditServicePackID",
+      "rmmDeviceAuditSNMPContact",
+      "rmmDeviceAuditSNMPLocation",
+      "rmmDeviceAuditSNMPName",
+      "rmmDeviceAuditSoftwareStatusID",
+      "rmmDeviceAuditStorageBytes",
+      "rmmDeviceID",
+      "rmmDeviceUID",
+      "rmmVsaxDeviceID",
+      "rmmOpenAlertCount",
+      "serialNumber",
+      "serviceBundleID",
+      "serviceID",
+      "serviceLevelAgreementID",
+      "setupFee",
+      "sourceChargeID",
+      "sourceChargeType",
+      "sslSource",
+      "sslCommonName",
+      "sslValidFromDateTime",
+      "sslValidUntilDateTime",
+      "sslIssuedBy",
+      "sslOrganization",
+      "sslOrganizationUnit",
+      "sslLocation",
+      "sslSerialNumber",
+      "sslSignatureAlgorithm",
+      "vendorID",
+      "warrantyExpirationDate",
+      "rmmIsInMaintenanceMode",
+      "rmmIsMobileDeviceManagementEnrolled",
+      "rmmDeviceUrl",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItems"
@@ -11055,6 +13213,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemSslSubjectAlternativeNames"
@@ -11108,6 +13271,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemSslSubjectAlternativeNames"
@@ -11306,6 +13474,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemTypes"
@@ -11376,6 +13549,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemTypes"
@@ -11395,6 +13573,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemTypeModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemTypes"
@@ -11414,6 +13597,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemTypeModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemTypes"
@@ -11433,6 +13621,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemTypeModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemTypes"
@@ -11499,6 +13692,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemWebhookExcludedResources"
@@ -11552,6 +13750,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemWebhookExcludedResources"
@@ -11630,6 +13833,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookExcludedResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhookExcludedResourcesChild"
@@ -11778,6 +13987,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemWebhookFields"
@@ -11831,6 +14045,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemWebhookFields"
@@ -11909,6 +14128,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhookFieldsChild"
@@ -11937,6 +14164,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhookFieldsChild"
@@ -11965,6 +14200,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhookFieldsChild"
@@ -12113,6 +14356,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemWebhooks"
@@ -12183,6 +14431,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemWebhooks"
@@ -12202,6 +14455,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhooks"
@@ -12221,6 +14490,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhooks"
@@ -12240,6 +14525,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhooks"
@@ -12306,6 +14607,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemWebhookUdfFields"
@@ -12359,6 +14665,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ConfigurationItemWebhookUdfFields"
@@ -12437,6 +14748,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhookUdfFieldsChild"
@@ -12465,6 +14784,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhookUdfFieldsChild"
@@ -12493,6 +14820,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ConfigurationItemWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ConfigurationItemWebhookUdfFieldsChild"
@@ -12641,6 +14976,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactBillingProductAssociations"
@@ -12694,6 +15034,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactBillingProductAssociations"
@@ -12772,6 +15117,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactBillingProductAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "billingProductID",
+      "contactID",
+      "effectiveDate",
+      "expirationDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactBillingProductAssociationsChild"
@@ -12800,6 +15153,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactBillingProductAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "billingProductID",
+      "contactID",
+      "effectiveDate",
+      "expirationDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactBillingProductAssociationsChild"
@@ -12828,6 +15189,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactBillingProductAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "billingProductID",
+      "contactID",
+      "effectiveDate",
+      "expirationDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactBillingProductAssociationsChild"
@@ -12976,6 +15345,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactGroupContacts"
@@ -13029,6 +15403,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactGroupContacts"
@@ -13107,6 +15486,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactGroupContactModel",
+    "allowedBodyFields": [
+      "id",
+      "contactId",
+      "contactGroupId",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactGroupContactsChild"
@@ -13255,6 +15640,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactGroups"
@@ -13325,6 +15715,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactGroups"
@@ -13344,6 +15739,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactGroupModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "isActive"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactGroups"
@@ -13363,6 +15763,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactGroupModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "isActive"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactGroups"
@@ -13382,6 +15787,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactGroupModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "isActive"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactGroups"
@@ -13448,6 +15858,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Contacts"
@@ -13501,6 +15916,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Contacts"
@@ -13567,6 +15987,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactWebhookExcludedResources"
@@ -13620,6 +16045,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactWebhookExcludedResources"
@@ -13698,6 +16128,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookExcludedResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhookExcludedResourcesChild"
@@ -13846,6 +16282,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactWebhookFields"
@@ -13899,6 +16340,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactWebhookFields"
@@ -13977,6 +16423,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhookFieldsChild"
@@ -14005,6 +16459,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhookFieldsChild"
@@ -14033,6 +16495,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhookFieldsChild"
@@ -14181,6 +16651,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactWebhooks"
@@ -14251,6 +16726,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactWebhooks"
@@ -14270,6 +16750,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhooks"
@@ -14289,6 +16785,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhooks"
@@ -14308,6 +16820,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhooks"
@@ -14374,6 +16902,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactWebhookUdfFields"
@@ -14427,6 +16960,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContactWebhookUdfFields"
@@ -14505,6 +17043,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhookUdfFieldsChild"
@@ -14533,6 +17079,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhookUdfFieldsChild"
@@ -14561,6 +17115,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContactWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContactWebhookUdfFieldsChild"
@@ -14709,6 +17271,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractBillingRules"
@@ -14762,6 +17329,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractBillingRules"
@@ -14840,6 +17412,25 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBillingRuleModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "createChargesAsBillable",
+      "dailyProratedCost",
+      "dailyProratedPrice",
+      "determineUnits",
+      "endDate",
+      "executionMethod",
+      "includeItemsInChargeDescription",
+      "invoiceDescription",
+      "isActive",
+      "isDailyProrationEnabled",
+      "maximumUnits",
+      "minimumUnits",
+      "productID",
+      "startDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBillingRulesChild"
@@ -14868,6 +17459,25 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBillingRuleModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "createChargesAsBillable",
+      "dailyProratedCost",
+      "dailyProratedPrice",
+      "determineUnits",
+      "endDate",
+      "executionMethod",
+      "includeItemsInChargeDescription",
+      "invoiceDescription",
+      "isActive",
+      "isDailyProrationEnabled",
+      "maximumUnits",
+      "minimumUnits",
+      "productID",
+      "startDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBillingRulesChild"
@@ -14896,6 +17506,25 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBillingRuleModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "createChargesAsBillable",
+      "dailyProratedCost",
+      "dailyProratedPrice",
+      "determineUnits",
+      "endDate",
+      "executionMethod",
+      "includeItemsInChargeDescription",
+      "invoiceDescription",
+      "isActive",
+      "isDailyProrationEnabled",
+      "maximumUnits",
+      "minimumUnits",
+      "productID",
+      "startDate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBillingRulesChild"
@@ -15044,6 +17673,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractBlockHourFactors"
@@ -15097,6 +17731,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractBlockHourFactors"
@@ -15175,6 +17814,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBlockHourFactorModel",
+    "allowedBodyFields": [
+      "id",
+      "blockHourMultiplier",
+      "contractHourlyRate",
+      "contractID",
+      "internalCurrencyContractHourlyRate",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBlockHourFactorsChild"
@@ -15203,6 +17851,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBlockHourFactorModel",
+    "allowedBodyFields": [
+      "id",
+      "blockHourMultiplier",
+      "contractHourlyRate",
+      "contractID",
+      "internalCurrencyContractHourlyRate",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBlockHourFactorsChild"
@@ -15231,6 +17888,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBlockHourFactorModel",
+    "allowedBodyFields": [
+      "id",
+      "blockHourMultiplier",
+      "contractHourlyRate",
+      "contractID",
+      "internalCurrencyContractHourlyRate",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBlockHourFactorsChild"
@@ -15353,6 +18019,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractBlocks"
@@ -15406,6 +18077,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractBlocks"
@@ -15484,6 +18160,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBlockModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "hourlyRate",
+      "hours",
+      "hoursApproved",
+      "invoiceNumber",
+      "isPaid",
+      "paymentNumber",
+      "paymentType",
+      "startDate",
+      "status",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBlocksChild"
@@ -15512,6 +18204,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBlockModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "hourlyRate",
+      "hours",
+      "hoursApproved",
+      "invoiceNumber",
+      "isPaid",
+      "paymentNumber",
+      "paymentType",
+      "startDate",
+      "status",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBlocksChild"
@@ -15540,6 +18248,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractBlockModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "hourlyRate",
+      "hours",
+      "hoursApproved",
+      "invoiceNumber",
+      "isPaid",
+      "paymentNumber",
+      "paymentType",
+      "startDate",
+      "status",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractBlocksChild"
@@ -15662,6 +18386,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractCharges"
@@ -15715,6 +18444,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractCharges"
@@ -15793,6 +18527,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractChargesChild"
@@ -15821,6 +18586,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractChargesChild"
@@ -15849,6 +18645,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractChargesChild"
@@ -15997,6 +18824,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionBillingCodes"
@@ -16050,6 +18882,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionBillingCodes"
@@ -16128,6 +18965,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractExclusionBillingCodeModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "contractID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractExclusionBillingCodesChild"
@@ -16276,6 +19119,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionRoles"
@@ -16329,6 +19177,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionRoles"
@@ -16407,6 +19260,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractExclusionRoleModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractExclusionRolesChild"
@@ -16555,6 +19414,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionSetExcludedRoles"
@@ -16608,6 +19472,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionSetExcludedRoles"
@@ -16686,6 +19555,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractExclusionSetExcludedRoleModel",
+    "allowedBodyFields": [
+      "id",
+      "contractExclusionSetID",
+      "excludedRoleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractExclusionSetExcludedRolesChild"
@@ -16834,6 +19709,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionSetExcludedWorkTypes"
@@ -16887,6 +19767,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionSetExcludedWorkTypes"
@@ -16965,6 +19850,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractExclusionSetExcludedWorkTypeModel",
+    "allowedBodyFields": [
+      "id",
+      "contractExclusionSetID",
+      "excludedWorkTypeID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractExclusionSetExcludedWorkTypesChild"
@@ -17113,6 +20004,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionSets"
@@ -17183,6 +20079,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractExclusionSets"
@@ -17202,6 +20103,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractExclusionSetModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractExclusionSets"
@@ -17221,6 +20128,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractExclusionSetModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractExclusionSets"
@@ -17240,6 +20153,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractExclusionSetModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractExclusionSets"
@@ -17306,6 +20225,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractMilestones"
@@ -17359,6 +20283,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractMilestones"
@@ -17437,6 +20366,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractMilestoneModel",
+    "allowedBodyFields": [
+      "id",
+      "amount",
+      "billingCodeID",
+      "contractID",
+      "createDate",
+      "creatorResourceID",
+      "dateDue",
+      "description",
+      "internalCurrencyAmount",
+      "isInitialPayment",
+      "organizationalLevelAssociationID",
+      "status",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractMilestonesChild"
@@ -17465,6 +20410,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractMilestoneModel",
+    "allowedBodyFields": [
+      "id",
+      "amount",
+      "billingCodeID",
+      "contractID",
+      "createDate",
+      "creatorResourceID",
+      "dateDue",
+      "description",
+      "internalCurrencyAmount",
+      "isInitialPayment",
+      "organizationalLevelAssociationID",
+      "status",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractMilestonesChild"
@@ -17493,6 +20454,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractMilestoneModel",
+    "allowedBodyFields": [
+      "id",
+      "amount",
+      "billingCodeID",
+      "contractID",
+      "createDate",
+      "creatorResourceID",
+      "dateDue",
+      "description",
+      "internalCurrencyAmount",
+      "isInitialPayment",
+      "organizationalLevelAssociationID",
+      "status",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractMilestonesChild"
@@ -17635,6 +20612,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractNoteAttachments"
@@ -17688,6 +20670,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractNoteAttachments"
@@ -17736,6 +20723,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractNoteAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "contractID",
+      "contractNoteID",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractNoteAttachmentsChild"
@@ -17824,6 +20833,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractNotes"
@@ -17877,6 +20891,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractNotes"
@@ -17955,6 +20974,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractNotesChild"
@@ -17983,6 +21014,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractNotesChild"
@@ -18011,6 +21054,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractNotesChild"
@@ -18133,6 +21188,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractRates"
@@ -18186,6 +21246,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractRates"
@@ -18264,6 +21329,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRateModel",
+    "allowedBodyFields": [
+      "id",
+      "contractHourlyRate",
+      "contractID",
+      "internalCurrencyContractHourlyRate",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRatesChild"
@@ -18292,6 +21365,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRateModel",
+    "allowedBodyFields": [
+      "id",
+      "contractHourlyRate",
+      "contractID",
+      "internalCurrencyContractHourlyRate",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRatesChild"
@@ -18320,6 +21401,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRateModel",
+    "allowedBodyFields": [
+      "id",
+      "contractHourlyRate",
+      "contractID",
+      "internalCurrencyContractHourlyRate",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRatesChild"
@@ -18442,6 +21531,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractRetainers"
@@ -18495,6 +21589,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractRetainers"
@@ -18573,6 +21672,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRetainerModel",
+    "allowedBodyFields": [
+      "id",
+      "amount",
+      "amountApproved",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "internalCurrencyAmount",
+      "internalCurrencyAmountApproved",
+      "invoiceNumber",
+      "isPaid",
+      "paymentID",
+      "paymentNumber",
+      "startDate",
+      "status",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRetainersChild"
@@ -18601,6 +21717,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRetainerModel",
+    "allowedBodyFields": [
+      "id",
+      "amount",
+      "amountApproved",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "internalCurrencyAmount",
+      "internalCurrencyAmountApproved",
+      "invoiceNumber",
+      "isPaid",
+      "paymentID",
+      "paymentNumber",
+      "startDate",
+      "status",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRetainersChild"
@@ -18629,6 +21762,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRetainerModel",
+    "allowedBodyFields": [
+      "id",
+      "amount",
+      "amountApproved",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "internalCurrencyAmount",
+      "internalCurrencyAmountApproved",
+      "invoiceNumber",
+      "isPaid",
+      "paymentID",
+      "paymentNumber",
+      "startDate",
+      "status",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRetainersChild"
@@ -18751,6 +21901,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractRoleCosts"
@@ -18804,6 +21959,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractRoleCosts"
@@ -18882,6 +22042,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRoleCostModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "rate",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRoleCostsChild"
@@ -18910,6 +22078,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRoleCostModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "rate",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRoleCostsChild"
@@ -18938,6 +22114,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractRoleCostModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "rate",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractRoleCostsChild"
@@ -19060,6 +22244,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Contracts"
@@ -19113,6 +22302,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Contracts"
@@ -19132,6 +22326,44 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractModel",
+    "allowedBodyFields": [
+      "id",
+      "billingPreference",
+      "billToCompanyContactID",
+      "billToCompanyID",
+      "companyID",
+      "contactID",
+      "contactName",
+      "contractCategory",
+      "contractExclusionSetID",
+      "contractName",
+      "contractNumber",
+      "contractPeriodType",
+      "contractType",
+      "description",
+      "endDate",
+      "estimatedCost",
+      "estimatedHours",
+      "estimatedRevenue",
+      "exclusionContractID",
+      "internalCurrencyOverageBillingRate",
+      "internalCurrencySetupFee",
+      "isCompliant",
+      "isDefaultContract",
+      "lastModifiedDateTime",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "overageBillingRate",
+      "purchaseOrderNumber",
+      "renewedContractID",
+      "serviceLevelAgreementID",
+      "setupFee",
+      "setupFeeBillingCodeID",
+      "startDate",
+      "status",
+      "timeReportingRequiresStartAndStopTimes",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Contracts"
@@ -19151,6 +22383,44 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractModel",
+    "allowedBodyFields": [
+      "id",
+      "billingPreference",
+      "billToCompanyContactID",
+      "billToCompanyID",
+      "companyID",
+      "contactID",
+      "contactName",
+      "contractCategory",
+      "contractExclusionSetID",
+      "contractName",
+      "contractNumber",
+      "contractPeriodType",
+      "contractType",
+      "description",
+      "endDate",
+      "estimatedCost",
+      "estimatedHours",
+      "estimatedRevenue",
+      "exclusionContractID",
+      "internalCurrencyOverageBillingRate",
+      "internalCurrencySetupFee",
+      "isCompliant",
+      "isDefaultContract",
+      "lastModifiedDateTime",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "overageBillingRate",
+      "purchaseOrderNumber",
+      "renewedContractID",
+      "serviceLevelAgreementID",
+      "setupFee",
+      "setupFeeBillingCodeID",
+      "startDate",
+      "status",
+      "timeReportingRequiresStartAndStopTimes",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Contracts"
@@ -19170,6 +22440,44 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractModel",
+    "allowedBodyFields": [
+      "id",
+      "billingPreference",
+      "billToCompanyContactID",
+      "billToCompanyID",
+      "companyID",
+      "contactID",
+      "contactName",
+      "contractCategory",
+      "contractExclusionSetID",
+      "contractName",
+      "contractNumber",
+      "contractPeriodType",
+      "contractType",
+      "description",
+      "endDate",
+      "estimatedCost",
+      "estimatedHours",
+      "estimatedRevenue",
+      "exclusionContractID",
+      "internalCurrencyOverageBillingRate",
+      "internalCurrencySetupFee",
+      "isCompliant",
+      "isDefaultContract",
+      "lastModifiedDateTime",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "overageBillingRate",
+      "purchaseOrderNumber",
+      "renewedContractID",
+      "serviceLevelAgreementID",
+      "setupFee",
+      "setupFeeBillingCodeID",
+      "startDate",
+      "status",
+      "timeReportingRequiresStartAndStopTimes",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Contracts"
@@ -19219,6 +22527,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceAdjustmentModel",
+    "allowedBodyFields": [
+      "id",
+      "adjustedUnitCost",
+      "adjustedUnitPrice",
+      "allowRepeatService",
+      "contractID",
+      "contractServiceID",
+      "effectiveDate",
+      "quoteItemID",
+      "serviceID",
+      "unitChange",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServiceAdjustments"
@@ -19277,6 +22598,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceAdjustmentModel",
+    "allowedBodyFields": [
+      "id",
+      "adjustedUnitCost",
+      "adjustedUnitPrice",
+      "allowRepeatService",
+      "contractID",
+      "contractServiceID",
+      "effectiveDate",
+      "quoteItemID",
+      "serviceID",
+      "unitChange",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServiceAdjustmentsChild"
@@ -19356,6 +22690,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceBundleAdjustmentModel",
+    "allowedBodyFields": [
+      "id",
+      "adjustedUnitPrice",
+      "allowRepeatServiceBundle",
+      "contractID",
+      "contractServiceBundleID",
+      "effectiveDate",
+      "quoteItemID",
+      "serviceBundleID",
+      "unitChange",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServiceBundleAdjustments"
@@ -19414,6 +22760,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceBundleAdjustmentModel",
+    "allowedBodyFields": [
+      "id",
+      "adjustedUnitPrice",
+      "allowRepeatServiceBundle",
+      "contractID",
+      "contractServiceBundleID",
+      "effectiveDate",
+      "quoteItemID",
+      "serviceBundleID",
+      "unitChange",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServiceBundleAdjustmentsChild"
@@ -19510,6 +22868,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServiceBundles"
@@ -19563,6 +22926,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServiceBundles"
@@ -19641,6 +23009,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceBundleModel",
+    "allowedBodyFields": [
+      "id",
+      "adjustedPrice",
+      "contractID",
+      "internalCurrencyAdjustedPrice",
+      "internalCurrencyUnitPrice",
+      "internalDescription",
+      "invoiceDescription",
+      "quoteItemID",
+      "serviceBundleID",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServiceBundlesChild"
@@ -19669,6 +23050,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceBundleModel",
+    "allowedBodyFields": [
+      "id",
+      "adjustedPrice",
+      "contractID",
+      "internalCurrencyAdjustedPrice",
+      "internalCurrencyUnitPrice",
+      "internalDescription",
+      "invoiceDescription",
+      "quoteItemID",
+      "serviceBundleID",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServiceBundlesChild"
@@ -19697,6 +23091,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceBundleModel",
+    "allowedBodyFields": [
+      "id",
+      "adjustedPrice",
+      "contractID",
+      "internalCurrencyAdjustedPrice",
+      "internalCurrencyUnitPrice",
+      "internalDescription",
+      "invoiceDescription",
+      "quoteItemID",
+      "serviceBundleID",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServiceBundlesChild"
@@ -19819,6 +23226,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServiceBundleUnits"
@@ -19872,6 +23284,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServiceBundleUnits"
@@ -20044,6 +23461,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServiceBundleUnitsRevised"
@@ -20097,6 +23519,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServiceBundleUnitsRevised"
@@ -20163,6 +23590,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServices"
@@ -20216,6 +23648,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServices"
@@ -20294,6 +23731,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "internalCurrencyAdjustedPrice",
+      "internalCurrencyUnitPrice",
+      "internalDescription",
+      "invoiceDescription",
+      "quoteItemID",
+      "serviceID",
+      "unitCost",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServicesChild"
@@ -20322,6 +23772,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "internalCurrencyAdjustedPrice",
+      "internalCurrencyUnitPrice",
+      "internalDescription",
+      "invoiceDescription",
+      "quoteItemID",
+      "serviceID",
+      "unitCost",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServicesChild"
@@ -20350,6 +23813,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "internalCurrencyAdjustedPrice",
+      "internalCurrencyUnitPrice",
+      "internalDescription",
+      "invoiceDescription",
+      "quoteItemID",
+      "serviceID",
+      "unitCost",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractServicesChild"
@@ -20472,6 +23948,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServiceUnits"
@@ -20525,6 +24006,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractServiceUnits"
@@ -20697,6 +24183,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractTicketPurchases"
@@ -20750,6 +24241,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ContractTicketPurchases"
@@ -20828,6 +24324,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractTicketPurchaseModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "invoiceNumber",
+      "isPaid",
+      "paymentNumber",
+      "paymentType",
+      "perTicketRate",
+      "startDate",
+      "status",
+      "ticketsPurchased",
+      "ticketsUsed",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractTicketPurchasesChild"
@@ -20856,6 +24368,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractTicketPurchaseModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "invoiceNumber",
+      "isPaid",
+      "paymentNumber",
+      "paymentType",
+      "perTicketRate",
+      "startDate",
+      "status",
+      "ticketsPurchased",
+      "ticketsUsed",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractTicketPurchasesChild"
@@ -20884,6 +24412,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ContractTicketPurchaseModel",
+    "allowedBodyFields": [
+      "id",
+      "contractID",
+      "datePurchased",
+      "endDate",
+      "invoiceNumber",
+      "isPaid",
+      "paymentNumber",
+      "paymentType",
+      "perTicketRate",
+      "startDate",
+      "status",
+      "ticketsPurchased",
+      "ticketsUsed",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ContractTicketPurchasesChild"
@@ -21006,6 +24550,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Countries"
@@ -21059,6 +24608,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Countries"
@@ -21078,6 +24632,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CountryModel",
+    "allowedBodyFields": [
+      "id",
+      "addressFormatID",
+      "countryCode",
+      "displayName",
+      "invoiceTemplateID",
+      "isActive",
+      "isDefaultCountry",
+      "name",
+      "purchaseOrderTemplateID",
+      "quoteTemplateID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Countries"
@@ -21097,6 +24663,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CountryModel",
+    "allowedBodyFields": [
+      "id",
+      "addressFormatID",
+      "countryCode",
+      "displayName",
+      "invoiceTemplateID",
+      "isActive",
+      "isDefaultCountry",
+      "name",
+      "purchaseOrderTemplateID",
+      "quoteTemplateID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Countries"
@@ -21163,6 +24741,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Currencies"
@@ -21216,6 +24799,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Currencies"
@@ -21235,6 +24823,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CurrencyModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyNegativeFormat",
+      "currencyPositiveFormat",
+      "description",
+      "displaySymbol",
+      "exchangeRate",
+      "isActive",
+      "isInternalCurrency",
+      "lastModifiedDateTime",
+      "name",
+      "updateResourceId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Currencies"
@@ -21254,6 +24855,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "CurrencyModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyNegativeFormat",
+      "currencyPositiveFormat",
+      "description",
+      "displaySymbol",
+      "exchangeRate",
+      "isActive",
+      "isInternalCurrency",
+      "lastModifiedDateTime",
+      "name",
+      "updateResourceId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Currencies"
@@ -21320,6 +24934,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DeletedTaskActivityLogs"
@@ -21373,6 +24992,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DeletedTaskActivityLogs"
@@ -21439,6 +25063,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DeletedTicketActivityLogs"
@@ -21492,6 +25121,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DeletedTicketActivityLogs"
@@ -21558,6 +25192,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DeletedTicketLogs"
@@ -21611,6 +25250,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DeletedTicketLogs"
@@ -21677,6 +25321,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Departments"
@@ -21730,6 +25379,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Departments"
@@ -21749,6 +25403,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DepartmentModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "number",
+      "primaryLocationID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Departments"
@@ -21768,6 +25429,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DepartmentModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "number",
+      "primaryLocationID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Departments"
@@ -21787,6 +25455,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DepartmentModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "number",
+      "primaryLocationID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Departments"
@@ -21873,6 +25548,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentAttachments"
@@ -21926,6 +25606,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentAttachments"
@@ -21974,6 +25659,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "documentID",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentAttachmentID",
+      "parentID",
+      "title",
+      "data",
+      "publish",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentAttachmentsChild"
@@ -22062,6 +25769,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentCategories"
@@ -22132,6 +25844,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentCategories"
@@ -22151,6 +25868,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "parentCategoryID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentCategories"
@@ -22170,6 +25893,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "parentCategoryID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentCategories"
@@ -22189,6 +25918,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "parentCategoryID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentCategories"
@@ -22255,6 +25990,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentChecklistItems"
@@ -22308,6 +26048,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentChecklistItems"
@@ -22386,6 +26131,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "documentID",
+      "isImportant",
+      "itemName",
+      "position",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentChecklistItemsChild"
@@ -22414,6 +26167,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "documentID",
+      "isImportant",
+      "itemName",
+      "position",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentChecklistItemsChild"
@@ -22442,6 +26203,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "documentID",
+      "isImportant",
+      "itemName",
+      "position",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentChecklistItemsChild"
@@ -22573,6 +26342,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentChecklistLibraryModel",
+    "allowedBodyFields": [
+      "id",
+      "checklistLibraryID",
+      "documentID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentChecklistLibraries"
@@ -22631,6 +26406,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentChecklistLibraryModel",
+    "allowedBodyFields": [
+      "id",
+      "checklistLibraryID",
+      "documentID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentChecklistLibrariesChild"
@@ -22727,6 +26508,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentConfigurationItemAssociations"
@@ -22780,6 +26566,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentConfigurationItemAssociations"
@@ -22858,6 +26649,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentConfigurationItemAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "documentID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentConfigurationItemAssociationsChild"
@@ -23006,6 +26803,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentConfigurationItemCategoryAssociations"
@@ -23059,6 +26861,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentConfigurationItemCategoryAssociations"
@@ -23137,6 +26944,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentConfigurationItemCategoryAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "documentID",
+      "installedProductCategoryID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentConfigurationItemCategoryAssociationsChild"
@@ -23285,6 +27098,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentNotes"
@@ -23338,6 +27156,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentNotes"
@@ -23416,6 +27239,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "description",
+      "documentID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentNotesChild"
@@ -23444,6 +27278,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "description",
+      "documentID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentNotesChild"
@@ -23472,6 +27317,17 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "description",
+      "documentID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentNotesChild"
@@ -23620,6 +27476,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentPlainTextContent"
@@ -23673,6 +27534,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentPlainTextContent"
@@ -23749,6 +27615,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentPlainTextContentModel",
+    "allowedBodyFields": [
+      "id",
+      "contentData",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentPlainTextContentChild"
@@ -23776,6 +27647,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentPlainTextContentModel",
+    "allowedBodyFields": [
+      "id",
+      "contentData",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentPlainTextContentChild"
@@ -23894,6 +27770,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Documents"
@@ -23947,6 +27828,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Documents"
@@ -24025,6 +27911,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "createdByResourceID",
+      "createdDateTime",
+      "documentCategoryID",
+      "errorCodes",
+      "isActive",
+      "keywords",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "publish",
+      "referenceLink",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentsChild"
@@ -24053,6 +27955,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "createdByResourceID",
+      "createdDateTime",
+      "documentCategoryID",
+      "errorCodes",
+      "isActive",
+      "keywords",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "publish",
+      "referenceLink",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentsChild"
@@ -24081,6 +27999,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "createdByResourceID",
+      "createdDateTime",
+      "documentCategoryID",
+      "errorCodes",
+      "isActive",
+      "keywords",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "publish",
+      "referenceLink",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentsChild"
@@ -24229,6 +28163,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentTagAssociations"
@@ -24282,6 +28221,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentTagAssociations"
@@ -24360,6 +28304,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentTagAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "createdByResourceID",
+      "documentID",
+      "tagID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentTagAssociationsChild"
@@ -24508,6 +28460,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentTicketAssociations"
@@ -24561,6 +28518,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentTicketAssociations"
@@ -24639,6 +28601,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentTicketAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "documentID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentTicketAssociationsChild"
@@ -24787,6 +28755,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentToArticleAssociations"
@@ -24840,6 +28813,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentToArticleAssociations"
@@ -24918,6 +28896,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentToArticleAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "associatedArticleID",
+      "documentID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentToArticleAssociationsChild"
@@ -25066,6 +29050,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentToDocumentAssociations"
@@ -25119,6 +29108,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DocumentToDocumentAssociations"
@@ -25197,6 +29191,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DocumentToDocumentAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "associatedDocumentID",
+      "documentID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DocumentToDocumentAssociationsChild"
@@ -25345,6 +29345,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DomainRegistrars"
@@ -25398,6 +29403,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "DomainRegistrars"
@@ -25417,6 +29427,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DomainRegistrarModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "url"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DomainRegistrars"
@@ -25436,6 +29451,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DomainRegistrarModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "url"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DomainRegistrars"
@@ -25455,6 +29475,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "DomainRegistrarModel",
+    "allowedBodyFields": [
+      "id",
+      "name",
+      "url"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "DomainRegistrars"
@@ -25541,6 +29566,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ExpenseItemAttachments"
@@ -25594,6 +29624,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ExpenseItemAttachments"
@@ -25642,6 +29677,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ExpenseItemAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "expenseItemID",
+      "expenseReportID",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ExpenseItemAttachmentsChild"
@@ -25730,6 +29787,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ExpenseItems"
@@ -25783,6 +29845,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ExpenseItems"
@@ -25861,6 +29928,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ExpenseItemModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "description",
+      "destination",
+      "entertainmentLocation",
+      "expenseCategory",
+      "expenseCurrencyExpenseAmount",
+      "expenseCurrencyID",
+      "expenseDate",
+      "expenseReportID",
+      "glCode",
+      "haveReceipt",
+      "internalCurrencyExpenseAmount",
+      "internalCurrencyReimbursementAmount",
+      "isBillableToCompany",
+      "isReimbursable",
+      "isRejected",
+      "miles",
+      "odometerEnd",
+      "odometerStart",
+      "origin",
+      "paymentType",
+      "projectID",
+      "purchaseOrderNumber",
+      "reimbursementCurrencyReimbursementAmount",
+      "taskID",
+      "ticketID",
+      "workType",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ExpenseItemsChild"
@@ -25889,6 +29987,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ExpenseItemModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "description",
+      "destination",
+      "entertainmentLocation",
+      "expenseCategory",
+      "expenseCurrencyExpenseAmount",
+      "expenseCurrencyID",
+      "expenseDate",
+      "expenseReportID",
+      "glCode",
+      "haveReceipt",
+      "internalCurrencyExpenseAmount",
+      "internalCurrencyReimbursementAmount",
+      "isBillableToCompany",
+      "isReimbursable",
+      "isRejected",
+      "miles",
+      "odometerEnd",
+      "odometerStart",
+      "origin",
+      "paymentType",
+      "projectID",
+      "purchaseOrderNumber",
+      "reimbursementCurrencyReimbursementAmount",
+      "taskID",
+      "ticketID",
+      "workType",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ExpenseItemsChild"
@@ -25917,6 +30046,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ExpenseItemModel",
+    "allowedBodyFields": [
+      "id",
+      "companyID",
+      "description",
+      "destination",
+      "entertainmentLocation",
+      "expenseCategory",
+      "expenseCurrencyExpenseAmount",
+      "expenseCurrencyID",
+      "expenseDate",
+      "expenseReportID",
+      "glCode",
+      "haveReceipt",
+      "internalCurrencyExpenseAmount",
+      "internalCurrencyReimbursementAmount",
+      "isBillableToCompany",
+      "isReimbursable",
+      "isRejected",
+      "miles",
+      "odometerEnd",
+      "odometerStart",
+      "origin",
+      "paymentType",
+      "projectID",
+      "purchaseOrderNumber",
+      "reimbursementCurrencyReimbursementAmount",
+      "taskID",
+      "ticketID",
+      "workType",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ExpenseItemsChild"
@@ -26059,6 +30219,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ExpenseReportAttachments"
@@ -26112,6 +30277,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ExpenseReportAttachments"
@@ -26160,6 +30330,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ExpenseReportAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "expenseItemID",
+      "expenseReportID",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ExpenseReportAttachmentsChild"
@@ -26248,6 +30440,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ExpenseReports"
@@ -26301,6 +30498,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ExpenseReports"
@@ -26320,6 +30522,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ExpenseReportModel",
+    "allowedBodyFields": [
+      "id",
+      "amountDue",
+      "approvedDate",
+      "approverID",
+      "departmentNumber",
+      "internalCurrencyCashAdvanceAmount",
+      "internalCurrencyExpenseTotal",
+      "name",
+      "organizationalLevelAssociationID",
+      "quickBooksReferenceNumber",
+      "reimbursementCurrencyAmountDue",
+      "reimbursementCurrencyCashAdvanceAmount",
+      "reimbursementCurrencyID",
+      "rejectionReason",
+      "status",
+      "submit",
+      "submitDate",
+      "submitterID",
+      "weekEnding"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ExpenseReports"
@@ -26339,6 +30562,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ExpenseReportModel",
+    "allowedBodyFields": [
+      "id",
+      "amountDue",
+      "approvedDate",
+      "approverID",
+      "departmentNumber",
+      "internalCurrencyCashAdvanceAmount",
+      "internalCurrencyExpenseTotal",
+      "name",
+      "organizationalLevelAssociationID",
+      "quickBooksReferenceNumber",
+      "reimbursementCurrencyAmountDue",
+      "reimbursementCurrencyCashAdvanceAmount",
+      "reimbursementCurrencyID",
+      "rejectionReason",
+      "status",
+      "submit",
+      "submitDate",
+      "submitterID",
+      "weekEnding"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ExpenseReports"
@@ -26358,6 +30602,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ExpenseReportModel",
+    "allowedBodyFields": [
+      "id",
+      "amountDue",
+      "approvedDate",
+      "approverID",
+      "departmentNumber",
+      "internalCurrencyCashAdvanceAmount",
+      "internalCurrencyExpenseTotal",
+      "name",
+      "organizationalLevelAssociationID",
+      "quickBooksReferenceNumber",
+      "reimbursementCurrencyAmountDue",
+      "reimbursementCurrencyCashAdvanceAmount",
+      "reimbursementCurrencyID",
+      "rejectionReason",
+      "status",
+      "submit",
+      "submitDate",
+      "submitterID",
+      "weekEnding"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ExpenseReports"
@@ -26424,6 +30689,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Holidays"
@@ -26477,6 +30747,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Holidays"
@@ -26555,6 +30830,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "HolidayModel",
+    "allowedBodyFields": [
+      "id",
+      "holidayDate",
+      "holidayName",
+      "holidaySetID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "HolidaysChild"
@@ -26583,6 +30865,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "HolidayModel",
+    "allowedBodyFields": [
+      "id",
+      "holidayDate",
+      "holidayName",
+      "holidaySetID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "HolidaysChild"
@@ -26611,6 +30900,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "HolidayModel",
+    "allowedBodyFields": [
+      "id",
+      "holidayDate",
+      "holidayName",
+      "holidaySetID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "HolidaysChild"
@@ -26759,6 +31055,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "HolidaySets"
@@ -26829,6 +31130,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "HolidaySets"
@@ -26848,6 +31154,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "HolidaySetModel",
+    "allowedBodyFields": [
+      "id",
+      "holidaySetDescription",
+      "holidaySetName"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "HolidaySets"
@@ -26867,6 +31178,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "HolidaySetModel",
+    "allowedBodyFields": [
+      "id",
+      "holidaySetDescription",
+      "holidaySetName"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "HolidaySets"
@@ -26886,6 +31202,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "HolidaySetModel",
+    "allowedBodyFields": [
+      "id",
+      "holidaySetDescription",
+      "holidaySetName"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "HolidaySets"
@@ -26952,6 +31273,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "IntegrationVendorInsights"
@@ -27022,6 +31348,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "IntegrationVendorInsights"
@@ -27041,6 +31372,20 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "IntegrationVendorInsightModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "description",
+      "height",
+      "insightCategory",
+      "insightKey",
+      "isActive",
+      "lastModifiedDateTime",
+      "referenceUrl",
+      "secret",
+      "title",
+      "vendorSuppliedID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "IntegrationVendorInsights"
@@ -27060,6 +31405,20 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "IntegrationVendorInsightModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "description",
+      "height",
+      "insightCategory",
+      "insightKey",
+      "isActive",
+      "lastModifiedDateTime",
+      "referenceUrl",
+      "secret",
+      "title",
+      "vendorSuppliedID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "IntegrationVendorInsights"
@@ -27079,6 +31438,20 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "IntegrationVendorInsightModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "description",
+      "height",
+      "insightCategory",
+      "insightKey",
+      "isActive",
+      "lastModifiedDateTime",
+      "referenceUrl",
+      "secret",
+      "title",
+      "vendorSuppliedID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "IntegrationVendorInsights"
@@ -27145,6 +31518,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "IntegrationVendorWidgets"
@@ -27215,6 +31593,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "IntegrationVendorWidgets"
@@ -27234,6 +31617,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "IntegrationVendorWidgetModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "description",
+      "isActive",
+      "lastModifiedDateTime",
+      "referenceUrl",
+      "secret",
+      "title",
+      "vendorSuppliedID",
+      "widgetKey",
+      "width"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "IntegrationVendorWidgets"
@@ -27253,6 +31649,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "IntegrationVendorWidgetModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "description",
+      "isActive",
+      "lastModifiedDateTime",
+      "referenceUrl",
+      "secret",
+      "title",
+      "vendorSuppliedID",
+      "widgetKey",
+      "width"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "IntegrationVendorWidgets"
@@ -27272,6 +31681,19 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "IntegrationVendorWidgetModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "description",
+      "isActive",
+      "lastModifiedDateTime",
+      "referenceUrl",
+      "secret",
+      "title",
+      "vendorSuppliedID",
+      "widgetKey",
+      "width"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "IntegrationVendorWidgets"
@@ -27338,6 +31760,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InternalLocations"
@@ -27391,6 +31818,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InternalLocations"
@@ -27457,6 +31889,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InternalLocationWithBusinessHours"
@@ -27510,6 +31947,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InternalLocationWithBusinessHours"
@@ -27529,6 +31971,58 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InternalLocationWithBusinessHoursModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInfo",
+      "address1",
+      "address2",
+      "city",
+      "countryID",
+      "dateFormat",
+      "firstDayOfWeek",
+      "fridayBusinessHoursEndTime",
+      "fridayBusinessHoursStartTime",
+      "fridayExtendedHoursEndTime",
+      "fridayExtendedHoursStartTime",
+      "holidayExtendedHoursEndTime",
+      "holidayExtendedHoursStartTime",
+      "holidayHoursEndTime",
+      "holidayHoursStartTime",
+      "holidayHoursType",
+      "holidaySetID",
+      "isDefault",
+      "mondayBusinessHoursEndTime",
+      "mondayBusinessHoursStartTime",
+      "mondayExtendedHoursEndTime",
+      "mondayExtendedHoursStartTime",
+      "name",
+      "noHoursOnHolidays",
+      "numberFormat",
+      "postalCode",
+      "saturdayBusinessHoursEndTime",
+      "saturdayBusinessHoursStartTime",
+      "saturdayExtendedHoursEndTime",
+      "saturdayExtendedHoursStartTime",
+      "state",
+      "sundayBusinessHoursEndTime",
+      "sundayBusinessHoursStartTime",
+      "sundayExtendedHoursEndTime",
+      "sundayExtendedHoursStartTime",
+      "thursdayBusinessHoursEndTime",
+      "thursdayBusinessHoursStartTime",
+      "thursdayExtendedHoursEndTime",
+      "thursdayExtendedHoursStartTime",
+      "timeFormat",
+      "timeZoneID",
+      "tuesdayBusinessHoursEndTime",
+      "tuesdayBusinessHoursStartTime",
+      "tuesdayExtendedHoursEndTime",
+      "tuesdayExtendedHoursStartTime",
+      "wednesdayBusinessHoursEndTime",
+      "wednesdayBusinessHoursStartTime",
+      "wednesdayExtendedHoursEndTime",
+      "wednesdayExtendedHoursStartTime"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InternalLocationWithBusinessHours"
@@ -27548,6 +32042,58 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InternalLocationWithBusinessHoursModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInfo",
+      "address1",
+      "address2",
+      "city",
+      "countryID",
+      "dateFormat",
+      "firstDayOfWeek",
+      "fridayBusinessHoursEndTime",
+      "fridayBusinessHoursStartTime",
+      "fridayExtendedHoursEndTime",
+      "fridayExtendedHoursStartTime",
+      "holidayExtendedHoursEndTime",
+      "holidayExtendedHoursStartTime",
+      "holidayHoursEndTime",
+      "holidayHoursStartTime",
+      "holidayHoursType",
+      "holidaySetID",
+      "isDefault",
+      "mondayBusinessHoursEndTime",
+      "mondayBusinessHoursStartTime",
+      "mondayExtendedHoursEndTime",
+      "mondayExtendedHoursStartTime",
+      "name",
+      "noHoursOnHolidays",
+      "numberFormat",
+      "postalCode",
+      "saturdayBusinessHoursEndTime",
+      "saturdayBusinessHoursStartTime",
+      "saturdayExtendedHoursEndTime",
+      "saturdayExtendedHoursStartTime",
+      "state",
+      "sundayBusinessHoursEndTime",
+      "sundayBusinessHoursStartTime",
+      "sundayExtendedHoursEndTime",
+      "sundayExtendedHoursStartTime",
+      "thursdayBusinessHoursEndTime",
+      "thursdayBusinessHoursStartTime",
+      "thursdayExtendedHoursEndTime",
+      "thursdayExtendedHoursStartTime",
+      "timeFormat",
+      "timeZoneID",
+      "tuesdayBusinessHoursEndTime",
+      "tuesdayBusinessHoursStartTime",
+      "tuesdayExtendedHoursEndTime",
+      "tuesdayExtendedHoursStartTime",
+      "wednesdayBusinessHoursEndTime",
+      "wednesdayBusinessHoursStartTime",
+      "wednesdayExtendedHoursEndTime",
+      "wednesdayExtendedHoursStartTime"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InternalLocationWithBusinessHours"
@@ -27567,6 +32113,58 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InternalLocationWithBusinessHoursModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalAddressInfo",
+      "address1",
+      "address2",
+      "city",
+      "countryID",
+      "dateFormat",
+      "firstDayOfWeek",
+      "fridayBusinessHoursEndTime",
+      "fridayBusinessHoursStartTime",
+      "fridayExtendedHoursEndTime",
+      "fridayExtendedHoursStartTime",
+      "holidayExtendedHoursEndTime",
+      "holidayExtendedHoursStartTime",
+      "holidayHoursEndTime",
+      "holidayHoursStartTime",
+      "holidayHoursType",
+      "holidaySetID",
+      "isDefault",
+      "mondayBusinessHoursEndTime",
+      "mondayBusinessHoursStartTime",
+      "mondayExtendedHoursEndTime",
+      "mondayExtendedHoursStartTime",
+      "name",
+      "noHoursOnHolidays",
+      "numberFormat",
+      "postalCode",
+      "saturdayBusinessHoursEndTime",
+      "saturdayBusinessHoursStartTime",
+      "saturdayExtendedHoursEndTime",
+      "saturdayExtendedHoursStartTime",
+      "state",
+      "sundayBusinessHoursEndTime",
+      "sundayBusinessHoursStartTime",
+      "sundayExtendedHoursEndTime",
+      "sundayExtendedHoursStartTime",
+      "thursdayBusinessHoursEndTime",
+      "thursdayBusinessHoursStartTime",
+      "thursdayExtendedHoursEndTime",
+      "thursdayExtendedHoursStartTime",
+      "timeFormat",
+      "timeZoneID",
+      "tuesdayBusinessHoursEndTime",
+      "tuesdayBusinessHoursStartTime",
+      "tuesdayExtendedHoursEndTime",
+      "tuesdayExtendedHoursStartTime",
+      "wednesdayBusinessHoursEndTime",
+      "wednesdayBusinessHoursStartTime",
+      "wednesdayExtendedHoursEndTime",
+      "wednesdayExtendedHoursStartTime"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InternalLocationWithBusinessHours"
@@ -27633,6 +32231,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryItems"
@@ -27686,6 +32289,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryItems"
@@ -27705,6 +32313,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryItemModel",
+    "allowedBodyFields": [
+      "id",
+      "backOrderQuantity",
+      "bin",
+      "impersonatorCreatorResourceID",
+      "inventoryLocationID",
+      "productID",
+      "quantityMaximum",
+      "quantityMinimum",
+      "quantityOnHand",
+      "quantityOnOrder",
+      "quantityPicked",
+      "quantityReserved",
+      "referenceNumber"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryItems"
@@ -27724,6 +32347,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryItemModel",
+    "allowedBodyFields": [
+      "id",
+      "backOrderQuantity",
+      "bin",
+      "impersonatorCreatorResourceID",
+      "inventoryLocationID",
+      "productID",
+      "quantityMaximum",
+      "quantityMinimum",
+      "quantityOnHand",
+      "quantityOnOrder",
+      "quantityPicked",
+      "quantityReserved",
+      "referenceNumber"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryItems"
@@ -27743,6 +32381,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryItemModel",
+    "allowedBodyFields": [
+      "id",
+      "backOrderQuantity",
+      "bin",
+      "impersonatorCreatorResourceID",
+      "inventoryLocationID",
+      "productID",
+      "quantityMaximum",
+      "quantityMinimum",
+      "quantityOnHand",
+      "quantityOnOrder",
+      "quantityPicked",
+      "quantityReserved",
+      "referenceNumber"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryItems"
@@ -27809,6 +32462,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryItemSerialNumbers"
@@ -27862,6 +32520,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryItemSerialNumbers"
@@ -27940,6 +32603,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryItemSerialNumberModel",
+    "allowedBodyFields": [
+      "id",
+      "inventoryItemID",
+      "serialNumber",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryItemSerialNumbersChild"
@@ -27968,6 +32637,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryItemSerialNumberModel",
+    "allowedBodyFields": [
+      "id",
+      "inventoryItemID",
+      "serialNumber",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryItemSerialNumbersChild"
@@ -27996,6 +32671,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryItemSerialNumberModel",
+    "allowedBodyFields": [
+      "id",
+      "inventoryItemID",
+      "serialNumber",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryItemSerialNumbersChild"
@@ -28118,6 +32799,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryLocations"
@@ -28171,6 +32857,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryLocations"
@@ -28190,6 +32881,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "isDefault",
+      "locationName",
+      "resourceID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryLocations"
@@ -28209,6 +32908,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "isDefault",
+      "locationName",
+      "resourceID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryLocations"
@@ -28228,6 +32935,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "isDefault",
+      "locationName",
+      "resourceID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryLocations"
@@ -28294,6 +33009,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryProducts"
@@ -28364,6 +33084,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryProducts"
@@ -28383,6 +33108,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryProductModel",
+    "allowedBodyFields": [
+      "id",
+      "availableUnits",
+      "backOrderQuantity",
+      "bin",
+      "createDateTime",
+      "createdByResourceID",
+      "inventoryLocationID",
+      "onHandUnits",
+      "pickedUnits",
+      "productID",
+      "quantityMaximum",
+      "quantityMinimum",
+      "referenceNumber",
+      "reservedUnits",
+      "unitsOnOrder"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryProducts"
@@ -28402,6 +33144,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryProductModel",
+    "allowedBodyFields": [
+      "id",
+      "availableUnits",
+      "backOrderQuantity",
+      "bin",
+      "createDateTime",
+      "createdByResourceID",
+      "inventoryLocationID",
+      "onHandUnits",
+      "pickedUnits",
+      "productID",
+      "quantityMaximum",
+      "quantityMinimum",
+      "referenceNumber",
+      "reservedUnits",
+      "unitsOnOrder"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryProducts"
@@ -28421,6 +33180,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryProductModel",
+    "allowedBodyFields": [
+      "id",
+      "availableUnits",
+      "backOrderQuantity",
+      "bin",
+      "createDateTime",
+      "createdByResourceID",
+      "inventoryLocationID",
+      "onHandUnits",
+      "pickedUnits",
+      "productID",
+      "quantityMaximum",
+      "quantityMinimum",
+      "referenceNumber",
+      "reservedUnits",
+      "unitsOnOrder"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryProducts"
@@ -28487,6 +33263,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryStockedItems"
@@ -28540,6 +33321,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryStockedItems"
@@ -28628,6 +33414,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryStockedItemAddModel",
+    "allowedBodyFields": [
+      "id",
+      "determineNewPriceUsing",
+      "determineCostUsing",
+      "inventoryProductID",
+      "pricePercentage",
+      "quantityBeingAdded",
+      "reasonForUpdate",
+      "returnPrice",
+      "returnTypeID",
+      "serialNumber",
+      "unitCost",
+      "vendorID",
+      "vendorInvoiceNumber",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryStockedItemsAddChild"
@@ -28736,6 +33538,41 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryStockedItemModel",
+    "allowedBodyFields": [
+      "id",
+      "availableUnits",
+      "companyID",
+      "configurationItemID",
+      "createDateTime",
+      "createdByResourceID",
+      "currentInventoryLocationID",
+      "deliveredUnits",
+      "inventoryProductID",
+      "purchaseOrderItemReceivingID",
+      "onHandUnits",
+      "parentInventoryStockedItemID",
+      "pickedRemovedByResourceID",
+      "pickedRemovedDateTime",
+      "pickedUnits",
+      "purchaseOrderID",
+      "purchaseOrderItemID",
+      "quoteItemID",
+      "removedUnits",
+      "reservedUnits",
+      "returnPrice",
+      "returnTypeID",
+      "serialNumber",
+      "statusID",
+      "transferredUnits",
+      "unitCost",
+      "vendorID",
+      "vendorInvoiceNumber",
+      "parentStockedItemReceivedUnits",
+      "contractChargeID",
+      "projectChargeID",
+      "ticketChargeID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryStockedItemsChild"
@@ -28764,6 +33601,41 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryStockedItemModel",
+    "allowedBodyFields": [
+      "id",
+      "availableUnits",
+      "companyID",
+      "configurationItemID",
+      "createDateTime",
+      "createdByResourceID",
+      "currentInventoryLocationID",
+      "deliveredUnits",
+      "inventoryProductID",
+      "purchaseOrderItemReceivingID",
+      "onHandUnits",
+      "parentInventoryStockedItemID",
+      "pickedRemovedByResourceID",
+      "pickedRemovedDateTime",
+      "pickedUnits",
+      "purchaseOrderID",
+      "purchaseOrderItemID",
+      "quoteItemID",
+      "removedUnits",
+      "reservedUnits",
+      "returnPrice",
+      "returnTypeID",
+      "serialNumber",
+      "statusID",
+      "transferredUnits",
+      "unitCost",
+      "vendorID",
+      "vendorInvoiceNumber",
+      "parentStockedItemReceivedUnits",
+      "contractChargeID",
+      "projectChargeID",
+      "ticketChargeID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryStockedItemsChild"
@@ -28908,6 +33780,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryStockedItemRemoveModel",
+    "allowedBodyFields": [
+      "id",
+      "inventoryProductID",
+      "inventoryStockedItemID",
+      "quantityBeingRemoved",
+      "reasonForUpdate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryStockedItemsRemoveChild"
@@ -29026,6 +33906,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryStockedItemTransferModel",
+    "allowedBodyFields": [
+      "id",
+      "newInventoryLocationID",
+      "inventoryProductID",
+      "inventoryStockedItemID",
+      "quantityBeingTransferred",
+      "reasonForUpdate",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryStockedItemsTransferChild"
@@ -29122,6 +34011,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryTransfers"
@@ -29175,6 +34069,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InventoryTransfers"
@@ -29194,6 +34093,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InventoryTransferModel",
+    "allowedBodyFields": [
+      "id",
+      "fromLocationID",
+      "notes",
+      "productID",
+      "quantityTransferred",
+      "serialNumber",
+      "toLocationID",
+      "transferByResourceID",
+      "transferDate",
+      "updateNote"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "InventoryTransfers"
@@ -29311,6 +34222,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Invoices"
@@ -29364,6 +34280,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Invoices"
@@ -29383,6 +34304,33 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InvoiceModel",
+    "allowedBodyFields": [
+      "id",
+      "batchID",
+      "comments",
+      "companyID",
+      "createDateTime",
+      "creatorResourceID",
+      "dueDate",
+      "fromDate",
+      "invoiceDateTime",
+      "invoiceEditorTemplateID",
+      "invoiceNumber",
+      "invoiceTotal",
+      "isVoided",
+      "orderNumber",
+      "paidDate",
+      "paymentTerm",
+      "taxGroup",
+      "taxRegionName",
+      "toDate",
+      "totalTaxValue",
+      "voidedByResourceID",
+      "voidedDate",
+      "webServiceDate",
+      "invoiceStatus",
+      "invoiceTaxMethodExternalCode"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Invoices"
@@ -29402,6 +34350,33 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "InvoiceModel",
+    "allowedBodyFields": [
+      "id",
+      "batchID",
+      "comments",
+      "companyID",
+      "createDateTime",
+      "creatorResourceID",
+      "dueDate",
+      "fromDate",
+      "invoiceDateTime",
+      "invoiceEditorTemplateID",
+      "invoiceNumber",
+      "invoiceTotal",
+      "isVoided",
+      "orderNumber",
+      "paidDate",
+      "paymentTerm",
+      "taxGroup",
+      "taxRegionName",
+      "toDate",
+      "totalTaxValue",
+      "voidedByResourceID",
+      "voidedDate",
+      "webServiceDate",
+      "invoiceStatus",
+      "invoiceTaxMethodExternalCode"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Invoices"
@@ -29468,6 +34443,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InvoiceTemplates"
@@ -29521,6 +34501,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "InvoiceTemplates"
@@ -29587,6 +34572,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "KnowledgeBaseArticles"
@@ -29640,6 +34630,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "KnowledgeBaseArticles"
@@ -29718,6 +34713,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "KnowledgeBaseArticleModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "articleCategoryID",
+      "errorCodes",
+      "isActive",
+      "keywords",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "publish",
+      "referenceLink",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "KnowledgeBaseArticlesChild"
@@ -29746,6 +34756,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "KnowledgeBaseArticleModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "articleCategoryID",
+      "errorCodes",
+      "isActive",
+      "keywords",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "publish",
+      "referenceLink",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "KnowledgeBaseArticlesChild"
@@ -29774,6 +34799,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "KnowledgeBaseArticleModel",
+    "allowedBodyFields": [
+      "id",
+      "createdByResourceID",
+      "createdDateTime",
+      "articleCategoryID",
+      "errorCodes",
+      "isActive",
+      "keywords",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "publish",
+      "referenceLink",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "KnowledgeBaseArticlesChild"
@@ -29922,6 +34962,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "KnowledgeBaseCategories"
@@ -29992,6 +35037,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "KnowledgeBaseCategories"
@@ -30011,6 +35061,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "KnowledgeBaseCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "parentCategoryID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "KnowledgeBaseCategories"
@@ -30030,6 +35086,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "KnowledgeBaseCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "parentCategoryID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "KnowledgeBaseCategories"
@@ -30049,6 +35111,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "KnowledgeBaseCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "name",
+      "parentCategoryID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "KnowledgeBaseCategories"
@@ -30135,6 +35203,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "NotificationHistory"
@@ -30188,6 +35261,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "NotificationHistory"
@@ -30254,6 +35332,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Opportunities"
@@ -30307,6 +35390,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Opportunities"
@@ -30326,6 +35414,69 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OpportunityModel",
+    "allowedBodyFields": [
+      "id",
+      "advancedField1",
+      "advancedField2",
+      "advancedField3",
+      "advancedField4",
+      "advancedField5",
+      "amount",
+      "assessmentScore",
+      "barriers",
+      "closedDate",
+      "companyID",
+      "contactID",
+      "cost",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "helpNeeded",
+      "impersonatorCreatorResourceID",
+      "lastActivity",
+      "leadSource",
+      "lossReason",
+      "lossReasonDetail",
+      "lostDate",
+      "market",
+      "monthlyCost",
+      "monthlyRevenue",
+      "nextStep",
+      "onetimeCost",
+      "onetimeRevenue",
+      "opportunityCategoryID",
+      "organizationalLevelAssociationID",
+      "ownerResourceID",
+      "primaryCompetitor",
+      "probability",
+      "productID",
+      "projectedCloseDate",
+      "promisedFulfillmentDate",
+      "promotionName",
+      "quarterlyCost",
+      "quarterlyRevenue",
+      "rating",
+      "relationshipAssessmentScore",
+      "revenueSpread",
+      "revenueSpreadUnit",
+      "salesOrderID",
+      "salesProcessPercentComplete",
+      "semiannualCost",
+      "semiannualRevenue",
+      "stage",
+      "startDate",
+      "status",
+      "technicalAssessmentScore",
+      "throughDate",
+      "title",
+      "totalAmountMonths",
+      "useQuoteTotals",
+      "winReason",
+      "winReasonDetail",
+      "yearlyCost",
+      "yearlyRevenue",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Opportunities"
@@ -30345,6 +35496,69 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OpportunityModel",
+    "allowedBodyFields": [
+      "id",
+      "advancedField1",
+      "advancedField2",
+      "advancedField3",
+      "advancedField4",
+      "advancedField5",
+      "amount",
+      "assessmentScore",
+      "barriers",
+      "closedDate",
+      "companyID",
+      "contactID",
+      "cost",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "helpNeeded",
+      "impersonatorCreatorResourceID",
+      "lastActivity",
+      "leadSource",
+      "lossReason",
+      "lossReasonDetail",
+      "lostDate",
+      "market",
+      "monthlyCost",
+      "monthlyRevenue",
+      "nextStep",
+      "onetimeCost",
+      "onetimeRevenue",
+      "opportunityCategoryID",
+      "organizationalLevelAssociationID",
+      "ownerResourceID",
+      "primaryCompetitor",
+      "probability",
+      "productID",
+      "projectedCloseDate",
+      "promisedFulfillmentDate",
+      "promotionName",
+      "quarterlyCost",
+      "quarterlyRevenue",
+      "rating",
+      "relationshipAssessmentScore",
+      "revenueSpread",
+      "revenueSpreadUnit",
+      "salesOrderID",
+      "salesProcessPercentComplete",
+      "semiannualCost",
+      "semiannualRevenue",
+      "stage",
+      "startDate",
+      "status",
+      "technicalAssessmentScore",
+      "throughDate",
+      "title",
+      "totalAmountMonths",
+      "useQuoteTotals",
+      "winReason",
+      "winReasonDetail",
+      "yearlyCost",
+      "yearlyRevenue",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Opportunities"
@@ -30364,6 +35578,69 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OpportunityModel",
+    "allowedBodyFields": [
+      "id",
+      "advancedField1",
+      "advancedField2",
+      "advancedField3",
+      "advancedField4",
+      "advancedField5",
+      "amount",
+      "assessmentScore",
+      "barriers",
+      "closedDate",
+      "companyID",
+      "contactID",
+      "cost",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "helpNeeded",
+      "impersonatorCreatorResourceID",
+      "lastActivity",
+      "leadSource",
+      "lossReason",
+      "lossReasonDetail",
+      "lostDate",
+      "market",
+      "monthlyCost",
+      "monthlyRevenue",
+      "nextStep",
+      "onetimeCost",
+      "onetimeRevenue",
+      "opportunityCategoryID",
+      "organizationalLevelAssociationID",
+      "ownerResourceID",
+      "primaryCompetitor",
+      "probability",
+      "productID",
+      "projectedCloseDate",
+      "promisedFulfillmentDate",
+      "promotionName",
+      "quarterlyCost",
+      "quarterlyRevenue",
+      "rating",
+      "relationshipAssessmentScore",
+      "revenueSpread",
+      "revenueSpreadUnit",
+      "salesOrderID",
+      "salesProcessPercentComplete",
+      "semiannualCost",
+      "semiannualRevenue",
+      "stage",
+      "startDate",
+      "status",
+      "technicalAssessmentScore",
+      "throughDate",
+      "title",
+      "totalAmountMonths",
+      "useQuoteTotals",
+      "winReason",
+      "winReasonDetail",
+      "yearlyCost",
+      "yearlyRevenue",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Opportunities"
@@ -30450,6 +35727,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OpportunityAttachments"
@@ -30503,6 +35785,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OpportunityAttachments"
@@ -30551,6 +35838,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OpportunityAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentAttachmentID",
+      "parentID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OpportunityAttachmentsChild"
@@ -30639,6 +35947,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OpportunityCategories"
@@ -30692,6 +36005,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OpportunityCategories"
@@ -30711,6 +36029,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OpportunityCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OpportunityCategories"
@@ -30730,6 +36056,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OpportunityCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OpportunityCategories"
@@ -30796,6 +36130,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OrganizationalLevel1"
@@ -30849,6 +36188,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OrganizationalLevel1"
@@ -30868,6 +36212,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevel1Model",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevel1"
@@ -30887,6 +36237,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevel1Model",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevel1"
@@ -30906,6 +36262,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevel1Model",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevel1"
@@ -30972,6 +36334,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OrganizationalLevel2"
@@ -31025,6 +36392,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OrganizationalLevel2"
@@ -31044,6 +36416,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevel2Model",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevel2"
@@ -31063,6 +36441,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevel2Model",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevel2"
@@ -31082,6 +36466,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevel2Model",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevel2"
@@ -31148,6 +36538,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OrganizationalLevelAssociation"
@@ -31201,6 +36596,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OrganizationalLevelAssociation"
@@ -31220,6 +36620,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevelAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "organizationalLevel1ID",
+      "organizationalLevel2ID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevelAssociation"
@@ -31239,6 +36645,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevelAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "organizationalLevel1ID",
+      "organizationalLevel2ID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevelAssociation"
@@ -31258,6 +36670,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "OrganizationalLevelAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "organizationalLevel1ID",
+      "organizationalLevel2ID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "OrganizationalLevelAssociation"
@@ -31324,6 +36742,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OrganizationalResources"
@@ -31377,6 +36800,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "OrganizationalResources"
@@ -31549,6 +36977,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PaymentTerms"
@@ -31602,6 +37035,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PaymentTerms"
@@ -31621,6 +37059,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PaymentTermModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name",
+      "paymentDueInDays"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PaymentTerms"
@@ -31640,6 +37085,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PaymentTermModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name",
+      "paymentDueInDays"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PaymentTerms"
@@ -31659,6 +37111,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PaymentTermModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name",
+      "paymentDueInDays"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PaymentTerms"
@@ -31725,6 +37184,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Phases"
@@ -31778,6 +37242,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Phases"
@@ -31856,6 +37325,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PhaseModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "dueDate",
+      "estimatedHours",
+      "externalID",
+      "isScheduled",
+      "lastActivityDateTime",
+      "parentPhaseID",
+      "phaseNumber",
+      "projectID",
+      "startDate",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PhasesChild"
@@ -31884,6 +37370,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PhaseModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "dueDate",
+      "estimatedHours",
+      "externalID",
+      "isScheduled",
+      "lastActivityDateTime",
+      "parentPhaseID",
+      "phaseNumber",
+      "projectID",
+      "startDate",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PhasesChild"
@@ -31912,6 +37415,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PhaseModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "dueDate",
+      "estimatedHours",
+      "externalID",
+      "isScheduled",
+      "lastActivityDateTime",
+      "parentPhaseID",
+      "phaseNumber",
+      "projectID",
+      "startDate",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PhasesChild"
@@ -32034,6 +37554,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListMaterialCodes"
@@ -32087,6 +37612,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListMaterialCodes"
@@ -32106,6 +37636,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListMaterialCodeModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "currencyID",
+      "unitPrice",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListMaterialCodes"
@@ -32125,6 +37662,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListMaterialCodeModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "currencyID",
+      "unitPrice",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListMaterialCodes"
@@ -32191,6 +37735,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListProducts"
@@ -32244,6 +37793,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListProducts"
@@ -32263,6 +37817,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListProductModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "productID",
+      "unitPrice",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListProducts"
@@ -32282,6 +37843,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListProductModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "productID",
+      "unitPrice",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListProducts"
@@ -32348,6 +37916,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListProductTiers"
@@ -32401,6 +37974,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListProductTiers"
@@ -32420,6 +37998,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListProductTierModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "productTierID",
+      "unitPrice",
+      "usesInternalCurrencyPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListProductTiers"
@@ -32439,6 +38025,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListProductTierModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "productTierID",
+      "unitPrice",
+      "usesInternalCurrencyPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListProductTiers"
@@ -32505,6 +38099,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListRoles"
@@ -32558,6 +38157,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListRoles"
@@ -32577,6 +38181,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListRoleModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "hourlyRate",
+      "roleID",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListRoles"
@@ -32596,6 +38207,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListRoleModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "hourlyRate",
+      "roleID",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListRoles"
@@ -32662,6 +38280,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListServiceBundles"
@@ -32715,6 +38338,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListServiceBundles"
@@ -32734,6 +38362,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListServiceBundleModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "serviceBundleID",
+      "unitPrice",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListServiceBundles"
@@ -32753,6 +38388,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListServiceBundleModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "serviceBundleID",
+      "unitPrice",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListServiceBundles"
@@ -32819,6 +38461,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListServices"
@@ -32872,6 +38519,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListServices"
@@ -32891,6 +38543,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "serviceID",
+      "unitPrice",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListServices"
@@ -32910,6 +38569,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "serviceID",
+      "unitPrice",
+      "usesInternalCurrencyPrice"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListServices"
@@ -32976,6 +38642,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListWorkTypeModifiers"
@@ -33029,6 +38700,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PriceListWorkTypeModifiers"
@@ -33048,6 +38724,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListWorkTypeModifierModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "modifierType",
+      "modifierValue",
+      "usesInternalCurrencyPrice",
+      "workTypeModifierID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListWorkTypeModifiers"
@@ -33067,6 +38751,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PriceListWorkTypeModifierModel",
+    "allowedBodyFields": [
+      "id",
+      "currencyID",
+      "modifierType",
+      "modifierValue",
+      "usesInternalCurrencyPrice",
+      "workTypeModifierID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PriceListWorkTypeModifiers"
@@ -33133,6 +38825,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProductNotes"
@@ -33186,6 +38883,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProductNotes"
@@ -33264,6 +38966,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "productID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductNotesChild"
@@ -33292,6 +39006,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "productID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductNotesChild"
@@ -33320,6 +39046,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "productID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductNotesChild"
@@ -33442,6 +39180,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Products"
@@ -33495,6 +39238,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Products"
@@ -33514,6 +39262,38 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductModel",
+    "allowedBodyFields": [
+      "id",
+      "billingType",
+      "chargeBillingCodeID",
+      "createdByResourceID",
+      "createdTime",
+      "defaultVendorID",
+      "description",
+      "doesNotRequireProcurement",
+      "externalProductID",
+      "impersonatorCreatorResourceID",
+      "internalProductID",
+      "isActive",
+      "isEligibleForRma",
+      "isSerialized",
+      "link",
+      "manufacturerName",
+      "manufacturerProductName",
+      "markupRate",
+      "msrp",
+      "name",
+      "periodType",
+      "priceCostMethod",
+      "productBillingCodeID",
+      "productCategory",
+      "sku",
+      "unitCost",
+      "unitPrice",
+      "vendorProductNumber",
+      "defaultInstalledProductCategoryID",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Products"
@@ -33533,6 +39313,38 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductModel",
+    "allowedBodyFields": [
+      "id",
+      "billingType",
+      "chargeBillingCodeID",
+      "createdByResourceID",
+      "createdTime",
+      "defaultVendorID",
+      "description",
+      "doesNotRequireProcurement",
+      "externalProductID",
+      "impersonatorCreatorResourceID",
+      "internalProductID",
+      "isActive",
+      "isEligibleForRma",
+      "isSerialized",
+      "link",
+      "manufacturerName",
+      "manufacturerProductName",
+      "markupRate",
+      "msrp",
+      "name",
+      "periodType",
+      "priceCostMethod",
+      "productBillingCodeID",
+      "productCategory",
+      "sku",
+      "unitCost",
+      "unitPrice",
+      "vendorProductNumber",
+      "defaultInstalledProductCategoryID",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Products"
@@ -33552,6 +39364,38 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductModel",
+    "allowedBodyFields": [
+      "id",
+      "billingType",
+      "chargeBillingCodeID",
+      "createdByResourceID",
+      "createdTime",
+      "defaultVendorID",
+      "description",
+      "doesNotRequireProcurement",
+      "externalProductID",
+      "impersonatorCreatorResourceID",
+      "internalProductID",
+      "isActive",
+      "isEligibleForRma",
+      "isSerialized",
+      "link",
+      "manufacturerName",
+      "manufacturerProductName",
+      "markupRate",
+      "msrp",
+      "name",
+      "periodType",
+      "priceCostMethod",
+      "productBillingCodeID",
+      "productCategory",
+      "sku",
+      "unitCost",
+      "unitPrice",
+      "vendorProductNumber",
+      "defaultInstalledProductCategoryID",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Products"
@@ -33618,6 +39462,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProductTiers"
@@ -33671,6 +39520,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProductTiers"
@@ -33749,6 +39603,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductTierModel",
+    "allowedBodyFields": [
+      "id",
+      "productID",
+      "unitCost",
+      "unitPrice",
+      "upToUnitCount",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductTiersChild"
@@ -33777,6 +39639,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductTierModel",
+    "allowedBodyFields": [
+      "id",
+      "productID",
+      "unitCost",
+      "unitPrice",
+      "upToUnitCount",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductTiersChild"
@@ -33805,6 +39675,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductTierModel",
+    "allowedBodyFields": [
+      "id",
+      "productID",
+      "unitCost",
+      "unitPrice",
+      "upToUnitCount",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductTiersChild"
@@ -33953,6 +39831,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProductVendors"
@@ -34006,6 +39889,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProductVendors"
@@ -34084,6 +39972,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductVendorModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "isDefault",
+      "productID",
+      "vendorCost",
+      "vendorID",
+      "vendorPartNumber",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductVendorsChild"
@@ -34112,6 +40010,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductVendorModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "isDefault",
+      "productID",
+      "vendorCost",
+      "vendorID",
+      "vendorPartNumber",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductVendorsChild"
@@ -34140,6 +40048,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProductVendorModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "isDefault",
+      "productID",
+      "vendorCost",
+      "vendorID",
+      "vendorPartNumber",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProductVendorsChild"
@@ -34282,6 +40200,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProjectAttachments"
@@ -34335,6 +40258,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProjectAttachments"
@@ -34383,6 +40311,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "projectID",
+      "projectNoteID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProjectAttachmentsChild"
@@ -34471,6 +40421,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProjectCharges"
@@ -34524,6 +40479,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProjectCharges"
@@ -34602,6 +40562,38 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "estimatedCost",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "projectID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProjectChargesChild"
@@ -34630,6 +40622,38 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "estimatedCost",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "projectID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProjectChargesChild"
@@ -34658,6 +40682,38 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "estimatedCost",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "projectID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProjectChargesChild"
@@ -34826,6 +40882,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProjectNoteAttachments"
@@ -34879,6 +40940,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProjectNoteAttachments"
@@ -34927,6 +40993,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectNoteAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentAttachmentID",
+      "parentID",
+      "projectID",
+      "projectNoteID",
+      "publish",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProjectNoteAttachmentsChild"
@@ -35015,6 +41104,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProjectNotes"
@@ -35068,6 +41162,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ProjectNotes"
@@ -35146,6 +41245,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "createdByContactID",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "isAnnouncement",
+      "lastActivityDate",
+      "noteType",
+      "projectID",
+      "publish",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProjectNotesChild"
@@ -35174,6 +41289,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "createdByContactID",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "isAnnouncement",
+      "lastActivityDate",
+      "noteType",
+      "projectID",
+      "publish",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProjectNotesChild"
@@ -35202,6 +41333,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "createdByContactID",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "isAnnouncement",
+      "lastActivityDate",
+      "noteType",
+      "projectID",
+      "publish",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ProjectNotesChild"
@@ -35324,6 +41471,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Projects"
@@ -35377,6 +41529,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Projects"
@@ -35396,6 +41553,52 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectModel",
+    "allowedBodyFields": [
+      "id",
+      "actualBilledHours",
+      "actualHours",
+      "changeOrdersBudget",
+      "changeOrdersRevenue",
+      "companyID",
+      "companyOwnerResourceID",
+      "completedDateTime",
+      "completedPercentage",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "department",
+      "description",
+      "duration",
+      "endDateTime",
+      "estimatedSalesCost",
+      "estimatedTime",
+      "extProjectNumber",
+      "extProjectType",
+      "impersonatorCreatorResourceID",
+      "laborEstimatedCosts",
+      "laborEstimatedMarginPercentage",
+      "laborEstimatedRevenue",
+      "lastActivityDateTime",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "originalEstimatedRevenue",
+      "projectCostEstimatedMarginPercentage",
+      "projectCostsBudget",
+      "projectCostsRevenue",
+      "projectLeadResourceID",
+      "projectName",
+      "projectNumber",
+      "projectType",
+      "purchaseOrderNumber",
+      "sgda",
+      "startDateTime",
+      "status",
+      "statusDateTime",
+      "statusDetail",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Projects"
@@ -35415,6 +41618,52 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectModel",
+    "allowedBodyFields": [
+      "id",
+      "actualBilledHours",
+      "actualHours",
+      "changeOrdersBudget",
+      "changeOrdersRevenue",
+      "companyID",
+      "companyOwnerResourceID",
+      "completedDateTime",
+      "completedPercentage",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "department",
+      "description",
+      "duration",
+      "endDateTime",
+      "estimatedSalesCost",
+      "estimatedTime",
+      "extProjectNumber",
+      "extProjectType",
+      "impersonatorCreatorResourceID",
+      "laborEstimatedCosts",
+      "laborEstimatedMarginPercentage",
+      "laborEstimatedRevenue",
+      "lastActivityDateTime",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "originalEstimatedRevenue",
+      "projectCostEstimatedMarginPercentage",
+      "projectCostsBudget",
+      "projectCostsRevenue",
+      "projectLeadResourceID",
+      "projectName",
+      "projectNumber",
+      "projectType",
+      "purchaseOrderNumber",
+      "sgda",
+      "startDateTime",
+      "status",
+      "statusDateTime",
+      "statusDetail",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Projects"
@@ -35434,6 +41683,52 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ProjectModel",
+    "allowedBodyFields": [
+      "id",
+      "actualBilledHours",
+      "actualHours",
+      "changeOrdersBudget",
+      "changeOrdersRevenue",
+      "companyID",
+      "companyOwnerResourceID",
+      "completedDateTime",
+      "completedPercentage",
+      "contractID",
+      "createDateTime",
+      "creatorResourceID",
+      "department",
+      "description",
+      "duration",
+      "endDateTime",
+      "estimatedSalesCost",
+      "estimatedTime",
+      "extProjectNumber",
+      "extProjectType",
+      "impersonatorCreatorResourceID",
+      "laborEstimatedCosts",
+      "laborEstimatedMarginPercentage",
+      "laborEstimatedRevenue",
+      "lastActivityDateTime",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "originalEstimatedRevenue",
+      "projectCostEstimatedMarginPercentage",
+      "projectCostsBudget",
+      "projectCostsRevenue",
+      "projectLeadResourceID",
+      "projectName",
+      "projectNumber",
+      "projectType",
+      "purchaseOrderNumber",
+      "sgda",
+      "startDateTime",
+      "status",
+      "statusDateTime",
+      "statusDetail",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Projects"
@@ -35500,6 +41795,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PurchaseApprovals"
@@ -35553,6 +41853,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PurchaseApprovals"
@@ -35572,6 +41877,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseApprovalModel",
+    "allowedBodyFields": [
+      "id",
+      "costType",
+      "isApproved",
+      "rejectNote"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseApprovals"
@@ -35591,6 +41902,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseApprovalModel",
+    "allowedBodyFields": [
+      "id",
+      "costType",
+      "isApproved",
+      "rejectNote"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseApprovals"
@@ -35657,6 +41974,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PurchaseOrderItemReceiving"
@@ -35710,6 +42032,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PurchaseOrderItemReceiving"
@@ -35788,6 +42115,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseOrderItemReceivingModel",
+    "allowedBodyFields": [
+      "id",
+      "purchaseOrderItemID",
+      "quantityBackOrdered",
+      "quantityNowReceiving",
+      "quantityPreviouslyReceived",
+      "receiveDate",
+      "receivedByResourceID",
+      "serialNumber",
+      "vendorInvoiceNumber",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseOrderItemReceivingChild"
@@ -35910,6 +42249,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PurchaseOrderItems"
@@ -35963,6 +42307,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PurchaseOrderItems"
@@ -36041,6 +42390,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseOrderItemModel",
+    "allowedBodyFields": [
+      "id",
+      "chargeID",
+      "contractID",
+      "estimatedArrivalDate",
+      "internalCurrencyUnitCost",
+      "inventoryLocationID",
+      "memo",
+      "orderID",
+      "productID",
+      "projectID",
+      "quantity",
+      "salesOrderID",
+      "ticketID",
+      "unitCost",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseOrderItemsChild"
@@ -36069,6 +42435,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseOrderItemModel",
+    "allowedBodyFields": [
+      "id",
+      "chargeID",
+      "contractID",
+      "estimatedArrivalDate",
+      "internalCurrencyUnitCost",
+      "inventoryLocationID",
+      "memo",
+      "orderID",
+      "productID",
+      "projectID",
+      "quantity",
+      "salesOrderID",
+      "ticketID",
+      "unitCost",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseOrderItemsChild"
@@ -36097,6 +42480,23 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseOrderItemModel",
+    "allowedBodyFields": [
+      "id",
+      "chargeID",
+      "contractID",
+      "estimatedArrivalDate",
+      "internalCurrencyUnitCost",
+      "inventoryLocationID",
+      "memo",
+      "orderID",
+      "productID",
+      "projectID",
+      "quantity",
+      "salesOrderID",
+      "ticketID",
+      "unitCost",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseOrderItemsChild"
@@ -36219,6 +42619,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PurchaseOrders"
@@ -36272,6 +42677,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "PurchaseOrders"
@@ -36291,6 +42701,41 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseOrderModel",
+    "allowedBodyFields": [
+      "id",
+      "cancelDateTime",
+      "createDateTime",
+      "creatorResourceID",
+      "externalPONumber",
+      "fax",
+      "freight",
+      "generalMemo",
+      "impersonatorCreatorResourceID",
+      "internalCurrencyFreight",
+      "latestEstimatedArrivalDate",
+      "paymentTerm",
+      "phone",
+      "purchaseForCompanyID",
+      "purchaseOrderNumber",
+      "purchaseOrderTemplateID",
+      "shippingDate",
+      "shippingType",
+      "shipToAddress1",
+      "shipToAddress2",
+      "shipToCity",
+      "shipToName",
+      "shipToPostalCode",
+      "shipToState",
+      "showEachTaxInGroup",
+      "showTaxCategory",
+      "status",
+      "submitDateTime",
+      "taxRegionID",
+      "useItemDescriptionsFrom",
+      "vendorID",
+      "vendorInvoiceNumber",
+      "additionalVendorInvoiceNumbers"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseOrders"
@@ -36310,6 +42755,41 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseOrderModel",
+    "allowedBodyFields": [
+      "id",
+      "cancelDateTime",
+      "createDateTime",
+      "creatorResourceID",
+      "externalPONumber",
+      "fax",
+      "freight",
+      "generalMemo",
+      "impersonatorCreatorResourceID",
+      "internalCurrencyFreight",
+      "latestEstimatedArrivalDate",
+      "paymentTerm",
+      "phone",
+      "purchaseForCompanyID",
+      "purchaseOrderNumber",
+      "purchaseOrderTemplateID",
+      "shippingDate",
+      "shippingType",
+      "shipToAddress1",
+      "shipToAddress2",
+      "shipToCity",
+      "shipToName",
+      "shipToPostalCode",
+      "shipToState",
+      "showEachTaxInGroup",
+      "showTaxCategory",
+      "status",
+      "submitDateTime",
+      "taxRegionID",
+      "useItemDescriptionsFrom",
+      "vendorID",
+      "vendorInvoiceNumber",
+      "additionalVendorInvoiceNumbers"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseOrders"
@@ -36329,6 +42809,41 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "PurchaseOrderModel",
+    "allowedBodyFields": [
+      "id",
+      "cancelDateTime",
+      "createDateTime",
+      "creatorResourceID",
+      "externalPONumber",
+      "fax",
+      "freight",
+      "generalMemo",
+      "impersonatorCreatorResourceID",
+      "internalCurrencyFreight",
+      "latestEstimatedArrivalDate",
+      "paymentTerm",
+      "phone",
+      "purchaseForCompanyID",
+      "purchaseOrderNumber",
+      "purchaseOrderTemplateID",
+      "shippingDate",
+      "shippingType",
+      "shipToAddress1",
+      "shipToAddress2",
+      "shipToCity",
+      "shipToName",
+      "shipToPostalCode",
+      "shipToState",
+      "showEachTaxInGroup",
+      "showTaxCategory",
+      "status",
+      "submitDateTime",
+      "taxRegionID",
+      "useItemDescriptionsFrom",
+      "vendorID",
+      "vendorInvoiceNumber",
+      "additionalVendorInvoiceNumbers"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "PurchaseOrders"
@@ -36395,6 +42910,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "QuoteItems"
@@ -36448,6 +42968,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "QuoteItems"
@@ -36526,6 +43051,39 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteItemModel",
+    "allowedBodyFields": [
+      "id",
+      "averageCost",
+      "chargeID",
+      "description",
+      "expenseID",
+      "highestCost",
+      "internalCurrencyLineDiscount",
+      "internalCurrencyUnitDiscount",
+      "internalCurrencyUnitPrice",
+      "isOptional",
+      "isTaxable",
+      "laborID",
+      "lineDiscount",
+      "markupRate",
+      "name",
+      "percentageDiscount",
+      "periodType",
+      "productID",
+      "quantity",
+      "quoteID",
+      "quoteItemType",
+      "serviceBundleID",
+      "serviceID",
+      "shippingID",
+      "sortOrderID",
+      "taxCategoryID",
+      "totalEffectiveTax",
+      "unitCost",
+      "unitDiscount",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "QuoteItemsChild"
@@ -36554,6 +43112,39 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteItemModel",
+    "allowedBodyFields": [
+      "id",
+      "averageCost",
+      "chargeID",
+      "description",
+      "expenseID",
+      "highestCost",
+      "internalCurrencyLineDiscount",
+      "internalCurrencyUnitDiscount",
+      "internalCurrencyUnitPrice",
+      "isOptional",
+      "isTaxable",
+      "laborID",
+      "lineDiscount",
+      "markupRate",
+      "name",
+      "percentageDiscount",
+      "periodType",
+      "productID",
+      "quantity",
+      "quoteID",
+      "quoteItemType",
+      "serviceBundleID",
+      "serviceID",
+      "shippingID",
+      "sortOrderID",
+      "taxCategoryID",
+      "totalEffectiveTax",
+      "unitCost",
+      "unitDiscount",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "QuoteItemsChild"
@@ -36582,6 +43173,39 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteItemModel",
+    "allowedBodyFields": [
+      "id",
+      "averageCost",
+      "chargeID",
+      "description",
+      "expenseID",
+      "highestCost",
+      "internalCurrencyLineDiscount",
+      "internalCurrencyUnitDiscount",
+      "internalCurrencyUnitPrice",
+      "isOptional",
+      "isTaxable",
+      "laborID",
+      "lineDiscount",
+      "markupRate",
+      "name",
+      "percentageDiscount",
+      "periodType",
+      "productID",
+      "quantity",
+      "quoteID",
+      "quoteItemType",
+      "serviceBundleID",
+      "serviceID",
+      "shippingID",
+      "sortOrderID",
+      "taxCategoryID",
+      "totalEffectiveTax",
+      "unitCost",
+      "unitDiscount",
+      "unitPrice",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "QuoteItemsChild"
@@ -36730,6 +43354,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "QuoteLocations"
@@ -36783,6 +43412,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "QuoteLocations"
@@ -36802,6 +43436,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "address1",
+      "address2",
+      "city",
+      "postalCode",
+      "state"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "QuoteLocations"
@@ -36821,6 +43463,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "address1",
+      "address2",
+      "city",
+      "postalCode",
+      "state"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "QuoteLocations"
@@ -36840,6 +43490,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteLocationModel",
+    "allowedBodyFields": [
+      "id",
+      "address1",
+      "address2",
+      "city",
+      "postalCode",
+      "state"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "QuoteLocations"
@@ -36906,6 +43564,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Quotes"
@@ -36959,6 +43622,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Quotes"
@@ -36978,6 +43646,48 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteModel",
+    "allowedBodyFields": [
+      "id",
+      "approvalStatus",
+      "approvalStatusChangedByResourceID",
+      "approvalStatusChangedDate",
+      "billToLocationID",
+      "calculateTaxSeparately",
+      "comment",
+      "companyID",
+      "contactID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "effectiveDate",
+      "expirationDate",
+      "extApprovalContactResponse",
+      "extApprovalResponseDate",
+      "extApprovalResponseSignature",
+      "externalQuoteNumber",
+      "groupByID",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "lastActivityDate",
+      "lastModifiedBy",
+      "lastPublishedByResourceID",
+      "lastPublishedDateTime",
+      "name",
+      "opportunityID",
+      "paymentTerm",
+      "paymentType",
+      "primaryQuote",
+      "proposalProjectID",
+      "purchaseOrderNumber",
+      "quoteNumber",
+      "quoteTemplateID",
+      "shippingType",
+      "shipToLocationID",
+      "showEachTaxInGroup",
+      "showTaxCategory",
+      "soldToLocationID",
+      "taxRegionID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Quotes"
@@ -36997,6 +43707,48 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteModel",
+    "allowedBodyFields": [
+      "id",
+      "approvalStatus",
+      "approvalStatusChangedByResourceID",
+      "approvalStatusChangedDate",
+      "billToLocationID",
+      "calculateTaxSeparately",
+      "comment",
+      "companyID",
+      "contactID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "effectiveDate",
+      "expirationDate",
+      "extApprovalContactResponse",
+      "extApprovalResponseDate",
+      "extApprovalResponseSignature",
+      "externalQuoteNumber",
+      "groupByID",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "lastActivityDate",
+      "lastModifiedBy",
+      "lastPublishedByResourceID",
+      "lastPublishedDateTime",
+      "name",
+      "opportunityID",
+      "paymentTerm",
+      "paymentType",
+      "primaryQuote",
+      "proposalProjectID",
+      "purchaseOrderNumber",
+      "quoteNumber",
+      "quoteTemplateID",
+      "shippingType",
+      "shipToLocationID",
+      "showEachTaxInGroup",
+      "showTaxCategory",
+      "soldToLocationID",
+      "taxRegionID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Quotes"
@@ -37016,6 +43768,48 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QuoteModel",
+    "allowedBodyFields": [
+      "id",
+      "approvalStatus",
+      "approvalStatusChangedByResourceID",
+      "approvalStatusChangedDate",
+      "billToLocationID",
+      "calculateTaxSeparately",
+      "comment",
+      "companyID",
+      "contactID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "effectiveDate",
+      "expirationDate",
+      "extApprovalContactResponse",
+      "extApprovalResponseDate",
+      "extApprovalResponseSignature",
+      "externalQuoteNumber",
+      "groupByID",
+      "impersonatorCreatorResourceID",
+      "isActive",
+      "lastActivityDate",
+      "lastModifiedBy",
+      "lastPublishedByResourceID",
+      "lastPublishedDateTime",
+      "name",
+      "opportunityID",
+      "paymentTerm",
+      "paymentType",
+      "primaryQuote",
+      "proposalProjectID",
+      "purchaseOrderNumber",
+      "quoteNumber",
+      "quoteTemplateID",
+      "shippingType",
+      "shipToLocationID",
+      "showEachTaxInGroup",
+      "showTaxCategory",
+      "soldToLocationID",
+      "taxRegionID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Quotes"
@@ -37082,6 +43876,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "QuoteTemplates"
@@ -37135,6 +43934,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "QuoteTemplates"
@@ -37221,6 +44025,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceAttachments"
@@ -37274,6 +44083,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceAttachments"
@@ -37322,6 +44136,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "resourceID",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceAttachmentsChild"
@@ -37410,6 +44245,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceDailyAvailabilities"
@@ -37463,6 +44303,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceDailyAvailabilities"
@@ -37541,6 +44386,20 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceDailyAvailabilityModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "sundayAvailableHours",
+      "mondayAvailableHours",
+      "tuesdayAvailableHours",
+      "wednesdayAvailableHours",
+      "thursdayAvailableHours",
+      "fridayAvailableHours",
+      "saturdayAvailableHours",
+      "weeklyBillableHoursGoal",
+      "travelAvailability",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceDailyAvailabilitiesChild"
@@ -37569,6 +44428,20 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceDailyAvailabilityModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "sundayAvailableHours",
+      "mondayAvailableHours",
+      "tuesdayAvailableHours",
+      "wednesdayAvailableHours",
+      "thursdayAvailableHours",
+      "fridayAvailableHours",
+      "saturdayAvailableHours",
+      "weeklyBillableHoursGoal",
+      "travelAvailability",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceDailyAvailabilitiesChild"
@@ -37691,6 +44564,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceRoleDepartments"
@@ -37744,6 +44622,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceRoleDepartments"
@@ -37822,6 +44705,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceRoleDepartmentModel",
+    "allowedBodyFields": [
+      "id",
+      "departmentID",
+      "isActive",
+      "isDefault",
+      "isDepartmentLead",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceRoleDepartmentsChild"
@@ -37850,6 +44743,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceRoleDepartmentModel",
+    "allowedBodyFields": [
+      "id",
+      "departmentID",
+      "isActive",
+      "isDefault",
+      "isDepartmentLead",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceRoleDepartmentsChild"
@@ -37878,6 +44781,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceRoleDepartmentModel",
+    "allowedBodyFields": [
+      "id",
+      "departmentID",
+      "isActive",
+      "isDefault",
+      "isDepartmentLead",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceRoleDepartmentsChild"
@@ -38000,6 +44913,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceRoleQueues"
@@ -38053,6 +44971,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceRoleQueues"
@@ -38131,6 +45054,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceRoleQueueModel",
+    "allowedBodyFields": [
+      "id",
+      "queueID",
+      "resourceID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceRoleQueuesChild"
@@ -38159,6 +45088,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceRoleQueueModel",
+    "allowedBodyFields": [
+      "id",
+      "queueID",
+      "resourceID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceRoleQueuesChild"
@@ -38187,6 +45122,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceRoleQueueModel",
+    "allowedBodyFields": [
+      "id",
+      "queueID",
+      "resourceID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceRoleQueuesChild"
@@ -38309,6 +45250,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceRoles"
@@ -38362,6 +45308,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceRoles"
@@ -38534,6 +45485,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Resources"
@@ -38587,6 +45543,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Resources"
@@ -38606,6 +45567,44 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "accountingReferenceID",
+      "dateFormat",
+      "defaultServiceDeskRoleID",
+      "email",
+      "email2",
+      "email3",
+      "emailTypeCode",
+      "emailTypeCode2",
+      "emailTypeCode3",
+      "firstName",
+      "gender",
+      "greeting",
+      "hireDate",
+      "homePhone",
+      "initials",
+      "internalCost",
+      "isActive",
+      "lastName",
+      "licenseType",
+      "locationID",
+      "middleName",
+      "mobilePhone",
+      "numberFormat",
+      "officeExtension",
+      "officePhone",
+      "payrollIdentifier",
+      "payrollType",
+      "resourceType",
+      "suffix",
+      "surveyResourceRating",
+      "timeFormat",
+      "title",
+      "travelAvailabilityPct",
+      "userName",
+      "userType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Resources"
@@ -38625,6 +45624,44 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "accountingReferenceID",
+      "dateFormat",
+      "defaultServiceDeskRoleID",
+      "email",
+      "email2",
+      "email3",
+      "emailTypeCode",
+      "emailTypeCode2",
+      "emailTypeCode3",
+      "firstName",
+      "gender",
+      "greeting",
+      "hireDate",
+      "homePhone",
+      "initials",
+      "internalCost",
+      "isActive",
+      "lastName",
+      "licenseType",
+      "locationID",
+      "middleName",
+      "mobilePhone",
+      "numberFormat",
+      "officeExtension",
+      "officePhone",
+      "payrollIdentifier",
+      "payrollType",
+      "resourceType",
+      "suffix",
+      "surveyResourceRating",
+      "timeFormat",
+      "title",
+      "travelAvailabilityPct",
+      "userName",
+      "userType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Resources"
@@ -38691,6 +45728,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceServiceDeskRoles"
@@ -38744,6 +45786,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceServiceDeskRoles"
@@ -38822,6 +45869,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceServiceDeskRoleModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "isDefault",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceServiceDeskRolesChild"
@@ -38850,6 +45905,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceServiceDeskRoleModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "isDefault",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceServiceDeskRolesChild"
@@ -38878,6 +45941,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceServiceDeskRoleModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "isDefault",
+      "resourceID",
+      "roleID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceServiceDeskRolesChild"
@@ -39000,6 +46071,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceSkills"
@@ -39053,6 +46129,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceSkills"
@@ -39131,6 +46212,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceSkillModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "skillDescription",
+      "skillID",
+      "skillLevel",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceSkillsChild"
@@ -39159,6 +46248,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceSkillModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "skillDescription",
+      "skillID",
+      "skillLevel",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceSkillsChild"
@@ -39323,6 +46420,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceTimeOffAdditionalModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "currentYear",
+      "currentYearAdditionalVacationTime",
+      "currentYearAdditionalPersonalTime",
+      "currentYearAdditionalSickTime",
+      "currentYearAdditionalFloatingHoliday",
+      "currentYearAnnualVacationTime",
+      "currentYearAnnualPersonalTime",
+      "currentYearAnnualSickTime",
+      "currentYearAnnualFloatingHoliday",
+      "nextYear",
+      "nextYearAdditionalVacationTime",
+      "nextYearAdditionalPersonalTime",
+      "nextYearAdditionalSickTime",
+      "nextYearAdditionalFloatingHoliday",
+      "nextYearAnnualVacationTime",
+      "nextYearAnnualPersonalTime",
+      "nextYearAnnualSickTime",
+      "nextYearAnnualFloatingHoliday",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceTimeOffAdditionalChild"
@@ -39351,6 +46471,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ResourceTimeOffAdditionalModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "currentYear",
+      "currentYearAdditionalVacationTime",
+      "currentYearAdditionalPersonalTime",
+      "currentYearAdditionalSickTime",
+      "currentYearAdditionalFloatingHoliday",
+      "currentYearAnnualVacationTime",
+      "currentYearAnnualPersonalTime",
+      "currentYearAnnualSickTime",
+      "currentYearAnnualFloatingHoliday",
+      "nextYear",
+      "nextYearAdditionalVacationTime",
+      "nextYearAdditionalPersonalTime",
+      "nextYearAdditionalSickTime",
+      "nextYearAdditionalFloatingHoliday",
+      "nextYearAnnualVacationTime",
+      "nextYearAnnualPersonalTime",
+      "nextYearAnnualSickTime",
+      "nextYearAnnualFloatingHoliday",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ResourceTimeOffAdditionalChild"
@@ -39447,6 +46590,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceTimeOffApprovers"
@@ -39500,6 +46648,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ResourceTimeOffApprovers"
@@ -39808,6 +46961,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Roles"
@@ -39861,6 +47019,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Roles"
@@ -39880,6 +47043,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "RoleModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "hourlyFactor",
+      "hourlyRate",
+      "isActive",
+      "isExcludedFromNewContracts",
+      "isSystemRole",
+      "name",
+      "quoteItemDefaultTaxCategoryId",
+      "roleType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Roles"
@@ -39899,6 +47074,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "RoleModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "hourlyFactor",
+      "hourlyRate",
+      "isActive",
+      "isExcludedFromNewContracts",
+      "isSystemRole",
+      "name",
+      "quoteItemDefaultTaxCategoryId",
+      "roleType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Roles"
@@ -39918,6 +47105,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "RoleModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "hourlyFactor",
+      "hourlyRate",
+      "isActive",
+      "isExcludedFromNewContracts",
+      "isSystemRole",
+      "name",
+      "quoteItemDefaultTaxCategoryId",
+      "roleType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Roles"
@@ -40004,6 +47203,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "SalesOrderAttachments"
@@ -40057,6 +47261,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "SalesOrderAttachments"
@@ -40105,6 +47314,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "SalesOrderAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "salesOrderID",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "SalesOrderAttachmentsChild"
@@ -40193,6 +47423,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "SalesOrders"
@@ -40246,6 +47481,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "SalesOrders"
@@ -40265,6 +47505,35 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "SalesOrderModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalBillToAddressInformation",
+      "additionalShipToAddressInformation",
+      "billingAddress1",
+      "billingAddress2",
+      "billToCity",
+      "billToCountryID",
+      "billToPostalCode",
+      "billToState",
+      "companyID",
+      "contactID",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "ownerResourceID",
+      "promisedFulfillmentDate",
+      "salesOrderDate",
+      "shipToAddress1",
+      "shipToAddress2",
+      "shipToCity",
+      "shipToCountryID",
+      "shipToPostalCode",
+      "shipToState",
+      "status",
+      "title",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "SalesOrders"
@@ -40284,6 +47553,35 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "SalesOrderModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalBillToAddressInformation",
+      "additionalShipToAddressInformation",
+      "billingAddress1",
+      "billingAddress2",
+      "billToCity",
+      "billToCountryID",
+      "billToPostalCode",
+      "billToState",
+      "companyID",
+      "contactID",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "ownerResourceID",
+      "promisedFulfillmentDate",
+      "salesOrderDate",
+      "shipToAddress1",
+      "shipToAddress2",
+      "shipToCity",
+      "shipToCountryID",
+      "shipToPostalCode",
+      "shipToState",
+      "status",
+      "title",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "SalesOrders"
@@ -40362,6 +47660,35 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "SalesOrderModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalBillToAddressInformation",
+      "additionalShipToAddressInformation",
+      "billingAddress1",
+      "billingAddress2",
+      "billToCity",
+      "billToCountryID",
+      "billToPostalCode",
+      "billToState",
+      "companyID",
+      "contactID",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "ownerResourceID",
+      "promisedFulfillmentDate",
+      "salesOrderDate",
+      "shipToAddress1",
+      "shipToAddress2",
+      "shipToCity",
+      "shipToCountryID",
+      "shipToPostalCode",
+      "shipToState",
+      "status",
+      "title",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "SalesOrdersChild"
@@ -40390,6 +47717,35 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "SalesOrderModel",
+    "allowedBodyFields": [
+      "id",
+      "additionalBillToAddressInformation",
+      "additionalShipToAddressInformation",
+      "billingAddress1",
+      "billingAddress2",
+      "billToCity",
+      "billToCountryID",
+      "billToPostalCode",
+      "billToState",
+      "companyID",
+      "contactID",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "ownerResourceID",
+      "promisedFulfillmentDate",
+      "salesOrderDate",
+      "shipToAddress1",
+      "shipToAddress2",
+      "shipToCity",
+      "shipToCountryID",
+      "shipToPostalCode",
+      "shipToState",
+      "status",
+      "title",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "SalesOrdersChild"
@@ -40512,6 +47868,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceBundles"
@@ -40582,6 +47943,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceBundles"
@@ -40601,6 +47967,32 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceBundleModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "invoiceDescription",
+      "isActive",
+      "lastModifiedDate",
+      "name",
+      "percentageDiscount",
+      "periodType",
+      "serviceLevelAgreementID",
+      "unitCost",
+      "unitDiscount",
+      "unitPrice",
+      "updateResourceID",
+      "manufacturerServiceProvider",
+      "manufacturerServiceProviderProductNumber",
+      "catalogNumberPartNumber",
+      "sku",
+      "internalID",
+      "externalID",
+      "url",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceBundles"
@@ -40620,6 +48012,32 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceBundleModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "invoiceDescription",
+      "isActive",
+      "lastModifiedDate",
+      "name",
+      "percentageDiscount",
+      "periodType",
+      "serviceLevelAgreementID",
+      "unitCost",
+      "unitDiscount",
+      "unitPrice",
+      "updateResourceID",
+      "manufacturerServiceProvider",
+      "manufacturerServiceProviderProductNumber",
+      "catalogNumberPartNumber",
+      "sku",
+      "internalID",
+      "externalID",
+      "url",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceBundles"
@@ -40639,6 +48057,32 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceBundleModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "invoiceDescription",
+      "isActive",
+      "lastModifiedDate",
+      "name",
+      "percentageDiscount",
+      "periodType",
+      "serviceLevelAgreementID",
+      "unitCost",
+      "unitDiscount",
+      "unitPrice",
+      "updateResourceID",
+      "manufacturerServiceProvider",
+      "manufacturerServiceProviderProductNumber",
+      "catalogNumberPartNumber",
+      "sku",
+      "internalID",
+      "externalID",
+      "url",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceBundles"
@@ -40705,6 +48149,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceBundleServices"
@@ -40758,6 +48207,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceBundleServices"
@@ -40836,6 +48290,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceBundleServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "serviceBundleID",
+      "serviceID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceBundleServicesChild"
@@ -40984,6 +48444,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCalls"
@@ -41054,6 +48519,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCalls"
@@ -41073,6 +48543,24 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceCallModel",
+    "allowedBodyFields": [
+      "id",
+      "cancelationNoticeHours",
+      "canceledByResourceID",
+      "canceledDateTime",
+      "companyID",
+      "companyLocationID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "duration",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "isComplete",
+      "lastModifiedDateTime",
+      "startDateTime",
+      "status"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceCalls"
@@ -41092,6 +48580,24 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceCallModel",
+    "allowedBodyFields": [
+      "id",
+      "cancelationNoticeHours",
+      "canceledByResourceID",
+      "canceledDateTime",
+      "companyID",
+      "companyLocationID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "duration",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "isComplete",
+      "lastModifiedDateTime",
+      "startDateTime",
+      "status"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceCalls"
@@ -41111,6 +48617,24 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceCallModel",
+    "allowedBodyFields": [
+      "id",
+      "cancelationNoticeHours",
+      "canceledByResourceID",
+      "canceledDateTime",
+      "companyID",
+      "companyLocationID",
+      "createDateTime",
+      "creatorResourceID",
+      "description",
+      "duration",
+      "endDateTime",
+      "impersonatorCreatorResourceID",
+      "isComplete",
+      "lastModifiedDateTime",
+      "startDateTime",
+      "status"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceCalls"
@@ -41177,6 +48701,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCallTaskResources"
@@ -41230,6 +48759,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCallTaskResources"
@@ -41308,6 +48842,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceCallTaskResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "serviceCallTaskID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceCallTaskResourcesChild"
@@ -41456,6 +48996,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCallTasks"
@@ -41509,6 +49054,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCallTasks"
@@ -41587,6 +49137,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceCallTaskModel",
+    "allowedBodyFields": [
+      "id",
+      "serviceCallID",
+      "taskID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceCallTasksChild"
@@ -41735,6 +49291,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCallTicketResources"
@@ -41788,6 +49349,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCallTicketResources"
@@ -41866,6 +49432,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceCallTicketResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "serviceCallTicketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceCallTicketResourcesChild"
@@ -42014,6 +49586,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCallTickets"
@@ -42067,6 +49644,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceCallTickets"
@@ -42145,6 +49727,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceCallTicketModel",
+    "allowedBodyFields": [
+      "id",
+      "serviceCallID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "ServiceCallTicketsChild"
@@ -42293,6 +49881,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceLevelAgreementResults"
@@ -42346,6 +49939,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ServiceLevelAgreementResults"
@@ -42513,6 +50111,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Services"
@@ -42566,6 +50169,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Services"
@@ -42585,6 +50193,32 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "invoiceDescription",
+      "isActive",
+      "lastModifiedDate",
+      "markupRate",
+      "name",
+      "periodType",
+      "serviceLevelAgreementID",
+      "unitCost",
+      "unitPrice",
+      "updateResourceID",
+      "vendorCompanyID",
+      "manufacturerServiceProvider",
+      "manufacturerServiceProviderProductNumber",
+      "catalogNumberPartNumber",
+      "sku",
+      "internalID",
+      "externalID",
+      "url",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Services"
@@ -42604,6 +50238,32 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "invoiceDescription",
+      "isActive",
+      "lastModifiedDate",
+      "markupRate",
+      "name",
+      "periodType",
+      "serviceLevelAgreementID",
+      "unitCost",
+      "unitPrice",
+      "updateResourceID",
+      "vendorCompanyID",
+      "manufacturerServiceProvider",
+      "manufacturerServiceProviderProductNumber",
+      "catalogNumberPartNumber",
+      "sku",
+      "internalID",
+      "externalID",
+      "url",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Services"
@@ -42623,6 +50283,32 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "ServiceModel",
+    "allowedBodyFields": [
+      "id",
+      "billingCodeID",
+      "createDate",
+      "creatorResourceID",
+      "description",
+      "invoiceDescription",
+      "isActive",
+      "lastModifiedDate",
+      "markupRate",
+      "name",
+      "periodType",
+      "serviceLevelAgreementID",
+      "unitCost",
+      "unitPrice",
+      "updateResourceID",
+      "vendorCompanyID",
+      "manufacturerServiceProvider",
+      "manufacturerServiceProviderProductNumber",
+      "catalogNumberPartNumber",
+      "sku",
+      "internalID",
+      "externalID",
+      "url",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Services"
@@ -42689,6 +50375,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ShippingTypes"
@@ -42742,6 +50433,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "ShippingTypes"
@@ -42808,6 +50504,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Skills"
@@ -42861,6 +50562,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Skills"
@@ -42927,6 +50633,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "SubscriptionPeriods"
@@ -42980,6 +50691,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "SubscriptionPeriods"
@@ -43152,6 +50868,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Subscriptions"
@@ -43222,6 +50943,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Subscriptions"
@@ -43241,6 +50967,26 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "SubscriptionModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "description",
+      "effectiveDate",
+      "expirationDate",
+      "impersonatorCreatorResourceID",
+      "materialCodeID",
+      "organizationalLevelAssociationID",
+      "periodCost",
+      "periodPrice",
+      "periodType",
+      "purchaseOrderNumber",
+      "status",
+      "subscriptionName",
+      "totalCost",
+      "totalPrice",
+      "vendorID",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Subscriptions"
@@ -43260,6 +51006,26 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "SubscriptionModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "description",
+      "effectiveDate",
+      "expirationDate",
+      "impersonatorCreatorResourceID",
+      "materialCodeID",
+      "organizationalLevelAssociationID",
+      "periodCost",
+      "periodPrice",
+      "periodType",
+      "purchaseOrderNumber",
+      "status",
+      "subscriptionName",
+      "totalCost",
+      "totalPrice",
+      "vendorID",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Subscriptions"
@@ -43279,6 +51045,26 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "SubscriptionModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "description",
+      "effectiveDate",
+      "expirationDate",
+      "impersonatorCreatorResourceID",
+      "materialCodeID",
+      "organizationalLevelAssociationID",
+      "periodCost",
+      "periodPrice",
+      "periodType",
+      "purchaseOrderNumber",
+      "status",
+      "subscriptionName",
+      "totalCost",
+      "totalPrice",
+      "vendorID",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Subscriptions"
@@ -43345,6 +51131,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "SurveyResults"
@@ -43398,6 +51189,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "SurveyResults"
@@ -43464,6 +51260,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Surveys"
@@ -43517,6 +51318,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Surveys"
@@ -43583,6 +51389,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TagAliases"
@@ -43636,6 +51447,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TagAliases"
@@ -43714,6 +51530,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TagAliasModel",
+    "allowedBodyFields": [
+      "id",
+      "alias",
+      "tagID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TagAliasesChild"
@@ -43862,6 +51684,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TagGroups"
@@ -43932,6 +51759,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TagGroups"
@@ -43951,6 +51783,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TagGroupModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColor",
+      "isActive",
+      "isSystem",
+      "label"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TagGroups"
@@ -43970,6 +51809,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TagGroupModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColor",
+      "isActive",
+      "isSystem",
+      "label"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TagGroups"
@@ -43989,6 +51835,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TagGroupModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColor",
+      "isActive",
+      "isSystem",
+      "label"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TagGroups"
@@ -44055,6 +51908,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Tags"
@@ -44125,6 +51983,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Tags"
@@ -44144,6 +52007,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TagModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "isActive",
+      "isExcludedFromAutomaticTagging",
+      "isSystem",
+      "label",
+      "lastModifiedDateTime",
+      "tagGroupID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Tags"
@@ -44163,6 +52036,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TagModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "isActive",
+      "isExcludedFromAutomaticTagging",
+      "isSystem",
+      "label",
+      "lastModifiedDateTime",
+      "tagGroupID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Tags"
@@ -44182,6 +52065,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TagModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "isActive",
+      "isExcludedFromAutomaticTagging",
+      "isSystem",
+      "label",
+      "lastModifiedDateTime",
+      "tagGroupID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Tags"
@@ -44268,6 +52161,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskAttachments"
@@ -44321,6 +52219,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskAttachments"
@@ -44369,6 +52272,30 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentAttachmentID",
+      "parentID",
+      "publish",
+      "taskID",
+      "taskNoteID",
+      "timeEntryID",
+      "title",
+      "data",
+      "isTaskAttachment",
+      "parentType",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskAttachmentsChild"
@@ -44477,6 +52404,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskNoteAttachments"
@@ -44530,6 +52462,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskNoteAttachments"
@@ -44578,6 +52515,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskNoteAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "isTaskAttachment",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "taskID",
+      "taskNoteID",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskNoteAttachmentsChild"
@@ -44666,6 +52625,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskNotes"
@@ -44719,6 +52683,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskNotes"
@@ -44738,6 +52707,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "createdByContactID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "taskID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskNotes"
@@ -44757,6 +52741,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "createdByContactID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "taskID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskNotes"
@@ -44776,6 +52775,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "createdByContactID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "taskID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskNotes"
@@ -44854,6 +52868,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "createdByContactID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "taskID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskNotesChild"
@@ -44882,6 +52911,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "createdByContactID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "taskID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskNotesChild"
@@ -44910,6 +52954,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "creatorResourceID",
+      "createdByContactID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "taskID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskNotesChild"
@@ -45032,6 +53091,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskPredecessors"
@@ -45085,6 +53149,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskPredecessors"
@@ -45163,6 +53232,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskPredecessorModel",
+    "allowedBodyFields": [
+      "id",
+      "lagDays",
+      "predecessorTaskID",
+      "successorTaskID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskPredecessorsChild"
@@ -45191,6 +53267,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskPredecessorModel",
+    "allowedBodyFields": [
+      "id",
+      "lagDays",
+      "predecessorTaskID",
+      "successorTaskID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskPredecessorsChild"
@@ -45219,6 +53302,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskPredecessorModel",
+    "allowedBodyFields": [
+      "id",
+      "lagDays",
+      "predecessorTaskID",
+      "successorTaskID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskPredecessorsChild"
@@ -45367,6 +53457,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Tasks"
@@ -45420,6 +53515,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Tasks"
@@ -45498,6 +53598,45 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskModel",
+    "allowedBodyFields": [
+      "id",
+      "assignedResourceID",
+      "assignedResourceRoleID",
+      "billingCodeID",
+      "canClientPortalUserCompleteTask",
+      "companyLocationID",
+      "completedByResourceID",
+      "completedByType",
+      "completedDateTime",
+      "createDateTime",
+      "creatorResourceID",
+      "creatorType",
+      "departmentID",
+      "description",
+      "endDateTime",
+      "estimatedHours",
+      "externalID",
+      "hoursToBeScheduled",
+      "isTaskBillable",
+      "isVisibleInClientPortal",
+      "lastActivityDateTime",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "phaseID",
+      "priority",
+      "priorityLabel",
+      "projectID",
+      "purchaseOrderNumber",
+      "remainingHours",
+      "startDateTime",
+      "status",
+      "taskCategoryID",
+      "taskNumber",
+      "taskType",
+      "title",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TasksChild"
@@ -45526,6 +53665,45 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskModel",
+    "allowedBodyFields": [
+      "id",
+      "assignedResourceID",
+      "assignedResourceRoleID",
+      "billingCodeID",
+      "canClientPortalUserCompleteTask",
+      "companyLocationID",
+      "completedByResourceID",
+      "completedByType",
+      "completedDateTime",
+      "createDateTime",
+      "creatorResourceID",
+      "creatorType",
+      "departmentID",
+      "description",
+      "endDateTime",
+      "estimatedHours",
+      "externalID",
+      "hoursToBeScheduled",
+      "isTaskBillable",
+      "isVisibleInClientPortal",
+      "lastActivityDateTime",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "phaseID",
+      "priority",
+      "priorityLabel",
+      "projectID",
+      "purchaseOrderNumber",
+      "remainingHours",
+      "startDateTime",
+      "status",
+      "taskCategoryID",
+      "taskNumber",
+      "taskType",
+      "title",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TasksChild"
@@ -45554,6 +53732,45 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskModel",
+    "allowedBodyFields": [
+      "id",
+      "assignedResourceID",
+      "assignedResourceRoleID",
+      "billingCodeID",
+      "canClientPortalUserCompleteTask",
+      "companyLocationID",
+      "completedByResourceID",
+      "completedByType",
+      "completedDateTime",
+      "createDateTime",
+      "creatorResourceID",
+      "creatorType",
+      "departmentID",
+      "description",
+      "endDateTime",
+      "estimatedHours",
+      "externalID",
+      "hoursToBeScheduled",
+      "isTaskBillable",
+      "isVisibleInClientPortal",
+      "lastActivityDateTime",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "phaseID",
+      "priority",
+      "priorityLabel",
+      "projectID",
+      "purchaseOrderNumber",
+      "remainingHours",
+      "startDateTime",
+      "status",
+      "taskCategoryID",
+      "taskNumber",
+      "taskType",
+      "title",
+      "soapParentPropertyId",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TasksChild"
@@ -45676,6 +53893,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskSecondaryResources"
@@ -45729,6 +53951,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaskSecondaryResources"
@@ -45807,6 +54034,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaskSecondaryResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "roleID",
+      "taskID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaskSecondaryResourcesChild"
@@ -45955,6 +54189,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaxCategories"
@@ -46008,6 +54247,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaxCategories"
@@ -46027,6 +54271,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaxCategories"
@@ -46046,6 +54296,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaxCategories"
@@ -46065,6 +54321,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "description",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaxCategories"
@@ -46131,6 +54393,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Taxes"
@@ -46184,6 +54451,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Taxes"
@@ -46203,6 +54475,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxModel",
+    "allowedBodyFields": [
+      "id",
+      "isCompounded",
+      "taxCategoryID",
+      "taxName",
+      "taxRate",
+      "taxRegionID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Taxes"
@@ -46222,6 +54502,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxModel",
+    "allowedBodyFields": [
+      "id",
+      "isCompounded",
+      "taxCategoryID",
+      "taxName",
+      "taxRate",
+      "taxRegionID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Taxes"
@@ -46241,6 +54529,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxModel",
+    "allowedBodyFields": [
+      "id",
+      "isCompounded",
+      "taxCategoryID",
+      "taxName",
+      "taxRate",
+      "taxRegionID"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Taxes"
@@ -46307,6 +54603,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaxRegions"
@@ -46360,6 +54661,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TaxRegions"
@@ -46379,6 +54685,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxRegionModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaxRegions"
@@ -46398,6 +54709,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxRegionModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaxRegions"
@@ -46417,6 +54733,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TaxRegionModel",
+    "allowedBodyFields": [
+      "id",
+      "isActive",
+      "name"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TaxRegions"
@@ -46493,6 +54814,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketAdditionalConfigurationItems"
@@ -46546,6 +54872,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketAdditionalConfigurationItems"
@@ -46624,6 +54955,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketAdditionalConfigurationItemModel",
+    "allowedBodyFields": [
+      "id",
+      "configurationItemID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketAdditionalConfigurationItemsChild"
@@ -46772,6 +55109,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketAdditionalContacts"
@@ -46825,6 +55167,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketAdditionalContacts"
@@ -46903,6 +55250,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketAdditionalContactModel",
+    "allowedBodyFields": [
+      "id",
+      "contactID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketAdditionalContactsChild"
@@ -47071,6 +55424,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketAttachments"
@@ -47124,6 +55482,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketAttachments"
@@ -47172,6 +55535,30 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentAttachmentID",
+      "parentID",
+      "publish",
+      "ticketID",
+      "ticketNoteID",
+      "timeEntryID",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketAttachmentsChild"
@@ -47260,6 +55647,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketCategories"
@@ -47313,6 +55705,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketCategories"
@@ -47332,6 +55729,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isApiOnly",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketCategories"
@@ -47351,6 +55757,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketCategoryModel",
+    "allowedBodyFields": [
+      "id",
+      "displayColorRGB",
+      "isActive",
+      "isApiOnly",
+      "isGlobalDefault",
+      "name",
+      "nickname"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketCategories"
@@ -47417,6 +55832,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketCategoryFieldDefaults"
@@ -47470,6 +55890,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketCategoryFieldDefaults"
@@ -47642,6 +56067,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketChangeRequestApprovals"
@@ -47695,6 +56125,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketChangeRequestApprovals"
@@ -47773,6 +56208,16 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChangeRequestApprovalModel",
+    "allowedBodyFields": [
+      "id",
+      "approveRejectDateTime",
+      "approveRejectNote",
+      "contactID",
+      "isApproved",
+      "resourceID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChangeRequestApprovalsChild"
@@ -47921,6 +56366,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketCharges"
@@ -47974,6 +56424,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketCharges"
@@ -48052,6 +56507,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "ticketID",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChargesChild"
@@ -48080,6 +56566,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "ticketID",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChargesChild"
@@ -48108,6 +56625,37 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChargeModel",
+    "allowedBodyFields": [
+      "id",
+      "billableAmount",
+      "billingCodeID",
+      "chargeType",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "creatorResourceID",
+      "datePurchased",
+      "description",
+      "extendedCost",
+      "internalCurrencyBillableAmount",
+      "internalCurrencyUnitPrice",
+      "internalPurchaseOrderNumber",
+      "isBillableToCompany",
+      "isBilled",
+      "name",
+      "notes",
+      "organizationalLevelAssociationID",
+      "productID",
+      "purchaseOrderNumber",
+      "status",
+      "statusLastModifiedBy",
+      "statusLastModifiedDate",
+      "ticketID",
+      "unitCost",
+      "unitPrice",
+      "unitQuantity",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChargesChild"
@@ -48256,6 +56804,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketChecklistItems"
@@ -48309,6 +56862,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketChecklistItems"
@@ -48387,6 +56945,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "completedByResourceID",
+      "completedDateTime",
+      "isCompleted",
+      "isImportant",
+      "itemName",
+      "knowledgebaseArticleID",
+      "position",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChecklistItemsChild"
@@ -48415,6 +56985,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "completedByResourceID",
+      "completedDateTime",
+      "isCompleted",
+      "isImportant",
+      "itemName",
+      "knowledgebaseArticleID",
+      "position",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChecklistItemsChild"
@@ -48443,6 +57025,18 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChecklistItemModel",
+    "allowedBodyFields": [
+      "id",
+      "completedByResourceID",
+      "completedDateTime",
+      "isCompleted",
+      "isImportant",
+      "itemName",
+      "knowledgebaseArticleID",
+      "position",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChecklistItemsChild"
@@ -48574,6 +57168,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChecklistLibraryModel",
+    "allowedBodyFields": [
+      "id",
+      "checklistLibraryID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChecklistLibraries"
@@ -48632,6 +57232,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketChecklistLibraryModel",
+    "allowedBodyFields": [
+      "id",
+      "checklistLibraryID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketChecklistLibrariesChild"
@@ -48728,6 +57334,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketHistory"
@@ -48781,6 +57392,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketHistory"
@@ -48867,6 +57483,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNoteAttachments"
@@ -48920,6 +57541,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNoteAttachments"
@@ -48968,6 +57594,28 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "ticketID",
+      "ticketNoteID",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNoteAttachmentsChild"
@@ -49056,6 +57704,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNotes"
@@ -49109,6 +57762,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNotes"
@@ -49187,6 +57845,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "createdByContactID",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "ticketID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNotesChild"
@@ -49215,6 +57888,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "createdByContactID",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "ticketID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNotesChild"
@@ -49243,6 +57931,21 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteModel",
+    "allowedBodyFields": [
+      "id",
+      "createDateTime",
+      "createdByContactID",
+      "creatorResourceID",
+      "description",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "lastActivityDate",
+      "noteType",
+      "publish",
+      "ticketID",
+      "title",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNotesChild"
@@ -49365,6 +58068,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNoteWebhookExcludedResources"
@@ -49418,6 +58126,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNoteWebhookExcludedResources"
@@ -49496,6 +58209,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteWebhookExcludedResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNoteWebhookExcludedResourcesChild"
@@ -49644,6 +58363,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNoteWebhookFields"
@@ -49697,6 +58421,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNoteWebhookFields"
@@ -49775,6 +58504,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNoteWebhookFieldsChild"
@@ -49803,6 +58540,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNoteWebhookFieldsChild"
@@ -49831,6 +58576,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNoteWebhookFieldsChild"
@@ -49979,6 +58732,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNoteWebhooks"
@@ -50049,6 +58807,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketNoteWebhooks"
@@ -50068,6 +58831,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNoteWebhooks"
@@ -50087,6 +58866,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNoteWebhooks"
@@ -50106,6 +58901,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketNoteWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketNoteWebhooks"
@@ -50172,6 +58983,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketRmaCredits"
@@ -50225,6 +59041,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketRmaCredits"
@@ -50303,6 +59124,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketRmaCreditModel",
+    "allowedBodyFields": [
+      "id",
+      "creditAmount",
+      "creditDetails",
+      "internalCurrencyCreditAmount",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketRmaCreditsChild"
@@ -50331,6 +59160,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketRmaCreditModel",
+    "allowedBodyFields": [
+      "id",
+      "creditAmount",
+      "creditDetails",
+      "internalCurrencyCreditAmount",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketRmaCreditsChild"
@@ -50359,6 +59196,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketRmaCreditModel",
+    "allowedBodyFields": [
+      "id",
+      "creditAmount",
+      "creditDetails",
+      "internalCurrencyCreditAmount",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketRmaCreditsChild"
@@ -50507,6 +59352,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Tickets"
@@ -50560,6 +59410,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "Tickets"
@@ -50579,6 +59434,84 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketModel",
+    "allowedBodyFields": [
+      "id",
+      "apiVendorID",
+      "assignedResourceID",
+      "assignedResourceRoleID",
+      "billingCodeID",
+      "changeApprovalBoard",
+      "changeApprovalStatus",
+      "changeApprovalType",
+      "changeInfoField1",
+      "changeInfoField2",
+      "changeInfoField3",
+      "changeInfoField4",
+      "changeInfoField5",
+      "companyID",
+      "companyLocationID",
+      "completedByResourceID",
+      "completedDate",
+      "configurationItemID",
+      "contactID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "createdByContactID",
+      "creatorResourceID",
+      "creatorType",
+      "currentServiceThermometerRating",
+      "description",
+      "dueDateTime",
+      "estimatedHours",
+      "externalID",
+      "firstResponseAssignedResourceID",
+      "firstResponseDateTime",
+      "firstResponseDueDateTime",
+      "firstResponseInitiatingResourceID",
+      "hoursToBeScheduled",
+      "impersonatorCreatorResourceID",
+      "isAssignedToComanaged",
+      "issueType",
+      "isVisibleToComanaged",
+      "lastActivityDate",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "lastCustomerNotificationDateTime",
+      "lastCustomerVisibleActivityDateTime",
+      "lastTrackedModificationDateTime",
+      "monitorID",
+      "monitorTypeID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "previousServiceThermometerRating",
+      "priority",
+      "problemTicketId",
+      "projectID",
+      "purchaseOrderNumber",
+      "queueID",
+      "resolution",
+      "resolutionPlanDateTime",
+      "resolutionPlanDueDateTime",
+      "resolvedDateTime",
+      "resolvedDueDateTime",
+      "rmaStatus",
+      "rmaType",
+      "rmmAlertID",
+      "serviceLevelAgreementHasBeenMet",
+      "serviceLevelAgreementID",
+      "serviceLevelAgreementPausedNextEventHours",
+      "serviceThermometerTemperature",
+      "source",
+      "status",
+      "subIssueType",
+      "ticketCategory",
+      "ticketNumber",
+      "ticketType",
+      "title",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Tickets"
@@ -50598,6 +59531,84 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketModel",
+    "allowedBodyFields": [
+      "id",
+      "apiVendorID",
+      "assignedResourceID",
+      "assignedResourceRoleID",
+      "billingCodeID",
+      "changeApprovalBoard",
+      "changeApprovalStatus",
+      "changeApprovalType",
+      "changeInfoField1",
+      "changeInfoField2",
+      "changeInfoField3",
+      "changeInfoField4",
+      "changeInfoField5",
+      "companyID",
+      "companyLocationID",
+      "completedByResourceID",
+      "completedDate",
+      "configurationItemID",
+      "contactID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "createdByContactID",
+      "creatorResourceID",
+      "creatorType",
+      "currentServiceThermometerRating",
+      "description",
+      "dueDateTime",
+      "estimatedHours",
+      "externalID",
+      "firstResponseAssignedResourceID",
+      "firstResponseDateTime",
+      "firstResponseDueDateTime",
+      "firstResponseInitiatingResourceID",
+      "hoursToBeScheduled",
+      "impersonatorCreatorResourceID",
+      "isAssignedToComanaged",
+      "issueType",
+      "isVisibleToComanaged",
+      "lastActivityDate",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "lastCustomerNotificationDateTime",
+      "lastCustomerVisibleActivityDateTime",
+      "lastTrackedModificationDateTime",
+      "monitorID",
+      "monitorTypeID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "previousServiceThermometerRating",
+      "priority",
+      "problemTicketId",
+      "projectID",
+      "purchaseOrderNumber",
+      "queueID",
+      "resolution",
+      "resolutionPlanDateTime",
+      "resolutionPlanDueDateTime",
+      "resolvedDateTime",
+      "resolvedDueDateTime",
+      "rmaStatus",
+      "rmaType",
+      "rmmAlertID",
+      "serviceLevelAgreementHasBeenMet",
+      "serviceLevelAgreementID",
+      "serviceLevelAgreementPausedNextEventHours",
+      "serviceThermometerTemperature",
+      "source",
+      "status",
+      "subIssueType",
+      "ticketCategory",
+      "ticketNumber",
+      "ticketType",
+      "title",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Tickets"
@@ -50617,6 +59628,84 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketModel",
+    "allowedBodyFields": [
+      "id",
+      "apiVendorID",
+      "assignedResourceID",
+      "assignedResourceRoleID",
+      "billingCodeID",
+      "changeApprovalBoard",
+      "changeApprovalStatus",
+      "changeApprovalType",
+      "changeInfoField1",
+      "changeInfoField2",
+      "changeInfoField3",
+      "changeInfoField4",
+      "changeInfoField5",
+      "companyID",
+      "companyLocationID",
+      "completedByResourceID",
+      "completedDate",
+      "configurationItemID",
+      "contactID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDate",
+      "createdByContactID",
+      "creatorResourceID",
+      "creatorType",
+      "currentServiceThermometerRating",
+      "description",
+      "dueDateTime",
+      "estimatedHours",
+      "externalID",
+      "firstResponseAssignedResourceID",
+      "firstResponseDateTime",
+      "firstResponseDueDateTime",
+      "firstResponseInitiatingResourceID",
+      "hoursToBeScheduled",
+      "impersonatorCreatorResourceID",
+      "isAssignedToComanaged",
+      "issueType",
+      "isVisibleToComanaged",
+      "lastActivityDate",
+      "lastActivityPersonType",
+      "lastActivityResourceID",
+      "lastCustomerNotificationDateTime",
+      "lastCustomerVisibleActivityDateTime",
+      "lastTrackedModificationDateTime",
+      "monitorID",
+      "monitorTypeID",
+      "opportunityID",
+      "organizationalLevelAssociationID",
+      "previousServiceThermometerRating",
+      "priority",
+      "problemTicketId",
+      "projectID",
+      "purchaseOrderNumber",
+      "queueID",
+      "resolution",
+      "resolutionPlanDateTime",
+      "resolutionPlanDueDateTime",
+      "resolvedDateTime",
+      "resolvedDueDateTime",
+      "rmaStatus",
+      "rmaType",
+      "rmmAlertID",
+      "serviceLevelAgreementHasBeenMet",
+      "serviceLevelAgreementID",
+      "serviceLevelAgreementPausedNextEventHours",
+      "serviceThermometerTemperature",
+      "source",
+      "status",
+      "subIssueType",
+      "ticketCategory",
+      "ticketNumber",
+      "ticketType",
+      "title",
+      "userDefinedFields"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "Tickets"
@@ -50683,6 +59772,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketSecondaryResources"
@@ -50736,6 +59830,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketSecondaryResources"
@@ -50814,6 +59913,13 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketSecondaryResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "roleID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketSecondaryResourcesChild"
@@ -50962,6 +60068,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketTagAssociations"
@@ -51015,6 +60126,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketTagAssociations"
@@ -51093,6 +60209,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketTagAssociationModel",
+    "allowedBodyFields": [
+      "id",
+      "tagID",
+      "ticketID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketTagAssociationsChild"
@@ -51241,6 +60363,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketWebhookExcludedResources"
@@ -51294,6 +60421,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketWebhookExcludedResources"
@@ -51372,6 +60504,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookExcludedResourceModel",
+    "allowedBodyFields": [
+      "id",
+      "resourceID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhookExcludedResourcesChild"
@@ -51520,6 +60658,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketWebhookFields"
@@ -51573,6 +60716,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketWebhookFields"
@@ -51651,6 +60799,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhookFieldsChild"
@@ -51679,6 +60835,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhookFieldsChild"
@@ -51707,6 +60871,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "fieldID",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhookFieldsChild"
@@ -51855,6 +61027,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketWebhooks"
@@ -51925,6 +61102,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketWebhooks"
@@ -51944,6 +61126,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhooks"
@@ -51963,6 +61161,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhooks"
@@ -51982,6 +61196,22 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookModel",
+    "allowedBodyFields": [
+      "id",
+      "deactivationUrl",
+      "isActive",
+      "isReady",
+      "isSubscribedToCreateEvents",
+      "isSubscribedToDeleteEvents",
+      "isSubscribedToUpdateEvents",
+      "name",
+      "notificationEmailAddress",
+      "ownerResourceID",
+      "secretKey",
+      "sendThresholdExceededNotification",
+      "webhookGUID",
+      "webhookUrl"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhooks"
@@ -52048,6 +61278,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketWebhookUdfFields"
@@ -52101,6 +61336,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TicketWebhookUdfFields"
@@ -52179,6 +61419,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhookUdfFieldsChild"
@@ -52207,6 +61455,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhookUdfFieldsChild"
@@ -52235,6 +61491,14 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TicketWebhookUdfFieldModel",
+    "allowedBodyFields": [
+      "id",
+      "isDisplayAlwaysField",
+      "isSubscribedField",
+      "udfFieldID",
+      "webhookID",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TicketWebhookUdfFieldsChild"
@@ -52383,6 +61647,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TimeEntries"
@@ -52453,6 +61722,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TimeEntries"
@@ -52472,6 +61746,39 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TimeEntryModel",
+    "allowedBodyFields": [
+      "id",
+      "billingApprovalDateTime",
+      "billingApprovalLevelMostRecent",
+      "billingApprovalResourceID",
+      "billingCodeID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDateTime",
+      "creatorUserID",
+      "dateWorked",
+      "endDateTime",
+      "hoursToBill",
+      "hoursWorked",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "internalBillingCodeID",
+      "internalNotes",
+      "isInternalNotesVisibleToComanaged",
+      "isNonBillable",
+      "lastModifiedDateTime",
+      "lastModifiedUserID",
+      "offsetHours",
+      "resourceID",
+      "roleID",
+      "showOnInvoice",
+      "startDateTime",
+      "summaryNotes",
+      "taskID",
+      "ticketID",
+      "timeEntryType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TimeEntries"
@@ -52491,6 +61798,39 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TimeEntryModel",
+    "allowedBodyFields": [
+      "id",
+      "billingApprovalDateTime",
+      "billingApprovalLevelMostRecent",
+      "billingApprovalResourceID",
+      "billingCodeID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDateTime",
+      "creatorUserID",
+      "dateWorked",
+      "endDateTime",
+      "hoursToBill",
+      "hoursWorked",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "internalBillingCodeID",
+      "internalNotes",
+      "isInternalNotesVisibleToComanaged",
+      "isNonBillable",
+      "lastModifiedDateTime",
+      "lastModifiedUserID",
+      "offsetHours",
+      "resourceID",
+      "roleID",
+      "showOnInvoice",
+      "startDateTime",
+      "summaryNotes",
+      "taskID",
+      "ticketID",
+      "timeEntryType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TimeEntries"
@@ -52510,6 +61850,39 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TimeEntryModel",
+    "allowedBodyFields": [
+      "id",
+      "billingApprovalDateTime",
+      "billingApprovalLevelMostRecent",
+      "billingApprovalResourceID",
+      "billingCodeID",
+      "contractID",
+      "contractServiceBundleID",
+      "contractServiceID",
+      "createDateTime",
+      "creatorUserID",
+      "dateWorked",
+      "endDateTime",
+      "hoursToBill",
+      "hoursWorked",
+      "impersonatorCreatorResourceID",
+      "impersonatorUpdaterResourceID",
+      "internalBillingCodeID",
+      "internalNotes",
+      "isInternalNotesVisibleToComanaged",
+      "isNonBillable",
+      "lastModifiedDateTime",
+      "lastModifiedUserID",
+      "offsetHours",
+      "resourceID",
+      "roleID",
+      "showOnInvoice",
+      "startDateTime",
+      "summaryNotes",
+      "taskID",
+      "ticketID",
+      "timeEntryType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TimeEntries"
@@ -52596,6 +61969,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TimeEntryAttachments"
@@ -52649,6 +62027,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TimeEntryAttachments"
@@ -52697,6 +62080,29 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TimeEntryAttachmentModel",
+    "allowedBodyFields": [
+      "id",
+      "attachDate",
+      "attachedByContactID",
+      "attachedByResourceID",
+      "attachmentType",
+      "contentType",
+      "creatorType",
+      "fileSize",
+      "fullPath",
+      "impersonatorCreatorResourceID",
+      "opportunityID",
+      "parentID",
+      "publish",
+      "taskID",
+      "ticketID",
+      "timeEntryID",
+      "title",
+      "data",
+      "parentType",
+      "soapParentPropertyId",
+      "isTaskAttachment"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TimeEntryAttachmentsChild"
@@ -52785,6 +62191,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TimeOffRequests"
@@ -52838,6 +62249,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "TimeOffRequests"
@@ -52917,8 +62333,8 @@ export const OPERATIONS: RegistryOperation[] = [
         "type": "integer"
       }
     ],
-    "classification": "read",
-    "destructive": false,
+    "classification": "write",
+    "destructive": true,
     "tag": "TimeOffRequestsApproveChild"
   },
   {
@@ -53022,6 +62438,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TimeOffRequestModel",
+    "allowedBodyFields": [
+      "id",
+      "approvedDateTime",
+      "approveRejectResourceID",
+      "createdByResourceID",
+      "createDateTime",
+      "endTime",
+      "hours",
+      "impersonatorApproveRejectResourceID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "lastApprovedLevel",
+      "reason",
+      "rejectReason",
+      "requestDate",
+      "resourceID",
+      "startTime",
+      "status",
+      "timeOffRequestType",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TimeOffRequestsChild"
@@ -53050,6 +62487,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TimeOffRequestModel",
+    "allowedBodyFields": [
+      "id",
+      "approvedDateTime",
+      "approveRejectResourceID",
+      "createdByResourceID",
+      "createDateTime",
+      "endTime",
+      "hours",
+      "impersonatorApproveRejectResourceID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "lastApprovedLevel",
+      "reason",
+      "rejectReason",
+      "requestDate",
+      "resourceID",
+      "startTime",
+      "status",
+      "timeOffRequestType",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TimeOffRequestsChild"
@@ -53078,6 +62536,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TimeOffRequestModel",
+    "allowedBodyFields": [
+      "id",
+      "approvedDateTime",
+      "approveRejectResourceID",
+      "createdByResourceID",
+      "createDateTime",
+      "endTime",
+      "hours",
+      "impersonatorApproveRejectResourceID",
+      "lastModifiedByResourceID",
+      "lastModifiedDateTime",
+      "lastApprovedLevel",
+      "reason",
+      "rejectReason",
+      "requestDate",
+      "resourceID",
+      "startTime",
+      "status",
+      "timeOffRequestType",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TimeOffRequestsChild"
@@ -53222,6 +62701,12 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "TimeOffRequestRejectModel",
+    "allowedBodyFields": [
+      "id",
+      "timeOffRequestID",
+      "reason",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "TimeOffRequestsRejectChild"
@@ -53318,6 +62803,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "UserDefinedFieldDefinitions"
@@ -53371,6 +62861,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "UserDefinedFieldDefinitions"
@@ -53390,6 +62885,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UserDefinedFieldDefinitionModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "crmToProjectUdfId",
+      "dataType",
+      "defaultValue",
+      "description",
+      "displayFormat",
+      "isActive",
+      "isEncrypted",
+      "isFieldMapping",
+      "isPrivate",
+      "isProtected",
+      "isRequired",
+      "isVisibleToClientPortal",
+      "mergeVariableName",
+      "name",
+      "numberOfDecimalPlaces",
+      "sortOrder",
+      "udfType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "UserDefinedFieldDefinitions"
@@ -53409,6 +62925,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UserDefinedFieldDefinitionModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "crmToProjectUdfId",
+      "dataType",
+      "defaultValue",
+      "description",
+      "displayFormat",
+      "isActive",
+      "isEncrypted",
+      "isFieldMapping",
+      "isPrivate",
+      "isProtected",
+      "isRequired",
+      "isVisibleToClientPortal",
+      "mergeVariableName",
+      "name",
+      "numberOfDecimalPlaces",
+      "sortOrder",
+      "udfType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "UserDefinedFieldDefinitions"
@@ -53428,6 +62965,27 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UserDefinedFieldDefinitionModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "crmToProjectUdfId",
+      "dataType",
+      "defaultValue",
+      "description",
+      "displayFormat",
+      "isActive",
+      "isEncrypted",
+      "isFieldMapping",
+      "isPrivate",
+      "isProtected",
+      "isRequired",
+      "isVisibleToClientPortal",
+      "mergeVariableName",
+      "name",
+      "numberOfDecimalPlaces",
+      "sortOrder",
+      "udfType"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "UserDefinedFieldDefinitions"
@@ -53494,6 +63052,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "UserDefinedFieldListItems"
@@ -53547,6 +63110,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "UserDefinedFieldListItems"
@@ -53588,6 +63156,7 @@ export const OPERATIONS: RegistryOperation[] = [
     "entity": "UserDefinedFieldListItems",
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
+    "parentFkField": "udfFieldId",
     "parameters": [
       {
         "name": "parentId",
@@ -53607,6 +63176,7 @@ export const OPERATIONS: RegistryOperation[] = [
     "entity": "UserDefinedFieldListItems",
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
+    "parentFkField": "udfFieldId",
     "parameters": [
       {
         "name": "parentId",
@@ -53623,6 +63193,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UserDefinedFieldListItemModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "isActive",
+      "udfFieldId",
+      "valueForDisplay",
+      "valueForExport",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "UserDefinedFieldListItemsChild"
@@ -53634,6 +63213,7 @@ export const OPERATIONS: RegistryOperation[] = [
     "entity": "UserDefinedFieldListItems",
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
+    "parentFkField": "udfFieldId",
     "parameters": [
       {
         "name": "parentId",
@@ -53650,6 +63230,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UserDefinedFieldListItemModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "isActive",
+      "udfFieldId",
+      "valueForDisplay",
+      "valueForExport",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "UserDefinedFieldListItemsChild"
@@ -53661,6 +63250,7 @@ export const OPERATIONS: RegistryOperation[] = [
     "entity": "UserDefinedFieldListItems",
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
+    "parentFkField": "udfFieldId",
     "parameters": [
       {
         "name": "parentId",
@@ -53677,6 +63267,15 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "UserDefinedFieldListItemModel",
+    "allowedBodyFields": [
+      "id",
+      "createDate",
+      "isActive",
+      "udfFieldId",
+      "valueForDisplay",
+      "valueForExport",
+      "soapParentPropertyId"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "UserDefinedFieldListItemsChild"
@@ -53688,6 +63287,7 @@ export const OPERATIONS: RegistryOperation[] = [
     "entity": "UserDefinedFieldListItems",
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
+    "parentFkField": "udfFieldId",
     "parameters": [
       {
         "name": "parentId",
@@ -53713,6 +63313,7 @@ export const OPERATIONS: RegistryOperation[] = [
     "entity": "UserDefinedFieldListItems",
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
+    "parentFkField": "udfFieldId",
     "parameters": [
       {
         "name": "parentId",
@@ -53732,6 +63333,7 @@ export const OPERATIONS: RegistryOperation[] = [
     "entity": "UserDefinedFieldListItems",
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
+    "parentFkField": "udfFieldId",
     "parameters": [
       {
         "name": "parentId",
@@ -53751,6 +63353,7 @@ export const OPERATIONS: RegistryOperation[] = [
     "entity": "UserDefinedFieldListItems",
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
+    "parentFkField": "udfFieldId",
     "parameters": [
       {
         "name": "parentId",
@@ -53795,6 +63398,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "WebhookEventErrorLogs"
@@ -53865,6 +63473,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "WebhookEventErrorLogs"
@@ -53931,6 +63544,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "WorkTypeModifiers"
@@ -53984,6 +63602,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "QueryModel",
+    "allowedBodyFields": [
+      "maxRecords",
+      "includeFields",
+      "filter"
+    ],
     "classification": "read",
     "destructive": false,
     "tag": "WorkTypeModifiers"
@@ -54003,6 +63626,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "WorkTypeModifierModel",
+    "allowedBodyFields": [
+      "id",
+      "modifierType",
+      "modifierValue"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "WorkTypeModifiers"
@@ -54022,6 +63650,11 @@ export const OPERATIONS: RegistryOperation[] = [
       }
     ],
     "requestModelRef": "WorkTypeModifierModel",
+    "allowedBodyFields": [
+      "id",
+      "modifierType",
+      "modifierValue"
+    ],
     "classification": "write",
     "destructive": true,
     "tag": "WorkTypeModifiers"
@@ -55809,6 +65442,7 @@ export const CHILD_COLLECTIONS: ChildCollectionMeta[] = [
     "parentEntity": "UserDefinedFields",
     "childAlias": "ListItems",
     "entity": "UserDefinedFieldListItems",
+    "parentFkField": "udfFieldId",
     "childModel": "UserDefinedFieldListItemModel",
     "methods": [
       "GET",

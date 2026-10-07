@@ -52,11 +52,26 @@ export async function resolveWritePath(
   fields?: Record<string, unknown>,
   getRecordById?: (entity: string, id: string) => Promise<unknown>,
 ): Promise<string> {
-  // If already a resolved path like "Companies/123/Contacts"
+  // If already a resolved path like "Companies/123/Contacts", strictly validate segment-by-segment and against registry
   if (entity.includes('/')) {
-    return entity;
+    const segments = entity.split('/');
+    if (segments.length !== 3) {
+      throw new Error(
+        `entity must be a safe Autotask entity name (got: ${JSON.stringify(entity)})`,
+      );
+    }
+    const safeParent = assertSafeEntityName(segments[0], 'parent entity');
+    const safeParentId = assertSafeNumericId(segments[1], 'parent id');
+    const safeChild = assertSafeEntityName(segments[2], 'child entity');
+    const routeCheck = resolveEntityRoute(safeChild, method, safeParent, safeParentId);
+    if (routeCheck.error) {
+      throw new Error(routeCheck.error);
+    }
+    const childMeta = getChildCollectionMeta(safeChild, safeParent);
+    const childAlias = childMeta?.childAlias || safeChild;
+    const parent = childMeta?.parentEntity || safeParent;
+    return `${parent}/${safeParentId}/${childAlias}`;
   }
-
   if (parentEntity || parentId) {
     if (!parentEntity || !parentId) {
       throw new Error('parentEntity and parentId must be provided together');
@@ -92,8 +107,16 @@ export async function resolveWritePath(
     // 1. Try to read FK from fields
     let resolvedParentId: string | undefined;
     if (fields && fkField) {
-      const val =
-        fields[fkField] ?? fields[fkField.toLowerCase()] ?? fields.parentId ?? fields.parentID;
+      const fkLower = fkField.toLowerCase();
+      let val: unknown = fields[fkField] ?? fields[fkLower] ?? fields.parentId ?? fields.parentID;
+      if (val === undefined) {
+        for (const [k, v] of Object.entries(fields)) {
+          if (k.toLowerCase() === fkLower || k.toLowerCase() === 'parentid') {
+            val = v;
+            break;
+          }
+        }
+      }
       if (typeof val === 'number' || (typeof val === 'string' && /^\d+$/.test(val))) {
         resolvedParentId = String(val);
       }
@@ -113,7 +136,16 @@ export async function resolveWritePath(
           };
           const item = rec?.item || (rec as Record<string, unknown>);
           if (fkField && item) {
-            const val = item[fkField] ?? item[fkField.toLowerCase()];
+            const fkLower = fkField.toLowerCase();
+            let val = item[fkField] ?? item[fkLower];
+            if (val === undefined) {
+              for (const [k, v] of Object.entries(item)) {
+                if (k.toLowerCase() === fkLower || k.toLowerCase() === 'parentid') {
+                  val = v;
+                  break;
+                }
+              }
+            }
             if (val !== undefined && val !== null) {
               resolvedParentId = String(val);
             }

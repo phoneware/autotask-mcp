@@ -11,14 +11,15 @@
  * 5. Verify search_api("ticket charge") returns child-collection operations.
  * 6. Verify call_api on a read returns live data.
  * 7. Verify call_api on a write without confirm token is refused.
+ * 8. Verify traversal input is refused across generic write tools.
  */
 
 import { ticketTools } from '../src/tools/tickets.js';
 import { ticketChargeTools } from '../src/tools/ticket-charges.js';
 import { searchApiTool, callApiTool } from '../src/tools/meta.js';
+import { genericTools } from '../src/tools/generic.js';
 import { resolveWritePath } from '../src/tools/entity-resolver.js';
 import { api } from '../src/autotask-api.js';
-
 async function run(): Promise<void> {
   console.log('=== Step 1: Find ticket T20261006.0017 via search-tickets ===');
   const searchTickets = ticketTools.find((t) => t.name === 'search-tickets')!;
@@ -105,6 +106,7 @@ async function run(): Promise<void> {
   console.log(`call_api read returned ${callReadData.items?.length || 0} charges from live API.`);
 
   console.log('\n=== Step 7: call_api on write operation without confirm token ===');
+  let writeBlocked = false;
   try {
     await callApiTool.handler({
       tool_name: 'TicketChargesChild_PatchEntity',
@@ -113,11 +115,77 @@ async function run(): Promise<void> {
         restModelInput: { id: 2712, status: 8 },
       }),
     });
-    console.error('ERROR: Write without confirm token was unexpectedly allowed!');
   } catch (err: unknown) {
-    console.log('Successfully refused unconfirmed write:');
-    console.log(`  ${(err as Error).message}`);
+    const msg = (err as Error).message;
+    if (msg.includes('requires confirm:') || msg.includes('Destructive tool')) {
+      writeBlocked = true;
+      console.log('Successfully refused unconfirmed write:');
+      console.log(`  ${msg}`);
+    } else {
+      throw new Error(`Expected confirmation rejection, but got: ${msg}`);
+    }
   }
+  if (!writeBlocked) {
+    throw new Error('Write without confirm token was unexpectedly allowed!');
+  }
+
+  console.log('\n=== Step 8: verify traversal input refused on write tools ===');
+  const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+  const updateEntity = genericTools.find((t) => t.name === 'update-entity')!;
+  const deleteEntity = genericTools.find((t) => t.name === 'delete-entity')!;
+
+  const traversalInputs = [
+    'Tickets/../Companies',
+    '../ThresholdInformation',
+    '..',
+    'Tickets/query',
+  ];
+  for (const bad of traversalInputs) {
+    let createBlocked = false;
+    try {
+      await createEntity.handler({ entity: bad, fields: '{"title":"test"}' });
+    } catch (err: unknown) {
+      if ((err as Error).message.includes('safe Autotask entity name')) {
+        createBlocked = true;
+      } else {
+        throw err;
+      }
+    }
+    if (!createBlocked) {
+      throw new Error(`create-entity unexpectedly allowed traversal input "${bad}"`);
+    }
+
+    let updateBlocked = false;
+    try {
+      await updateEntity.handler({ entity: bad, fields: '{"id":123,"title":"test"}' });
+    } catch (err: unknown) {
+      if ((err as Error).message.includes('safe Autotask entity name')) {
+        updateBlocked = true;
+      } else {
+        throw err;
+      }
+    }
+    if (!updateBlocked) {
+      throw new Error(`update-entity unexpectedly allowed traversal input "${bad}"`);
+    }
+
+    let deleteBlocked = false;
+    try {
+      await deleteEntity.handler({ entity: bad, id: '123' });
+    } catch (err: unknown) {
+      if ((err as Error).message.includes('safe Autotask entity name')) {
+        deleteBlocked = true;
+      } else {
+        throw err;
+      }
+    }
+    if (!deleteBlocked) {
+      throw new Error(`delete-entity unexpectedly allowed traversal input "${bad}"`);
+    }
+  }
+  console.log(
+    'Successfully refused traversal inputs on create-entity, update-entity, and delete-entity.',
+  );
 
   console.log('\n=== All live acceptance proofs completed successfully! ===');
 }

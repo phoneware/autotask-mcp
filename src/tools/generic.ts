@@ -5,6 +5,7 @@ import {
   querySchema,
   recordBodySchema,
   updateBodySchema,
+  assertSafeEntityName,
   assertSafeNumericId,
 } from '../security.js';
 import { jsonResponse } from './shared.js';
@@ -223,6 +224,7 @@ export const genericTools: ToolDefinition[] = [
       required: ['entity', 'fields'],
     },
     handler: async (args) => {
+      assertSafeEntityName(args.entity, 'entity');
       const body = parseJsonBody(args.fields, recordBodySchema, 'fields');
       const entity = await resolveWritePath(
         args.entity,
@@ -260,6 +262,7 @@ export const genericTools: ToolDefinition[] = [
       required: ['entity', 'fields'],
     },
     handler: async (args) => {
+      assertSafeEntityName(args.entity, 'entity');
       const body = parseJsonBody(args.fields, updateBodySchema, 'fields');
       const entity = await resolveWritePath(
         args.entity,
@@ -294,6 +297,7 @@ export const genericTools: ToolDefinition[] = [
       required: ['entity', 'id'],
     },
     handler: async (args) => {
+      assertSafeEntityName(args.entity, 'entity');
       const safeId = assertSafeNumericId(args.id, 'id');
       const entity = await resolveWritePath(
         args.entity,

@@ -19,6 +19,7 @@ export interface RegistryOperation {
   parentFkField?: string;
   parameters: OperationParameter[];
   requestModelRef?: string;
+  allowedBodyFields?: string[];
   classification: 'read' | 'write';
   destructive: boolean;
   tag?: string;

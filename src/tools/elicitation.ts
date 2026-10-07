@@ -58,6 +58,23 @@ export async function elicitConfirmation(
     );
   }
 
+  const getCaps = (
+    server as unknown as {
+      getClientCapabilities?: () => { elicitation?: { form?: boolean } } | undefined;
+    }
+  ).getClientCapabilities;
+  if (typeof getCaps === 'function') {
+    const caps = getCaps.call(server);
+    if (caps && !caps.elicitation?.form) {
+      const policy = fallbackPolicy();
+      if (policy === 'allow') return true;
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Tool '${toolName}' is destructive and the connected client does not support confirmation prompts. ` +
+          `Set MCP_CONFIRM_FALLBACK=allow to bypass on such clients, or use a client that supports MCP elicitation.`,
+      );
+    }
+  }
   const summary = summarizeArgs(args);
   const message =
     `This tool can change or remove data and the operator has required confirmation.\n\n` +
@@ -98,7 +115,16 @@ export async function elicitConfirmation(
       `User ${result.action === 'decline' ? 'declined' : 'cancelled'} the destructive operation '${toolName}'`,
     );
   } catch (err: unknown) {
-    if (err instanceof McpError && err.code !== ErrorCode.InvalidParams) {
+    if (err instanceof McpError && err.code === ErrorCode.InvalidParams) {
+      if (err.message.includes('declined') || err.message.includes('cancelled')) {
+        throw err;
+      }
+    }
+    const isUnsupported =
+      (err instanceof Error && err.message.includes('does not support form elicitation')) ||
+      (err instanceof McpError && err.code !== ErrorCode.InvalidParams);
+
+    if (isUnsupported) {
       const policy = fallbackPolicy();
       if (policy === 'allow') return true;
       throw new McpError(
