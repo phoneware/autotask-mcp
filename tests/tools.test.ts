@@ -523,6 +523,109 @@ describe('generic tools: Contacts auto-routing', () => {
   });
 });
 
+describe('generic tools: spec-driven child collection auto-routing', () => {
+  beforeEach(() => {
+    create.mockReset();
+    update.mockReset();
+    deleteById.mockReset();
+    getById.mockReset();
+  });
+
+  it('create-entity auto-routes TicketCharges to Tickets/{ticketID}/Charges with ticketID in fields', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+    create.mockResolvedValueOnce({ itemId: 2712 });
+
+    await createEntity.handler({
+      entity: 'TicketCharges',
+      fields: JSON.stringify({ ticketID: 23836, name: 'Labor', chargeType: 1 }),
+    });
+
+    expect(create).toHaveBeenCalledWith('Tickets/23836/Charges', {
+      ticketID: 23836,
+      name: 'Labor',
+      chargeType: 1,
+    });
+  });
+
+  it('create-entity throws clear error when TicketCharges lacks ticketID and parent props', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+
+    await expect(
+      createEntity.handler({
+        entity: 'TicketCharges',
+        fields: JSON.stringify({ name: 'Labor', chargeType: 1 }),
+      }),
+    ).rejects.toThrow(/TicketCharges in Autotask must be created under a ticket/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('update-entity auto-routes TicketCharges using ticketID from lookup', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const updateEntity = genericTools.find((t) => t.name === 'update-entity')!;
+    getById.mockResolvedValueOnce({ item: { id: 2712, ticketID: 23836 } });
+    update.mockResolvedValueOnce({ itemId: 2712 });
+
+    await updateEntity.handler({
+      entity: 'TicketCharges',
+      fields: JSON.stringify({ id: 2712, status: 8 }),
+    });
+
+    expect(getById).toHaveBeenCalledWith('TicketCharges', '2712');
+    expect(update).toHaveBeenCalledWith('Tickets/23836/Charges', {
+      id: 2712,
+      status: 8,
+    });
+  });
+
+  it('update-entity with explicit parentEntity and parentId routes directly', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const updateEntity = genericTools.find((t) => t.name === 'update-entity')!;
+    update.mockResolvedValueOnce({ itemId: 2712 });
+
+    await updateEntity.handler({
+      entity: 'TicketCharges',
+      parentEntity: 'Tickets',
+      parentId: '23836',
+      fields: JSON.stringify({ id: 2712, status: 8 }),
+    });
+
+    expect(getById).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith('Tickets/23836/Charges', {
+      id: 2712,
+      status: 8,
+    });
+  });
+
+  it('delete-entity auto-routes TicketCharges to Tickets/{ticketID}/Charges/{id}', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const deleteEntity = genericTools.find((t) => t.name === 'delete-entity')!;
+    getById.mockResolvedValueOnce({ item: { id: 2712, ticketID: 23836 } });
+    deleteById.mockResolvedValueOnce({ success: true });
+
+    await deleteEntity.handler({
+      entity: 'TicketCharges',
+      id: '2712',
+    });
+
+    expect(getById).toHaveBeenCalledWith('TicketCharges', '2712');
+    expect(deleteById).toHaveBeenCalledWith('Tickets/23836/Charges', '2712');
+  });
+
+  it('returns an error naming valid routes when no route exists for the method', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const deleteEntity = genericTools.find((t) => t.name === 'delete-entity')!;
+
+    await expect(
+      deleteEntity.handler({
+        entity: 'BillingCodes',
+        id: '123',
+      }),
+    ).rejects.toThrow(/No DELETE route exists for entity "BillingCodes"/);
+  });
+});
+
 describe('generic tools: pagination', () => {
   it('get-next-page passes the url verbatim and the parsed query model', async () => {
     const { genericTools } = await import('../src/tools/generic.js');

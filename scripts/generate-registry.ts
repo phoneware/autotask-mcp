@@ -360,7 +360,6 @@ function generate(): void {
     if (flatMatch) {
      entity = flatMatch[1];
     } else {
-     // root path like /VersionInformation (if any kept)
      entity = pathTemplate.replace(/^\//, '').split('/')[0];
     }
    }
@@ -490,6 +489,13 @@ for (const op of OPERATIONS) {
   }
 }
 
+/** Set of entity names that have flat write routes (POST, PUT, PATCH). */
+const entitiesWithFlatWrites = new Set<string>(
+  OPERATIONS.filter((o) => !o.parentEntity && o.classification === 'write').map((o) =>
+    o.entity.toLowerCase(),
+  ),
+);
+
 /**
  * Look up an operation by operationId or its snake_case / lower_case alias.
  */
@@ -514,15 +520,20 @@ export function getChildCollectionMeta(
   const parentNorm = parentEntity?.toLowerCase();
 
   for (const coll of CHILD_COLLECTIONS) {
-    if (parentNorm && coll.parentEntity.toLowerCase() !== parentNorm) {
-      continue;
-    }
-    if (
-      coll.entity.toLowerCase() === norm ||
-      coll.childAlias.toLowerCase() === norm ||
-      \`\${coll.parentEntity}\${coll.childAlias}\`.toLowerCase() === norm
-    ) {
-      return coll;
+    if (parentNorm) {
+      if (
+        coll.parentEntity.toLowerCase() === parentNorm &&
+        (coll.entity.toLowerCase() === norm || coll.childAlias.toLowerCase() === norm)
+      ) {
+        return coll;
+      }
+    } else {
+      if (coll.entity.toLowerCase() === norm) {
+        return coll;
+      }
+      if (!entitiesWithFlatWrites.has(norm) && coll.childAlias.toLowerCase() === norm) {
+        return coll;
+      }
     }
   }
   return undefined;
@@ -566,16 +577,16 @@ export function resolveEntityRoute(
     const childAlias = childMeta?.childAlias || entity;
     const parent = childMeta?.parentEntity || parentEntity;
 
-    // Look for exact route in OPERATIONS
     const matching = OPERATIONS.filter(
       (op) =>
         op.method === m &&
         op.parentEntity?.toLowerCase() === parent.toLowerCase() &&
-        op.childAlias?.toLowerCase() === childAlias.toLowerCase(),
+        (op.childAlias?.toLowerCase() === childAlias.toLowerCase() ||
+          op.entity.toLowerCase() === entityNorm) &&
+        (m === 'POST' ? op.classification === 'write' : true),
     );
 
     if (matching.length > 0) {
-      // Pick item route if method is DELETE or GET item, collection route otherwise
       const op =
         m === 'DELETE'
           ? matching.find((o) => o.pathTemplate.endsWith('/{id}')) || matching[0]
@@ -600,7 +611,8 @@ export function resolveEntityRoute(
     (op) =>
       op.method === m &&
       !op.parentEntity &&
-      op.entity.toLowerCase() === entityNorm,
+      op.entity.toLowerCase() === entityNorm &&
+      (m === 'POST' ? op.classification === 'write' : true),
   );
 
   if (flatMatching.length > 0) {
@@ -626,7 +638,8 @@ export function resolveEntityRoute(
       (op) =>
         op.method === m &&
         op.parentEntity?.toLowerCase() === childMeta.parentEntity.toLowerCase() &&
-        op.childAlias?.toLowerCase() === childMeta.childAlias.toLowerCase(),
+        op.childAlias?.toLowerCase() === childMeta.childAlias.toLowerCase() &&
+        (m === 'POST' ? op.classification === 'write' : true),
     );
 
     if (matching.length > 0) {
@@ -649,7 +662,18 @@ export function resolveEntityRoute(
     }
   }
 
-  // 4. No matching route: return error naming all valid routes for this entity
+  // 4. If entity is a known top-level entity, allow flat path
+  if (entitiesWithFlatWrites.has(entityNorm)) {
+    return {
+      resolved: {
+        pathTemplate: \`/V1.0/\${entity}\`,
+        method: m,
+        isChild: false,
+      },
+    };
+  }
+
+  // 5. No matching route: return error naming all valid routes for this entity
   const validRoutes = getValidRoutesForEntity(entity);
   if (validRoutes.length > 0) {
     return {
