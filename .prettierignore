@@ -5,3 +5,6 @@ coverage
 package-lock.json
 gha-creds-*.json
 spec
+# Generated artifacts: emitted by scripts/generate-registry.ts at build time
+docs/api-coverage.html
+src/generated/
