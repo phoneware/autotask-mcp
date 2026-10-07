@@ -22,7 +22,7 @@ interface Recorded {
 
 /**
  * A real (loopback) mock Autotask REST server. Lets us exercise the full HTTP
- * path — headers, URL construction, status handling, redaction — against an
+ * path (headers, URL construction, status handling, redaction) against an
  * actual socket rather than a fetch stub.
  */
 let server: Server;

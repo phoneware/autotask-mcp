@@ -17,6 +17,13 @@ import {
 } from './security.js';
 import { permits, type Capability } from './auth/capabilities.js';
 import { currentCaller } from './auth/context.js';
+import {
+  setActiveServer,
+  elicitConfirmation,
+  confirmDestructiveEnabled,
+} from './tools/elicitation.js';
+import { findOperation } from './generated/registry.js';
+import { callApiTool } from './tools/meta.js';
 
 const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf-8'),
@@ -32,12 +39,16 @@ const pkg = JSON.parse(
  * builds the full surface, which is what stdio (a single trusted local
  * operator, no sign-in) and the tool-count tests want.
  */
-export function buildServer(capabilities?: readonly Capability[]): {
+export function buildServer(
+  capabilities?: readonly Capability[],
+  promotedTools?: readonly string[],
+): {
   server: McpServer;
   registeredCount: number;
   skipped: number;
 } {
   const server = new McpServer({ name: 'autotask-mcp-server', version: pkg.version });
+  setActiveServer(server.server);
   const readonly = isReadonly();
   let registeredCount = 0;
   let skipped = 0;
@@ -71,54 +82,135 @@ export function buildServer(capabilities?: readonly Capability[]): {
       shape[key] = zodType;
     }
 
-    // A ZodRawShape becomes a default (key-stripping) z.object, which silently
-    // discards an argument the agent got wrong and leaves the handler with no
-    // filters at all. Strict turns that into an error naming the bad key, and
-    // publishes additionalProperties:false in tools/list so clients see it too.
     const inputSchema = z.object(shape).strict() as z.ZodType<Record<string, unknown>>;
 
-    server.registerTool(tool.name, { description: tool.description, inputSchema }, async (args) => {
-      try {
-        const stringArgs: Record<string, string> = {};
-        for (const [k, v] of Object.entries(args)) {
-          if (v !== undefined) stringArgs[k] = String(v);
-        }
+    server.registerTool(
+      tool.name,
+      {
+        title: tool.title,
+        description: tool.description,
+        inputSchema,
+        annotations: tool.annotations,
+      },
+      async (args) => {
+        try {
+          const stringArgs: Record<string, string> = {};
+          for (const [k, v] of Object.entries(args)) {
+            if (v !== undefined) stringArgs[k] = String(v);
+          }
 
-        // Re-check rights at call time, not just at registration. Identity is
-        // bound per request while a session outlives one, so the person making
-        // this call is not necessarily the one the session was built for.
-        // Skipped when there is no caller at all: that is stdio, where the
-        // operator is the process owner and there is no sign-in to derive
-        // rights from.
-        const caller = currentCaller();
-        if (caller) {
-          assertCapability(tool.name, caller.capabilities, caller.email);
-        }
+          const caller = currentCaller();
+          if (caller) {
+            assertCapability(tool.name, caller.capabilities, caller.email);
+          }
 
-        if (confirmToken) {
-          assertConfirmToken(tool.name, confirmToken, stringArgs.confirm);
-          delete stringArgs.confirm;
-        }
+          if (confirmToken) {
+            assertConfirmToken(tool.name, confirmToken, stringArgs.confirm);
+            delete stringArgs.confirm;
+          }
 
-        const result = await tool.handler(stringArgs);
-        return { ...result } as {
-          content: Array<{ type: 'text'; text: string }>;
-          isError?: boolean;
-          [key: string]: unknown;
-        };
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        return {
-          content: [{ type: 'text' as const, text: `Error: ${message}` }],
-          isError: true,
-        } as {
-          content: Array<{ type: 'text'; text: string }>;
-          isError: boolean;
-          [key: string]: unknown;
-        };
-      }
-    });
+          if (isDestructive && confirmDestructiveEnabled()) {
+            await elicitConfirmation(tool.name, stringArgs, server.server);
+          }
+
+          const result = await tool.handler(stringArgs);
+          return {
+            ...result,
+            structuredContent: result.structuredContent,
+          } as {
+            content: Array<{ type: 'text'; text: string }>;
+            structuredContent?: Record<string, unknown>;
+            isError?: boolean;
+            [key: string]: unknown;
+          };
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          return {
+            content: [{ type: 'text' as const, text: `Error: ${message}` }],
+            isError: true,
+          } as {
+            content: Array<{ type: 'text'; text: string }>;
+            isError: boolean;
+            [key: string]: unknown;
+          };
+        }
+      },
+    );
     registeredCount++;
+  }
+
+  // Register promoted tools for this user if provided
+  if (promotedTools && promotedTools.length > 0) {
+    const seenNames = new Set(allTools.map((t) => t.name));
+    for (const opId of promotedTools) {
+      if (seenNames.has(opId)) continue;
+      const op = findOperation(opId);
+      if (!op) continue;
+      if (readonly && op.destructive) continue;
+      const neededCap: Capability =
+        op.classification === 'read'
+          ? 'read'
+          : op.method === 'POST'
+            ? 'create'
+            : op.method === 'DELETE'
+              ? 'delete'
+              : 'update';
+      if (capabilities && !permits(capabilities, neededCap)) continue;
+
+      const shape: Record<string, z.ZodTypeAny> = {};
+      const opConfirmToken = op.destructive ? confirmTokenFor(op.operationId) : null;
+      if (opConfirmToken) {
+        shape.confirm = z
+          .string()
+          .describe(
+            `Required confirmation token. Must equal "${opConfirmToken}" to authorize this action.`,
+          );
+      }
+      for (const p of op.parameters) {
+        let zodType: z.ZodTypeAny = z.string().describe(p.description || p.name);
+        if (!p.required) zodType = zodType.optional();
+        shape[p.name] = zodType;
+      }
+      const inputSchema = z.object(shape).passthrough() as z.ZodType<Record<string, unknown>>;
+      const exposedName = `promoted_${op.operationId}`;
+      seenNames.add(exposedName);
+
+      server.registerTool(
+        exposedName,
+        {
+          title: `[Promoted] ${op.summary || op.operationId}`,
+          description: `[promoted] ${op.description || op.summary || op.pathTemplate} [${op.method} ${op.pathTemplate}]`,
+          inputSchema,
+          annotations: {
+            readOnlyHint: op.classification === 'read',
+            destructiveHint: op.destructive,
+            idempotentHint: op.method === 'GET' || op.method === 'DELETE',
+            openWorldHint: true,
+          },
+        },
+        async (args) => {
+          const confirmVal = args.confirm as string | undefined;
+          const innerArgs: Record<string, unknown> = { ...args };
+          delete innerArgs.confirm;
+          const callArgs: Record<string, string> = {
+            tool_name: op.operationId,
+            args: JSON.stringify(innerArgs),
+          };
+          if (confirmVal !== undefined) callArgs.confirm = confirmVal;
+          const res = await callApiTool.handler(callArgs);
+          return {
+            ...res,
+            structuredContent: res.structuredContent,
+          } as {
+            content: Array<{ type: 'text'; text: string }>;
+            structuredContent?: Record<string, unknown>;
+            isError?: boolean;
+            [key: string]: unknown;
+          };
+        },
+      );
+      registeredCount++;
+    }
   }
 
   for (const res of staticResources) {

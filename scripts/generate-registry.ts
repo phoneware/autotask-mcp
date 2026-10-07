@@ -32,9 +32,9 @@ const docsDir = join(rootDir, 'docs');
  *    Unversioned root version endpoint redundant with /V1.0/Version.
  */
 export const EXCLUDED_OPERATIONS: Record<string, true> = {
- AuthenticateApiIntegration_QueryAuthenticate: true,
- ZoneInformationApiIntegration_QueryZoneInformation: true,
- ApiVersion_ApiVersionInformation: true,
+  AuthenticateApiIntegration_QueryAuthenticate: true,
+  ZoneInformationApiIntegration_QueryZoneInformation: true,
+  ApiVersion_ApiVersionInformation: true,
 };
 
 /**
@@ -42,378 +42,376 @@ export const EXCLUDED_OPERATIONS: Record<string, true> = {
  * Stripped from every generated parameter schema.
  */
 export const AUTH_HEADER_PARAMS: Record<string, true> = {
- ApiIntegrationCode: true,
- UserName: true,
- Secret: true,
- ImpersonationResourceId: true,
+  ApiIntegrationCode: true,
+  UserName: true,
+  Secret: true,
+  ImpersonationResourceId: true,
 };
 
 interface SwaggerParam {
- name: string;
- in: 'path' | 'query' | 'header' | 'body';
- description?: string;
- required?: boolean;
- type?: string;
- format?: string;
- schema?: {
-  $ref?: string;
+  name: string;
+  in: 'path' | 'query' | 'header' | 'body';
+  description?: string;
+  required?: boolean;
   type?: string;
-  properties?: Record<string, unknown>;
- };
+  format?: string;
+  schema?: {
+    $ref?: string;
+    type?: string;
+    properties?: Record<string, unknown>;
+  };
 }
 
 interface SwaggerOperation {
- operationId: string;
- summary?: string;
- description?: string;
- tags?: string[];
- parameters?: SwaggerParam[];
- responses?: Record<string, { description?: string; schema?: { $ref?: string; type?: string } }>;
+  operationId: string;
+  summary?: string;
+  description?: string;
+  tags?: string[];
+  parameters?: SwaggerParam[];
+  responses?: Record<string, { description?: string; schema?: { $ref?: string; type?: string } }>;
 }
 
 interface SwaggerSpec {
- swagger: string;
- info: { title: string; version: string };
- paths: Record<string, Record<string, SwaggerOperation>>;
- definitions: Record<
-  string,
-  {
-   type?: string;
-   properties?: Record<
+  swagger: string;
+  info: { title: string; version: string };
+  paths: Record<string, Record<string, SwaggerOperation>>;
+  definitions: Record<
     string,
     {
-     type?: string;
-     format?: string;
-     description?: string;
-     $ref?: string;
-     readOnly?: boolean;
+      type?: string;
+      properties?: Record<
+        string,
+        {
+          type?: string;
+          format?: string;
+          description?: string;
+          $ref?: string;
+          readOnly?: boolean;
+        }
+      >;
     }
-   >;
-  }
- >;
+  >;
 }
 
 export interface GeneratedParam {
- name: string;
- in: 'path' | 'query' | 'body';
- required: boolean;
- type: string;
- description?: string;
- schemaRef?: string;
+  name: string;
+  in: 'path' | 'query' | 'body';
+  required: boolean;
+  type: string;
+  description?: string;
+  schemaRef?: string;
 }
 
 export interface GeneratedOperation {
- operationId: string;
- method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
- pathTemplate: string;
- entity: string;
- parentEntity?: string;
- childAlias?: string;
- parentFkField?: string;
- parameters: GeneratedParam[];
- requestModelRef?: string;
- classification: 'read' | 'write';
- destructive: boolean;
- tag?: string;
- summary?: string;
- description?: string;
+  operationId: string;
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  pathTemplate: string;
+  entity: string;
+  parentEntity?: string;
+  childAlias?: string;
+  parentFkField?: string;
+  parameters: GeneratedParam[];
+  requestModelRef?: string;
+  classification: 'read' | 'write';
+  destructive: boolean;
+  tag?: string;
+  summary?: string;
+  description?: string;
 }
 
 export interface GeneratedChildCollection {
- parentEntity: string;
- childAlias: string;
- entity: string;
- parentFkField?: string;
- childModel?: string;
- methods: string[];
+  parentEntity: string;
+  childAlias: string;
+  entity: string;
+  parentFkField?: string;
+  childModel?: string;
+  methods: string[];
 }
 
 function loadSpec(): SwaggerSpec {
- const content = readFileSync(specPath, 'utf8');
- return JSON.parse(content) as SwaggerSpec;
+  const content = readFileSync(specPath, 'utf8');
+  return JSON.parse(content) as SwaggerSpec;
 }
 
 /**
  * Extract model name from a schema reference or response object.
  */
 function extractModelName(schema?: { $ref?: string; type?: string }): string | undefined {
- if (!schema?.$ref) return undefined;
- const ref = schema.$ref.replace('#/definitions/', '');
- const matchQuery = ref.match(/QueryActionResult\[([^,\]]+)/);
- if (matchQuery) return matchQuery[1];
- if (ref.endsWith('Model')) return ref;
- return ref;
+  if (!schema?.$ref) return undefined;
+  const ref = schema.$ref.replace('#/definitions/', '');
+  const matchQuery = ref.match(/QueryActionResult\[([^,\]]+)/);
+  if (matchQuery) return matchQuery[1];
+  if (ref.endsWith('Model')) return ref;
+  return ref;
 }
 
 /**
  * Derive parent foreign key field on a child model from the spec.
  */
 function findParentFk(
- spec: SwaggerSpec,
- modelName: string | undefined,
- parentEntity: string,
+  spec: SwaggerSpec,
+  modelName: string | undefined,
+  parentEntity: string,
 ): string | undefined {
- if (!modelName || !spec.definitions[modelName]?.properties) return undefined;
- const props = Object.keys(spec.definitions[modelName].properties || {});
- const parentLower = parentEntity.toLowerCase();
- const singularParent = parentLower.endsWith('ies')
-  ? parentLower.slice(0, -3) + 'y'
-  : parentLower.endsWith('s')
-   ? parentLower.slice(0, -1)
-   : parentLower;
+  if (!modelName || !spec.definitions[modelName]?.properties) return undefined;
+  const props = Object.keys(spec.definitions[modelName].properties || {});
+  const parentLower = parentEntity.toLowerCase();
+  const singularParent = parentLower.endsWith('ies')
+    ? parentLower.slice(0, -3) + 'y'
+    : parentLower.endsWith('s')
+      ? parentLower.slice(0, -1)
+      : parentLower;
 
- // Exact matches: ticketID, companyID, contractID, projectID
- for (const pr of props) {
-  const prLower = pr.toLowerCase();
-  if (prLower === parentLower + 'id' || prLower === singularParent + 'id') {
-   return pr;
+  // Exact matches: ticketID, companyID, contractID, projectID
+  for (const pr of props) {
+    const prLower = pr.toLowerCase();
+    if (prLower === parentLower + 'id' || prLower === singularParent + 'id') {
+      return pr;
+    }
   }
- }
 
- // Suffix matches: articleCategoryID for KnowledgeBaseCategories, webhookID for Webhooks
- for (const pr of props) {
-  const prLower = pr.toLowerCase();
-  if (prLower.endsWith(parentLower + 'id') || prLower.endsWith(singularParent + 'id')) {
-   return pr;
+  // Suffix matches: articleCategoryID for KnowledgeBaseCategories, webhookID for Webhooks
+  for (const pr of props) {
+    const prLower = pr.toLowerCase();
+    if (prLower.endsWith(parentLower + 'id') || prLower.endsWith(singularParent + 'id')) {
+      return pr;
+    }
   }
- }
 
- // Irregular Autotask entity names
- for (const pr of props) {
-  const prLower = pr.toLowerCase();
-  if (parentLower === 'expenses' && prLower === 'expensereportid') return pr;
-  if (parentLower === 'purchaseorders' && prLower === 'orderid') return pr;
-  if (parentLower === 'knowledgebasearticles' && prLower === 'articleid') return pr;
-  if (parentLower === 'knowledgebasecategories' && prLower === 'articlecategoryid') return pr;
-  if (parentLower.endsWith('webhooks') && prLower === 'webhookid') return pr;
- }
+  // Irregular Autotask entity names
+  for (const pr of props) {
+    const prLower = pr.toLowerCase();
+    if (parentLower === 'expenses' && prLower === 'expensereportid') return pr;
+    if (parentLower === 'purchaseorders' && prLower === 'orderid') return pr;
+    if (parentLower === 'knowledgebasearticles' && prLower === 'articleid') return pr;
+    if (parentLower === 'knowledgebasecategories' && prLower === 'articlecategoryid') return pr;
+    if (parentLower.endsWith('webhooks') && prLower === 'webhookid') return pr;
+  }
 
- return undefined;
+  return undefined;
 }
 
 function generate(): void {
- console.log('Loading Autotask Swagger specification...');
- const spec = loadSpec();
- console.log(`Loaded spec: ${spec.info.title} (${spec.info.version})`);
+  console.log('Loading Autotask Swagger specification...');
+  const spec = loadSpec();
+  console.log(`Loaded spec: ${spec.info.title} (${spec.info.version})`);
 
- // 1. Map flat entities to models
- const flatEntityToModel = new Map<string, string>();
- const modelToFlatEntities = new Map<string, Set<string>>();
+  // 1. Map flat entities to models
+  const flatEntityToModel = new Map<string, string>();
+  const modelToFlatEntities = new Map<string, Set<string>>();
 
- for (const [path, pathItem] of Object.entries(spec.paths)) {
-  const matchFlat = path.match(/^\/V[0-9.]+\/([A-Za-z0-9_]+)(\/query)?$/);
-  if (!matchFlat) continue;
-  const entity = matchFlat[1];
-  for (const m of ['post', 'get', 'patch', 'put']) {
-   const op = pathItem[m];
-   if (!op) continue;
-   let model: string | undefined;
-   for (const param of op.parameters || []) {
-    if (param.in === 'body' && param.schema?.$ref) {
-     model = extractModelName(param.schema);
-     break;
+  for (const [path, pathItem] of Object.entries(spec.paths)) {
+    const matchFlat = path.match(/^\/V[0-9.]+\/([A-Za-z0-9_]+)(\/query)?$/);
+    if (!matchFlat) continue;
+    const entity = matchFlat[1];
+    for (const m of ['post', 'get', 'patch', 'put']) {
+      const op = pathItem[m];
+      if (!op) continue;
+      let model: string | undefined;
+      for (const param of op.parameters || []) {
+        if (param.in === 'body' && param.schema?.$ref) {
+          model = extractModelName(param.schema);
+          break;
+        }
+      }
+      if (!model && op.responses?.['200']?.schema) {
+        model = extractModelName(op.responses['200'].schema);
+      }
+      if (model) {
+        flatEntityToModel.set(entity, model);
+        if (!modelToFlatEntities.has(model)) {
+          modelToFlatEntities.set(model, new Set());
+        }
+        modelToFlatEntities.get(model)!.add(entity);
+      }
     }
-   }
-   if (!model && op.responses?.['200']?.schema) {
-    model = extractModelName(op.responses['200'].schema);
-   }
-   if (model) {
-    flatEntityToModel.set(entity, model);
-    if (!modelToFlatEntities.has(model)) {
-     modelToFlatEntities.set(model, new Set());
-    }
-    modelToFlatEntities.get(model)!.add(entity);
-   }
-  }
- }
-
- // 2. Map child collections
- const childCollections = new Map<string, GeneratedChildCollection>();
-
- for (const [pathTemplate, pathItem] of Object.entries(spec.paths)) {
-  const matchChild = pathTemplate.match(
-   /^\/V[0-9.]+\/([A-Za-z0-9_]+)\/\{parentId\}\/([A-Za-z0-9_]+)/,
-  );
-  if (!matchChild) continue;
-  const parentEntity = matchChild[1];
-  const childAlias = matchChild[2];
-  const pairKey = `${parentEntity}/${childAlias}`;
-
-  let collection = childCollections.get(pairKey);
-  if (!collection) {
-   // Find child model
-   let childModel: string | undefined;
-   for (const m of ['post', 'patch', 'put', 'get', 'delete']) {
-    const op = pathItem[m];
-    if (!op) continue;
-    for (const param of op.parameters || []) {
-     if (param.in === 'body' && param.schema?.$ref) {
-      childModel = extractModelName(param.schema);
-      break;
-     }
-    }
-    if (!childModel && op.responses?.['200']?.schema) {
-     childModel = extractModelName(op.responses['200'].schema);
-    }
-    if (childModel) break;
-   }
-
-   // Check also sibling /{id} route for model
-   const idRoute = `/V1.0/${parentEntity}/{parentId}/${childAlias}/{id}`;
-   if (!childModel && spec.paths[idRoute]) {
-    const idPathItem = spec.paths[idRoute];
-    for (const m of ['get', 'delete']) {
-     const op = idPathItem[m];
-     if (op?.responses?.['200']?.schema) {
-      childModel = extractModelName(op.responses['200'].schema);
-      if (childModel) break;
-     }
-    }
-   }
-
-   // Resolve matching flat entity
-   const matchingFlat = childModel
-    ? Array.from(modelToFlatEntities.get(childModel) || [])
-    : [];
-   let flatEntity = matchingFlat[0];
-   if (!flatEntity) {
-    const tag = Object.values(pathItem)[0]?.tags?.[0] || '';
-    const tagCandidate = tag.replace(/Child$/, '');
-    if (flatEntityToModel.has(tagCandidate)) {
-     flatEntity = tagCandidate;
-    } else {
-     flatEntity = childAlias;
-    }
-   }
-
-   const parentFkField = findParentFk(spec, childModel, parentEntity);
-
-   collection = {
-    parentEntity,
-    childAlias,
-    entity: flatEntity,
-    parentFkField,
-    childModel,
-    methods: [],
-   };
-   childCollections.set(pairKey, collection);
   }
 
-  for (const m of ['get', 'post', 'put', 'patch', 'delete']) {
-   if (pathItem[m] && !collection.methods.includes(m.toUpperCase())) {
-    collection.methods.push(m.toUpperCase());
-   }
-  }
- }
+  // 2. Map child collections
+  const childCollections = new Map<string, GeneratedChildCollection>();
 
- // Also include methods from /{id} subpaths in collection.methods
- for (const collection of childCollections.values()) {
-  const idPath = `/V1.0/${collection.parentEntity}/{parentId}/${collection.childAlias}/{id}`;
-  if (spec.paths[idPath]) {
-   for (const m of ['get', 'delete']) {
-    if (spec.paths[idPath][m] && !collection.methods.includes(m.toUpperCase())) {
-     collection.methods.push(m.toUpperCase());
-    }
-   }
-  }
- }
-
- // 3. Parse all operations
- const operations: GeneratedOperation[] = [];
- let excludedCount = 0;
-
- for (const [pathTemplate, pathItem] of Object.entries(spec.paths)) {
-  for (const methodKey of ['get', 'post', 'put', 'patch', 'delete']) {
-   const op = pathItem[methodKey];
-   if (!op) continue;
-
-   const opId = op.operationId;
-   if (EXCLUDED_OPERATIONS[opId]) {
-    excludedCount++;
-    continue;
-   }
-
-   const method = methodKey.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-   const isQuery = method === 'POST' && /\/query(\/count)?$/i.test(pathTemplate);
-   const isRead = method === 'GET' || isQuery;
-   const classification = isRead ? 'read' : 'write';
-   const destructive = !isRead;
-
-   // Determine entity, parentEntity, childAlias, parentFkField
-   let entity = '';
-   let parentEntity: string | undefined;
-   let childAlias: string | undefined;
-   let parentFkField: string | undefined;
-
-   const childMatch = pathTemplate.match(
-    /^\/V[0-9.]+\/([A-Za-z0-9_]+)\/\{parentId\}\/([A-Za-z0-9_]+)/,
-   );
-   if (childMatch) {
-    parentEntity = childMatch[1];
-    childAlias = childMatch[2];
+  for (const [pathTemplate, pathItem] of Object.entries(spec.paths)) {
+    const matchChild = pathTemplate.match(
+      /^\/V[0-9.]+\/([A-Za-z0-9_]+)\/\{parentId\}\/([A-Za-z0-9_]+)/,
+    );
+    if (!matchChild) continue;
+    const parentEntity = matchChild[1];
+    const childAlias = matchChild[2];
     const pairKey = `${parentEntity}/${childAlias}`;
-    const coll = childCollections.get(pairKey);
-    entity = coll?.entity || childAlias;
-    parentFkField = coll?.parentFkField;
-   } else {
-    const flatMatch = pathTemplate.match(/^\/V[0-9.]+\/([A-Za-z0-9_]+)/);
-    if (flatMatch) {
-     entity = flatMatch[1];
-    } else {
-     entity = pathTemplate.replace(/^\//, '').split('/')[0];
+
+    let collection = childCollections.get(pairKey);
+    if (!collection) {
+      // Find child model
+      let childModel: string | undefined;
+      for (const m of ['post', 'patch', 'put', 'get', 'delete']) {
+        const op = pathItem[m];
+        if (!op) continue;
+        for (const param of op.parameters || []) {
+          if (param.in === 'body' && param.schema?.$ref) {
+            childModel = extractModelName(param.schema);
+            break;
+          }
+        }
+        if (!childModel && op.responses?.['200']?.schema) {
+          childModel = extractModelName(op.responses['200'].schema);
+        }
+        if (childModel) break;
+      }
+
+      // Check also sibling /{id} route for model
+      const idRoute = `/V1.0/${parentEntity}/{parentId}/${childAlias}/{id}`;
+      if (!childModel && spec.paths[idRoute]) {
+        const idPathItem = spec.paths[idRoute];
+        for (const m of ['get', 'delete']) {
+          const op = idPathItem[m];
+          if (op?.responses?.['200']?.schema) {
+            childModel = extractModelName(op.responses['200'].schema);
+            if (childModel) break;
+          }
+        }
+      }
+
+      // Resolve matching flat entity
+      const matchingFlat = childModel ? Array.from(modelToFlatEntities.get(childModel) || []) : [];
+      let flatEntity = matchingFlat[0];
+      if (!flatEntity) {
+        const tag = Object.values(pathItem)[0]?.tags?.[0] || '';
+        const tagCandidate = tag.replace(/Child$/, '');
+        if (flatEntityToModel.has(tagCandidate)) {
+          flatEntity = tagCandidate;
+        } else {
+          flatEntity = childAlias;
+        }
+      }
+
+      const parentFkField = findParentFk(spec, childModel, parentEntity);
+
+      collection = {
+        parentEntity,
+        childAlias,
+        entity: flatEntity,
+        parentFkField,
+        childModel,
+        methods: [],
+      };
+      childCollections.set(pairKey, collection);
     }
-   }
 
-   // Parameters (auth headers stripped)
-   const parameters: GeneratedParam[] = [];
-   let requestModelRef: string | undefined;
-
-   for (const param of op.parameters || []) {
-    if (param.in === 'header' && AUTH_HEADER_PARAMS[param.name]) {
-     continue;
+    for (const m of ['get', 'post', 'put', 'patch', 'delete']) {
+      if (pathItem[m] && !collection.methods.includes(m.toUpperCase())) {
+        collection.methods.push(m.toUpperCase());
+      }
     }
-
-    if (param.in === 'body' && param.schema?.$ref) {
-     requestModelRef = extractModelName(param.schema);
-    }
-
-    parameters.push({
-     name: param.name,
-     in: param.in as 'path' | 'query' | 'body',
-     required: param.required ?? false,
-     type: param.type || (param.schema?.$ref ? 'object' : 'string'),
-     description: param.description,
-     schemaRef: param.schema?.$ref,
-    });
-   }
-
-   operations.push({
-    operationId: opId,
-    method,
-    pathTemplate,
-    entity,
-    parentEntity,
-    childAlias,
-    parentFkField,
-    parameters,
-    requestModelRef,
-    classification,
-    destructive,
-    tag: op.tags?.[0],
-    summary: op.summary,
-    description: op.description,
-   });
   }
- }
 
- console.log(`Parsed ${operations.length} operations (${excludedCount} excluded).`);
- console.log(`Detected ${childCollections.size} child collections.`);
+  // Also include methods from /{id} subpaths in collection.methods
+  for (const collection of childCollections.values()) {
+    const idPath = `/V1.0/${collection.parentEntity}/{parentId}/${collection.childAlias}/{id}`;
+    if (spec.paths[idPath]) {
+      for (const m of ['get', 'delete']) {
+        if (spec.paths[idPath][m] && !collection.methods.includes(m.toUpperCase())) {
+          collection.methods.push(m.toUpperCase());
+        }
+      }
+    }
+  }
 
- mkdirSync(generatedDir, { recursive: true });
- mkdirSync(docsDir, { recursive: true });
+  // 3. Parse all operations
+  const operations: GeneratedOperation[] = [];
+  let excludedCount = 0;
 
- // 4. Write src/generated/types.ts
- const typesContent = `// Auto-generated by scripts/generate-registry.ts: DO NOT EDIT
+  for (const [pathTemplate, pathItem] of Object.entries(spec.paths)) {
+    for (const methodKey of ['get', 'post', 'put', 'patch', 'delete']) {
+      const op = pathItem[methodKey];
+      if (!op) continue;
+
+      const opId = op.operationId;
+      if (EXCLUDED_OPERATIONS[opId]) {
+        excludedCount++;
+        continue;
+      }
+
+      const method = methodKey.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+      const isQuery = method === 'POST' && /\/query(\/count)?$/i.test(pathTemplate);
+      const isRead = method === 'GET' || isQuery;
+      const classification = isRead ? 'read' : 'write';
+      const destructive = !isRead;
+
+      // Determine entity, parentEntity, childAlias, parentFkField
+      let entity = '';
+      let parentEntity: string | undefined;
+      let childAlias: string | undefined;
+      let parentFkField: string | undefined;
+
+      const childMatch = pathTemplate.match(
+        /^\/V[0-9.]+\/([A-Za-z0-9_]+)\/\{parentId\}\/([A-Za-z0-9_]+)/,
+      );
+      if (childMatch) {
+        parentEntity = childMatch[1];
+        childAlias = childMatch[2];
+        const pairKey = `${parentEntity}/${childAlias}`;
+        const coll = childCollections.get(pairKey);
+        entity = coll?.entity || childAlias;
+        parentFkField = coll?.parentFkField;
+      } else {
+        const flatMatch = pathTemplate.match(/^\/V[0-9.]+\/([A-Za-z0-9_]+)/);
+        if (flatMatch) {
+          entity = flatMatch[1];
+        } else {
+          entity = pathTemplate.replace(/^\//, '').split('/')[0];
+        }
+      }
+
+      // Parameters (auth headers stripped)
+      const parameters: GeneratedParam[] = [];
+      let requestModelRef: string | undefined;
+
+      for (const param of op.parameters || []) {
+        if (param.in === 'header' && AUTH_HEADER_PARAMS[param.name]) {
+          continue;
+        }
+
+        if (param.in === 'body' && param.schema?.$ref) {
+          requestModelRef = extractModelName(param.schema);
+        }
+
+        parameters.push({
+          name: param.name,
+          in: param.in as 'path' | 'query' | 'body',
+          required: param.required ?? false,
+          type: param.type || (param.schema?.$ref ? 'object' : 'string'),
+          description: param.description,
+          schemaRef: param.schema?.$ref,
+        });
+      }
+
+      operations.push({
+        operationId: opId,
+        method,
+        pathTemplate,
+        entity,
+        parentEntity,
+        childAlias,
+        parentFkField,
+        parameters,
+        requestModelRef,
+        classification,
+        destructive,
+        tag: op.tags?.[0],
+        summary: op.summary,
+        description: op.description,
+      });
+    }
+  }
+
+  console.log(`Parsed ${operations.length} operations (${excludedCount} excluded).`);
+  console.log(`Detected ${childCollections.size} child collections.`);
+
+  mkdirSync(generatedDir, { recursive: true });
+  mkdirSync(docsDir, { recursive: true });
+
+  // 4. Write src/generated/types.ts
+  const typesContent = `// Auto-generated by scripts/generate-registry.ts: DO NOT EDIT
 
 export interface OperationParameter {
   name: string;
@@ -460,12 +458,12 @@ export interface ResolvedRoute {
   operationId?: string;
 }
 `;
- writeFileSync(join(generatedDir, 'types.ts'), typesContent, 'utf8');
- console.log('Wrote src/generated/types.ts');
+  writeFileSync(join(generatedDir, 'types.ts'), typesContent, 'utf8');
+  console.log('Wrote src/generated/types.ts');
 
- // 5. Write src/generated/registry.ts
- const childCollsArray = Array.from(childCollections.values());
- const registryContent = `// Auto-generated by scripts/generate-registry.ts: DO NOT EDIT
+  // 5. Write src/generated/registry.ts
+  const childCollsArray = Array.from(childCollections.values());
+  const registryContent = `// Auto-generated by scripts/generate-registry.ts: DO NOT EDIT
 import type { RegistryOperation, ChildCollectionMeta, ResolvedRoute } from './types.js';
 
 export * from './types.js';
@@ -685,11 +683,11 @@ export function resolveEntityRoute(
   };
 }
 `;
- writeFileSync(join(generatedDir, 'registry.ts'), registryContent, 'utf8');
- console.log('Wrote src/generated/registry.ts');
+  writeFileSync(join(generatedDir, 'registry.ts'), registryContent, 'utf8');
+  console.log('Wrote src/generated/registry.ts');
 
- // 6. Generate docs/api-coverage.html
- const coverageHtml = `<!DOCTYPE html>
+  // 6. Generate docs/api-coverage.html
+  const coverageHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -777,9 +775,9 @@ export function resolveEntityRoute(
     </thead>
     <tbody>
       ${operations
-   .slice(0, 100)
-   .map(
-    (op) => `
+        .slice(0, 100)
+        .map(
+          (op) => `
         <tr>
           <td><code>${op.operationId}</code></td>
           <td><span class="badge badge-${op.method.toLowerCase()}">${op.method}</span></td>
@@ -789,16 +787,16 @@ export function resolveEntityRoute(
           <td><span class="badge badge-${op.classification}">${op.classification}</span></td>
         </tr>
       `,
-   )
-   .join('')}
+        )
+        .join('')}
     </tbody>
   </table>
 </body>
 </html>
 `;
- writeFileSync(join(docsDir, 'api-coverage.html'), coverageHtml, 'utf8');
- console.log('Wrote docs/api-coverage.html');
- console.log('Done!');
+  writeFileSync(join(docsDir, 'api-coverage.html'), coverageHtml, 'utf8');
+  console.log('Wrote docs/api-coverage.html');
+  console.log('Done!');
 }
 
 generate();

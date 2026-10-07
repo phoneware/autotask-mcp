@@ -1,4 +1,4 @@
-import { ToolDefinition } from '../types.js';
+import type { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
 import {
   jsonResponse,
@@ -13,8 +13,15 @@ import {
 export const projectTools: ToolDefinition[] = [
   {
     name: 'search-projects',
+    title: 'Search Projects',
     description:
       'Search projects. Filters are optional and ANDed; with none, returns projects up to maxRecords. status is a numeric picklist code.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -36,7 +43,14 @@ export const projectTools: ToolDefinition[] = [
   },
   {
     name: 'get-project',
+    title: 'Get Project',
     description: 'Get a single project by its numeric id.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string', description: 'Project id' } },
@@ -46,8 +60,15 @@ export const projectTools: ToolDefinition[] = [
   },
   {
     name: 'search-tasks',
+    title: 'Search Tasks',
     description:
       'Search tasks, typically within a project. Filters are optional and ANDed. status is a numeric picklist code.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -71,7 +92,14 @@ export const projectTools: ToolDefinition[] = [
   },
   {
     name: 'get-task',
+    title: 'Get Task',
     description: 'Get a single task by its numeric id.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string', description: 'Task id' } },

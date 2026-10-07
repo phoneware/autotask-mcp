@@ -1,4 +1,4 @@
-import { ToolDefinition } from '../types.js';
+import type { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
 import {
   jsonResponse,
@@ -14,8 +14,15 @@ import {
 export const timeEntryTools: ToolDefinition[] = [
   {
     name: 'search-time-entries',
+    title: 'Search Time Entries',
     description:
       'Search time entries. Filters are optional and ANDed; with none, returns entries up to maxRecords. Provide ticketID or taskID to scope to a work item.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -37,8 +44,15 @@ export const timeEntryTools: ToolDefinition[] = [
   },
   {
     name: 'create-time-entry',
+    title: 'Create Time Entry',
     description:
       'Log a time entry against a ticket or task. DESTRUCTIVE (write). Provide exactly one of ticketID or taskID. hoursWorked is required; dateWorked is ISO 8601 (defaults to now if omitted by Autotask). For other fields use generic create-entity.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {

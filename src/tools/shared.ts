@@ -1,8 +1,17 @@
 import { ToolResponse } from '../types.js';
 
-/** Wrap any value as a pretty-printed JSON text tool response. */
-export function jsonResponse(data: unknown): ToolResponse {
-  return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+/** Wrap any value as a pretty-printed JSON text tool response with structuredContent. */
+export function jsonResponse(data: unknown, isError = false): ToolResponse {
+  const text = JSON.stringify(data, null, 2);
+  const structuredContent =
+    data !== null && typeof data === 'object' && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : { result: data };
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent,
+    isError,
+  };
 }
 
 /** Parse an optional positive integer arg, clamped to [1, max]. */

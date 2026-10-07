@@ -127,7 +127,10 @@ describe('security: every mutating tool is confirm-gated', () => {
     const { allTools } = await import('../src/tools/index.js');
     for (const t of allTools) {
       if (DESTRUCTIVE_TOOLS.has(t.name)) {
-        expect(/^(create|update|delete)-/.test(t.name), `${t.name} flagged destructive`).toBe(true);
+        expect(
+          /^(create|update|delete|cancel)-/.test(t.name),
+          `${t.name} flagged destructive`,
+        ).toBe(true);
       }
     }
   });

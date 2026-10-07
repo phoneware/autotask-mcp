@@ -1,4 +1,4 @@
-import { ToolDefinition } from '../types.js';
+import type { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
 import {
   jsonResponse,
@@ -15,7 +15,7 @@ import {
 } from './shared.js';
 
 /**
- * Convenience tools for Tickets — the most-used Autotask entity. They wrap the
+ * Convenience tools for Tickets: the most-used Autotask entity. They wrap the
  * generic query/create/update layer with named, LLM-friendly parameters and
  * real Autotask field names so the agent does not have to hand-build filters.
  * Status / priority / queue values are numeric picklist codes; use
@@ -24,10 +24,17 @@ import {
 export const ticketTools: ToolDefinition[] = [
   {
     name: 'search-tickets',
+    title: 'Search Tickets',
     description:
       'Search tickets by common fields. All filters are optional and combined with AND; with none, returns the most recent tickets up to maxRecords. ' +
       'For triage use the semantic flags rather than enumerating statuses yourself: set openOnly=true to exclude closed tickets (by denylist, so no open status is ever missed) and unassigned=true to return only tickets with no assigned resource. ' +
       'status/priority/queueID are numeric picklist codes (see describe-entity-fields).',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -89,7 +96,14 @@ export const ticketTools: ToolDefinition[] = [
   },
   {
     name: 'get-ticket',
+    title: 'Get Ticket',
     description: 'Get a single ticket by its numeric id.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string', description: 'Ticket id' } },
@@ -99,8 +113,15 @@ export const ticketTools: ToolDefinition[] = [
   },
   {
     name: 'create-ticket',
+    title: 'Create Ticket',
     description:
       'Create a ticket. DESTRUCTIVE (write). title and companyID are required; status/priority/queueID are numeric picklist codes. For fields not listed here, use the generic create-entity tool.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -133,8 +154,15 @@ export const ticketTools: ToolDefinition[] = [
   },
   {
     name: 'update-ticket',
+    title: 'Update Ticket',
     description:
       'Update fields on an existing ticket. DESTRUCTIVE (write). Only the supplied fields change. For fields not listed here, use the generic update-entity tool.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -165,8 +193,15 @@ export const ticketTools: ToolDefinition[] = [
   },
   {
     name: 'create-ticket-note',
+    title: 'Create Ticket Note',
     description:
-      'Add a note to a ticket. DESTRUCTIVE (write). noteType is a numeric picklist code; publish controls visibility (1 = internal, 2 = all Autotask users — verify via describe-entity-fields("TicketNotes")).',
+      'Add a note to a ticket. DESTRUCTIVE (write). noteType is a numeric picklist code; publish controls visibility (1 = internal, 2 = all Autotask users; verify via describe-entity-fields("TicketNotes")).',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -189,8 +224,33 @@ export const ticketTools: ToolDefinition[] = [
       if (noteType !== undefined) body.noteType = noteType;
       const publish = optionalIntArg('publish', args.publish);
       if (publish !== undefined) body.publish = publish;
-      // TicketNotes are created under the parent ticket's child collection.
       return jsonResponse(await api.create(`Tickets/${ticketID}/Notes`, body));
+    },
+  },
+  {
+    name: 'search-ticket-notes',
+    title: 'Search Ticket Notes',
+    description: 'Search or list notes on an Autotask ticket by numeric ticket ID.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticketId: { type: 'string', description: 'Numeric ticket ID, e.g. "23836"' },
+        maxRecords: { type: 'string', description: 'Max records to return (1-500, default 50)' },
+      },
+      required: ['ticketId'],
+    },
+    handler: async (args) => {
+      const ticketId = intArg('ticketId', args.ticketId);
+      const limit = parseMaxRecords(args.maxRecords);
+      const filter: FilterClause[] = [{ op: 'eq', field: 'ticketID', value: ticketId }];
+      const result = await api.query('TicketNotes', { filter, MaxRecords: limit });
+      return searchResponse(filter, result);
     },
   },
 ];

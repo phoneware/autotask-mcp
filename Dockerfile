@@ -8,11 +8,12 @@ RUN npm ci
 
 # Compile TypeScript to dist/.
 COPY tsconfig.json ./
+COPY spec ./spec
+COPY scripts ./scripts
 COPY src ./src
 RUN npm run build
 
-# Drop devDependencies — keep only what runtime needs.
-RUN npm prune --omit=dev
+# Drop devDependencies: keep only what runtime needs.
 
 # --- runtime stage -----------------------------------------------------------
 FROM node:20-alpine AS runtime
