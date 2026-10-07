@@ -12,15 +12,20 @@ import {
   optionalIntArg,
 } from '../src/tools/shared.js';
 import { CONFIRM_REQUIRED_TOOLS, DESTRUCTIVE_TOOLS } from '../src/security.js';
-
-// Mock the API module so tool handlers run without real credentials/network.
-const query = vi.fn();
-const create = vi.fn();
-const queryCount = vi.fn();
-const getPage = vi.fn();
-const getById = vi.fn();
-const update = vi.fn();
-const deleteById = vi.fn();
+import { allTools } from '../src/tools/index.js';
+import { genericTools } from '../src/tools/generic.js';
+import { companyTools } from '../src/tools/companies.js';
+import { ticketChargeTools } from '../src/tools/ticket-charges.js';
+import { resolveWritePath } from '../src/tools/entity-resolver.js';
+const { query, create, queryCount, getPage, getById, update, deleteById } = vi.hoisted(() => ({
+  query: vi.fn(),
+  create: vi.fn(),
+  queryCount: vi.fn(),
+  getPage: vi.fn(),
+  getById: vi.fn(),
+  update: vi.fn(),
+  deleteById: vi.fn(),
+}));
 vi.mock('../src/autotask-api.js', () => ({
   api: {
     query,
@@ -109,9 +114,8 @@ describe('shared helpers', () => {
 });
 
 describe('security: every mutating tool is confirm-gated', () => {
-  it('all create-/update-/delete- tools require confirm and are destructive', async () => {
-    const { allTools } = await import('../src/tools/index.js');
-    const mutating = allTools.filter((t) => /^(create|update|delete)-/.test(t.name));
+  it('all create-/update-/delete- tools require confirm and are destructive', () => {
+    const mutating = allTools.filter((t) => /^(create|update|delete|cancel)-/.test(t.name));
     // Sanity: we actually have mutating tools to check.
     expect(mutating.length).toBeGreaterThan(0);
     for (const t of mutating) {
@@ -123,11 +127,13 @@ describe('security: every mutating tool is confirm-gated', () => {
     }
   });
 
-  it('no read tool is accidentally marked destructive', async () => {
-    const { allTools } = await import('../src/tools/index.js');
+  it('no read tool is accidentally marked destructive', () => {
     for (const t of allTools) {
       if (DESTRUCTIVE_TOOLS.has(t.name)) {
-        expect(/^(create|update|delete)-/.test(t.name), `${t.name} flagged destructive`).toBe(true);
+        expect(
+          /^(create|update|delete|cancel)-/.test(t.name),
+          `${t.name} flagged destructive`,
+        ).toBe(true);
       }
     }
   });
@@ -289,6 +295,56 @@ describe('generic tools: path-traversal hardening', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it('create-entity rejects traversal / unsafe entity names', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const c = genericTools.find((t) => t.name === 'create-entity')!;
+    for (const bad of [
+      '..',
+      '../ThresholdInformation',
+      'Tickets/../Companies',
+      'Tickets/query',
+      '',
+    ]) {
+      await expect(c.handler({ entity: bad, fields: '{"title":"x"}' })).rejects.toThrow(
+        /safe Autotask entity name/,
+      );
+    }
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('update-entity rejects traversal / unsafe entity names', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const u = genericTools.find((t) => t.name === 'update-entity')!;
+    for (const bad of [
+      '..',
+      '../ThresholdInformation',
+      'Tickets/../Companies',
+      'Tickets/query',
+      '',
+    ]) {
+      await expect(u.handler({ entity: bad, fields: '{"id":123,"title":"x"}' })).rejects.toThrow(
+        /safe Autotask entity name/,
+      );
+    }
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('delete-entity rejects traversal / unsafe entity names', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const d = genericTools.find((t) => t.name === 'delete-entity')!;
+    for (const bad of [
+      '..',
+      '../ThresholdInformation',
+      'Tickets/../Companies',
+      'Tickets/query',
+      '',
+    ]) {
+      await expect(d.handler({ entity: bad, id: '123' })).rejects.toThrow(
+        /safe Autotask entity name/,
+      );
+    }
+    expect(deleteById).not.toHaveBeenCalled();
+  });
   it('rejects unsafe parentEntity and non-numeric parentId', async () => {
     const { genericTools } = await import('../src/tools/generic.js');
     const q = genericTools.find((t) => t.name === 'query-entity')!;
@@ -523,6 +579,109 @@ describe('generic tools: Contacts auto-routing', () => {
   });
 });
 
+describe('generic tools: spec-driven child collection auto-routing', () => {
+  beforeEach(() => {
+    create.mockReset();
+    update.mockReset();
+    deleteById.mockReset();
+    getById.mockReset();
+  });
+
+  it('create-entity auto-routes TicketCharges to Tickets/{ticketID}/Charges with ticketID in fields', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+    create.mockResolvedValueOnce({ itemId: 2712 });
+
+    await createEntity.handler({
+      entity: 'TicketCharges',
+      fields: JSON.stringify({ ticketID: 23836, name: 'Labor', chargeType: 1 }),
+    });
+
+    expect(create).toHaveBeenCalledWith('Tickets/23836/Charges', {
+      ticketID: 23836,
+      name: 'Labor',
+      chargeType: 1,
+    });
+  });
+
+  it('create-entity throws clear error when TicketCharges lacks ticketID and parent props', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+
+    await expect(
+      createEntity.handler({
+        entity: 'TicketCharges',
+        fields: JSON.stringify({ name: 'Labor', chargeType: 1 }),
+      }),
+    ).rejects.toThrow(/TicketCharges in Autotask must be created under a ticket/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('update-entity auto-routes TicketCharges using ticketID from lookup', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const updateEntity = genericTools.find((t) => t.name === 'update-entity')!;
+    getById.mockResolvedValueOnce({ item: { id: 2712, ticketID: 23836 } });
+    update.mockResolvedValueOnce({ itemId: 2712 });
+
+    await updateEntity.handler({
+      entity: 'TicketCharges',
+      fields: JSON.stringify({ id: 2712, status: 8 }),
+    });
+
+    expect(getById).toHaveBeenCalledWith('TicketCharges', '2712');
+    expect(update).toHaveBeenCalledWith('Tickets/23836/Charges', {
+      id: 2712,
+      status: 8,
+    });
+  });
+
+  it('update-entity with explicit parentEntity and parentId routes directly', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const updateEntity = genericTools.find((t) => t.name === 'update-entity')!;
+    update.mockResolvedValueOnce({ itemId: 2712 });
+
+    await updateEntity.handler({
+      entity: 'TicketCharges',
+      parentEntity: 'Tickets',
+      parentId: '23836',
+      fields: JSON.stringify({ id: 2712, status: 8 }),
+    });
+
+    expect(getById).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith('Tickets/23836/Charges', {
+      id: 2712,
+      status: 8,
+    });
+  });
+
+  it('delete-entity auto-routes TicketCharges to Tickets/{ticketID}/Charges/{id}', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const deleteEntity = genericTools.find((t) => t.name === 'delete-entity')!;
+    getById.mockResolvedValueOnce({ item: { id: 2712, ticketID: 23836 } });
+    deleteById.mockResolvedValueOnce({ success: true });
+
+    await deleteEntity.handler({
+      entity: 'TicketCharges',
+      id: '2712',
+    });
+
+    expect(getById).toHaveBeenCalledWith('TicketCharges', '2712');
+    expect(deleteById).toHaveBeenCalledWith('Tickets/23836/Charges', '2712');
+  });
+
+  it('returns an error naming valid routes when no route exists for the method', async () => {
+    const { genericTools } = await import('../src/tools/generic.js');
+    const deleteEntity = genericTools.find((t) => t.name === 'delete-entity')!;
+
+    await expect(
+      deleteEntity.handler({
+        entity: 'BillingCodes',
+        id: '123',
+      }),
+    ).rejects.toThrow(/No DELETE route exists for entity "BillingCodes"/);
+  });
+});
+
 describe('generic tools: pagination', () => {
   it('get-next-page passes the url verbatim and the parsed query model', async () => {
     const { genericTools } = await import('../src/tools/generic.js');
@@ -544,5 +703,174 @@ describe('generic tools: pagination', () => {
 
     await expect(next.handler({ nextPageUrl: 'https://x/', query: 'not json' })).rejects.toThrow();
     expect(getPage).not.toHaveBeenCalled();
+  });
+});
+
+describe('companyTools: active flag handling', () => {
+  beforeEach(() => {
+    query.mockReset();
+    update.mockReset();
+  });
+
+  it('update-company leaves isActive undefined when empty string or undefined', async () => {
+    const updateComp = companyTools.find((t) => t.name === 'update-company')!;
+    update.mockResolvedValueOnce({ itemId: 123 });
+
+    await updateComp.handler({ id: '123', companyName: 'Acme Corp', isActive: '' });
+    expect(update).toHaveBeenCalledWith('Companies', { id: 123, companyName: 'Acme Corp' });
+
+    update.mockResolvedValueOnce({ itemId: 123 });
+    await updateComp.handler({ id: '123', companyName: 'Acme Corp' });
+    expect(update).toHaveBeenLastCalledWith('Companies', { id: 123, companyName: 'Acme Corp' });
+  });
+  it('update-company sets isActive boolean on "true" and "false"', async () => {
+    const updateComp = companyTools.find((t) => t.name === 'update-company')!;
+
+    update.mockResolvedValueOnce({ itemId: 123 });
+    await updateComp.handler({ id: '123', isActive: 'true' });
+    expect(update).toHaveBeenCalledWith('Companies', { id: 123, isActive: true });
+
+    update.mockResolvedValueOnce({ itemId: 123 });
+    await updateComp.handler({ id: '123', isActive: 'false' });
+    expect(update).toHaveBeenLastCalledWith('Companies', { id: 123, isActive: false });
+  });
+  it('update-company rejects invalid isActive string', async () => {
+    const updateComp = companyTools.find((t) => t.name === 'update-company')!;
+
+    await expect(updateComp.handler({ id: '123', isActive: 'not-a-bool' })).rejects.toThrow(
+      /isActive must be "true" or "false"/,
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('search-companies ignores empty isActive and rejects invalid string', async () => {
+    const searchComp = companyTools.find((t) => t.name === 'search-companies')!;
+    query.mockResolvedValueOnce({ items: [] });
+
+    await searchComp.handler({ isActive: '' });
+    expect(query).toHaveBeenCalledWith('Companies', {
+      filter: [{ op: 'gte', field: 'id', value: 0 }],
+      MaxRecords: 50,
+    });
+
+    query.mockResolvedValueOnce({ items: [] });
+    await searchComp.handler({ isActive: 'true' });
+    expect(query).toHaveBeenLastCalledWith('Companies', {
+      filter: [{ op: 'eq', field: 'isActive', value: true }],
+      MaxRecords: 50,
+    });
+
+    await expect(searchComp.handler({ isActive: 'garbage' })).rejects.toThrow(
+      /isActive must be "true" or "false"/,
+    );
+  });
+});
+
+describe('ticketChargeTools: numeric validation', () => {
+  beforeEach(() => {
+    create.mockReset();
+  });
+
+  it('create-ticket-charge rejects invalid numeric fields', async () => {
+    const createCharge = ticketChargeTools.find((t) => t.name === 'create-ticket-charge')!;
+
+    await expect(
+      createCharge.handler({
+        ticketId: '23836',
+        name: 'Labor',
+        unitPrice: '$120.00',
+      }),
+    ).rejects.toThrow(/unitPrice must be a number/);
+
+    await expect(
+      createCharge.handler({
+        ticketId: '23836',
+        name: 'Labor',
+        billingCodeID: '12.5',
+      }),
+    ).rejects.toThrow(/billingCodeID must be an integer/);
+
+    await expect(
+      createCharge.handler({
+        ticketId: '23836',
+        name: 'Labor',
+        productID: 'non-numeric',
+      }),
+    ).rejects.toThrow(/productID must be an integer/);
+
+    await expect(
+      createCharge.handler({
+        ticketId: '23836',
+        name: 'Labor',
+        chargeType: 'bad',
+      }),
+    ).rejects.toThrow(/chargeType must be an integer/);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+  it('create-ticket-charge omits empty optional numeric fields instead of coercing to 0', async () => {
+    const createCharge = ticketChargeTools.find((t) => t.name === 'create-ticket-charge')!;
+    create.mockResolvedValueOnce({ itemId: 999 });
+
+    await createCharge.handler({
+      ticketId: '23836',
+      name: 'Labor',
+      unitPrice: '',
+      unitCost: '',
+    });
+
+    expect(create).toHaveBeenCalledWith('Tickets/23836/Charges', {
+      name: 'Labor',
+      ticketID: 23836,
+      chargeType: 1,
+    });
+  });
+});
+
+describe('entity-resolver: parent FK resolution', () => {
+  beforeEach(() => {
+    create.mockReset();
+  });
+
+  it('resolves parent route with CompanyID spelling (PascalCase)', async () => {
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+    create.mockResolvedValueOnce({ itemId: 100 });
+
+    await createEntity.handler({
+      entity: 'Contacts',
+      fields: JSON.stringify({ CompanyID: 1482, firstName: 'Chris', lastName: 'Galeotti' }),
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      'Companies/1482/Contacts',
+      expect.objectContaining({ CompanyID: 1482, firstName: 'Chris' }),
+    );
+  });
+
+  it('resolves parent route for UserDefinedFieldListItems with udfFieldId', async () => {
+    const createEntity = genericTools.find((t) => t.name === 'create-entity')!;
+    create.mockResolvedValueOnce({ itemId: 101 });
+
+    await createEntity.handler({
+      entity: 'UserDefinedFieldListItems',
+      fields: JSON.stringify({ udfFieldId: 10, valueForDisplay: 'Test', valueForExport: 'Test' }),
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      'UserDefinedFields/10/ListItems',
+      expect.objectContaining({ udfFieldId: 10, valueForDisplay: 'Test' }),
+    );
+  });
+
+  it('resolves pre-resolved child path segment-by-segment and checks registry', async () => {
+    const resolved = await resolveWritePath('Companies/123/Contacts', 'POST');
+    expect(resolved).toBe('Companies/123/Contacts');
+
+    await expect(resolveWritePath('Tickets/../Companies', 'POST')).rejects.toThrow(
+      /must be a numeric id/,
+    );
+    await expect(resolveWritePath('Tickets/123/NonExistentChild', 'POST')).rejects.toThrow(
+      /Unknown Autotask entity|No POST route exists/,
+    );
   });
 });

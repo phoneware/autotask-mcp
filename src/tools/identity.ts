@@ -17,10 +17,17 @@ import { capabilityForTool, TOOL_CAPABILITY } from '../security.js';
 export const identityTools: ToolDefinition[] = [
   {
     name: 'whoami',
+    title: 'Who Am I',
     description:
       'Report which Autotask person this session is acting as, the Autotask security level ' +
       'behind that, and which operations are permitted. Use this to explain why a write was ' +
       'refused or a tool is unavailable.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: { type: 'object', properties: {}, required: [] },
     handler: async () => {
       const caller = currentCaller();

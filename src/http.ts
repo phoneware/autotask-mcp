@@ -30,6 +30,7 @@ import {
 import { buildServer } from './server.js';
 import { isReadonly } from './security.js';
 import { missingCredentials } from './autotask-api.js';
+import { getPromotedToolNames } from './tools/promotion/index.js';
 import { governor } from './governor.js';
 import { GoogleAuthProvider } from './auth/google-provider.js';
 import { MemoryClientsStore, TokenStore, type TokenStoreLike } from './auth/stores.js';
@@ -204,6 +205,7 @@ export interface SessionHooks {
 export type SessionFactory = (
   hooks: SessionHooks,
   caller?: CallerIdentity,
+  promotedTools?: readonly string[],
 ) => {
   server: McpServer;
   transport: StreamableHTTPServerTransport;
@@ -214,8 +216,8 @@ export type SessionFactory = (
  * allowed to use, so the surface a client sees already matches their Autotask
  * rights instead of advertising tools that would be refused.
  */
-export const defaultCreateSession: SessionFactory = (hooks, caller) => {
-  const { server } = buildServer(caller?.capabilities);
+export const defaultCreateSession: SessionFactory = (hooks, caller, promotedTools) => {
+  const { server } = buildServer(caller?.capabilities, promotedTools);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     onsessioninitialized: hooks.onsessioninitialized,
@@ -669,12 +671,14 @@ async function handleStatelessMcpRequest(
   body?: unknown,
 ): Promise<void> {
   const caller = callerFrom(req);
+  const promotedTools = caller?.email ? await getPromotedToolNames(caller.email) : undefined;
   const { server, transport } = opts.createSession(
     {
       onsessioninitialized: () => undefined,
       onsessionclosed: () => undefined,
     },
     caller,
+    promotedTools,
   );
   res.once('close', () => {
     void transport.close();

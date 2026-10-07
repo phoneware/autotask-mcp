@@ -1,8 +1,17 @@
 import { ToolResponse } from '../types.js';
 
-/** Wrap any value as a pretty-printed JSON text tool response. */
-export function jsonResponse(data: unknown): ToolResponse {
-  return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+/** Wrap any value as a pretty-printed JSON text tool response with structuredContent. */
+export function jsonResponse(data: unknown, isError = false): ToolResponse {
+  const text = JSON.stringify(data, null, 2);
+  const structuredContent =
+    data !== null && typeof data === 'object' && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : { result: data };
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent,
+    isError,
+  };
 }
 
 /** Parse an optional positive integer arg, clamped to [1, max]. */
@@ -45,6 +54,21 @@ export function numberArg(name: string, raw: string | undefined): number {
 export function optionalIntArg(name: string, raw: string | undefined): number | undefined {
   if (raw === undefined || raw === '') return undefined;
   return intArg(name, raw);
+}
+
+/** Like numberArg but for optional args: returns undefined when absent. */
+export function optionalNumberArg(name: string, raw: string | undefined): number | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  return numberArg(name, raw);
+}
+
+/** Parse an optional boolean string ("true" or "false"). Returns undefined when absent/empty, throws on invalid. */
+export function optionalBoolArg(name: string, raw: string | undefined): boolean | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  const lower = raw.trim().toLowerCase();
+  if (lower === 'true' || lower === '1') return true;
+  if (lower === 'false' || lower === '0') return false;
+  throw new Error(`${name} must be "true" or "false" (got "${raw}")`);
 }
 
 export interface FilterClause {

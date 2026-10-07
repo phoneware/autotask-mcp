@@ -31,21 +31,20 @@ describe('buildServer registration (readonly lock test)', () => {
     const ro = buildServer();
     delete process.env.AUTOTASK_READ_ONLY;
     const full = buildServer();
-
-    // Skipped count must equal the destructive set — this fails the moment a
+    // Skipped count must equal the destructive set: this fails the moment a
     // new create-/update-/delete- tool is added without being marked destructive.
     expect(ro.skipped).toBe(DESTRUCTIVE_TOOLS.size);
     expect(full.registeredCount - ro.registeredCount).toBe(DESTRUCTIVE_TOOLS.size);
     expect(ro.registeredCount).toBe(full.registeredCount - DESTRUCTIVE_TOOLS.size);
   });
 
-  it('locks the documented counts: full=31, readonly=20, skipped=11', () => {
+  it('locks the documented counts: full=47, readonly=33, skipped=14', () => {
     delete process.env.AUTOTASK_READ_ONLY;
-    expect(buildServer().registeredCount).toBe(31);
+    expect(buildServer().registeredCount).toBe(47);
     process.env.AUTOTASK_READ_ONLY = 'true';
     const ro = buildServer();
-    expect(ro.registeredCount).toBe(20);
-    expect(ro.skipped).toBe(11);
+    expect(ro.registeredCount).toBe(33);
+    expect(ro.skipped).toBe(14);
   });
 
   it('rejects an unknown argument instead of silently searching for everything', async () => {

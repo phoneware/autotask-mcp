@@ -18,17 +18,17 @@ Instead of hand-coding one tool per Autotask entity, this server exposes a **gen
 
 Most Autotask MCP servers expose many hand-written tools. This one takes a different approach:
 
-- **Compact tool surface** — fewer tools for the model to choose from, so it picks the right one more reliably.
-- **Full REST entity coverage** through generic `query` / `get` / `create` / `update` / `delete` tools — any of Autotask's 180+ entities, not just the ones someone hand-wrote.
-- **Safer writes** — every mutation requires an explicit confirmation token.
-- **Real read-only mode** — in read-only mode, write tools are not merely blocked at runtime; they are never registered with the MCP server at all.
-- **Conservative retry policy** — `POST` / `PATCH` are never retried automatically, so a write can't be silently duplicated.
+- **Compact tool surface**: fewer tools for the model to choose from, so it picks the right one more reliably.
+- **Full REST entity coverage** through generic `query` / `get` / `create` / `update` / `delete` tools: any of Autotask's 180+ entities, not just the ones someone hand-wrote.
+- **Safer writes**: every mutation requires an explicit confirmation token.
+- **Real read-only mode**: in read-only mode, write tools are not merely blocked at runtime; they are never registered with the MCP server at all.
+- **Conservative retry policy**: `POST` / `PATCH` are never retried automatically, so a write can't be silently duplicated.
 
 ## Design philosophy
 
 This project prioritizes a compact, AI-safe tool surface over exposing one tool per Autotask entity.
 
-Instead of hundreds of entity-specific tools, it exposes a small generic layer that works across Autotask REST entities, plus convenience tools for common workflows. Fewer tools means less for the model to misuse and less code to maintain — the breadth comes from the generic layer, not from tool count.
+Instead of hundreds of entity-specific tools, it exposes a small generic layer that works across Autotask REST entities, plus convenience tools for common workflows. Fewer tools means less for the model to misuse and less code to maintain: the breadth comes from the generic layer, not from tool count.
 
 ## When to use this
 
@@ -44,17 +44,18 @@ It is especially suited for:
 
 ## Features
 
-- **Full API coverage via a generic layer** — `query-entity`, `get-entity`, `create-entity`, `update-entity`, `delete-entity` and `describe-entity-fields` work against any Autotask entity by name.
-- **Convenience tools** for tickets, companies, contacts, projects/tasks and time entries with named, LLM-friendly parameters.
-- **Automatic zone detection** — the correct Autotask data-center URL is discovered from your username; no need to know your zone.
+- **Full API coverage via a generic layer**: `query-entity`, `get-entity`, `create-entity`, `update-entity`, `delete-entity` and `describe-entity-fields` work against any Autotask entity by name.
+- **Convenience tools** for tickets, ticket charges, companies, contacts, contracts/services, invoices, projects/tasks and time entries with named, LLM-friendly parameters.
+- **Full API registry**: `search_api` and `call_api` allow searching and invoking all 3,014 Autotask REST API operations.
+- **Automatic zone detection**: the correct Autotask data-center URL is discovered from your username; no need to know your zone.
 - **AI-safe by design**
   - Read-only mode (`AUTOTASK_READ_ONLY=true`) physically de-registers every write tool.
-  - Every mutating tool (`create-*`, `update-*`, `delete-*`) requires an explicit confirmation token.
-  - Numeric arguments are validated — bad input is rejected, never sent to Autotask as `null`.
+  - Every mutating tool (`create-*`, `update-*`, `delete-*`, `cancel-*`) requires an explicit confirmation token.
+  - Numeric arguments are validated: bad input is rejected, never sent to Autotask as `null`.
   - Secrets are redacted from all error output.
-- **Resilient transport** — honors `429` rate-limit `Retry-After`, retries idempotent calls on transient `5xx` with backoff.
-- **Two transports** — `stdio` (default, for desktop/CLI clients) and a multi-session, bearer-authenticated **HTTP** transport for remote/containerized use.
-- **Tenant-safe by default** — a budget governor caps concurrency at Autotask's per-endpoint thread limit and stops short of exhausting the hourly request budget, which is shared by every integration on the database.
+- **Resilient transport**: honors `429` rate-limit `Retry-After`, retries idempotent calls on transient `5xx` with backoff.
+- **Two transports**: `stdio` (default, for desktop/CLI clients) and a multi-session, bearer-authenticated **HTTP** transport for remote/containerized use.
+- **Tenant-safe by default**: a budget governor caps concurrency at Autotask's per-endpoint thread limit and stops short of exhausting the hourly request budget, which is shared by every integration on the database.
 
 ## Requirements
 
@@ -146,7 +147,7 @@ docker run --rm -p 3000:3000 \
 
 > The default HTTP bind host is `127.0.0.1`, except on Cloud Run / Knative (`K_SERVICE` set) where it is `0.0.0.0`. Inside any other container set `AUTOTASK_HTTP_HOST=0.0.0.0` for the published port to be reachable, and only behind your own network controls.
 
-Or use `docker compose` (HTTP service with a `/health` healthcheck) — supply the credentials via a `.env` file:
+Or use `docker compose` (HTTP service with a `/health` healthcheck): supply the credentials via a `.env` file:
 
 ```bash
 docker compose up -d
@@ -274,13 +275,23 @@ Autotask rights; see [Who can do what](#who-can-do-what).
 | `get-threshold-information` | Current API usage vs. the rate threshold             |
 | `get-version`               | Autotask REST API version (connectivity check)       |
 
-`query-entity`, `count-entity`, `get-entity` and `create-entity` accept optional `parentEntity` + `parentId` to reach parent-scoped child collections such as `Tickets/{id}/Notes` or `Companies/{id}/Attachments`.
+`query-entity`, `count-entity`, `get-entity`, `create-entity`, `update-entity` and `delete-entity` accept optional `parentEntity` + `parentId` to reach parent-scoped child collections such as `Tickets/{id}/Notes`, `Tickets/{id}/Charges`, or `Companies/{id}/Contacts`. When a write route exists only under a parent (like `TicketCharges` or `Contacts`), parent ID is automatically resolved from fields or by looking up the record's parent foreign key (e.g. `ticketID`, `companyID`).
+
+### Full API Registry (Escape Hatch)
+
+| Tool         | Description                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| `search_api` | Search all 3,014 Autotask REST API operations by keyword (operationId, entity, path, summary)    |
+| `call_api`   | Invoke any operation from the full registry by operationId with automatic path and body handling |
 
 ### Convenience
 
-- **Tickets**: `search-tickets`, `get-ticket`, `create-ticket`, `update-ticket`, `create-ticket-note`
+- **Tickets**: `search-tickets`, `get-ticket`, `create-ticket`, `update-ticket`, `create-ticket-note`, `search-ticket-notes`
+- **Ticket Charges**: `list-ticket-charges`, `get-ticket-charge`, `create-ticket-charge`, `update-ticket-charge`, `cancel-ticket-charge`
 - **Companies**: `search-companies`, `get-company`, `create-company`, `update-company`
 - **Contacts**: `search-contacts`, `get-contact`, `create-contact`, `update-contact`
+- **Contracts & Services**: `search-contracts`, `get-contract`, `search-contract-services`, `get-contract-service`, `search-services`, `get-service`
+- **Invoices**: `search-invoices`, `get-invoice`
 - **Projects & Tasks**: `search-projects`, `get-project`, `search-tasks`, `get-task`
 - **Time entries**: `search-time-entries`, `create-time-entry`
 
@@ -294,30 +305,39 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 
 ## Tool safety
 
-**Read-only tools** (19) — never mutate data, always available:
+**Read-only tools** (33): never mutate data, always available:
 
+- **Identity**: `whoami`
+- **Meta**: `search_api`
 - **Generic**: `list-known-entities`, `describe-entity-fields`, `query-entity`, `count-entity`, `get-next-page`, `get-entity`, `get-threshold-information`, `get-version`
-- **Tickets**: `search-tickets`, `get-ticket`
+- **Tickets**: `search-tickets`, `get-ticket`, `search-ticket-notes`
+- **Ticket Charges**: `list-ticket-charges`, `get-ticket-charge`
 - **Companies**: `search-companies`, `get-company`
 - **Contacts**: `search-contacts`, `get-contact`
+- **Contracts & Services**: `search-contracts`, `get-contract`, `search-contract-services`, `get-contract-service`, `search-services`, `get-service`
+- **Invoices**: `search-invoices`, `get-invoice`
 - **Projects & Tasks**: `search-projects`, `get-project`, `search-tasks`, `get-task`
 - **Time entries**: `search-time-entries`
 
-**Mutating tools** (11) — require a matching `confirm` token, and are not registered at all in read-only mode:
+**Mutating tools** (14): require a matching `confirm` token, and are not registered at all in read-only mode:
 
-| Tool                 | Required `confirm`   |
-| -------------------- | -------------------- |
-| `create-entity`      | `CREATE_ENTITY`      |
-| `update-entity`      | `UPDATE_ENTITY`      |
-| `delete-entity`      | `DELETE_ENTITY`      |
-| `create-ticket`      | `CREATE_TICKET`      |
-| `update-ticket`      | `UPDATE_TICKET`      |
-| `create-ticket-note` | `CREATE_TICKET_NOTE` |
-| `create-company`     | `CREATE_COMPANY`     |
-| `update-company`     | `UPDATE_COMPANY`     |
-| `create-contact`     | `CREATE_CONTACT`     |
-| `update-contact`     | `UPDATE_CONTACT`     |
-| `create-time-entry`  | `CREATE_TIME_ENTRY`  |
+| Tool                   | Required `confirm`     |
+| ---------------------- | ---------------------- |
+| `create-entity`        | `CREATE_ENTITY`        |
+| `update-entity`        | `UPDATE_ENTITY`        |
+| `delete-entity`        | `DELETE_ENTITY`        |
+| `create-ticket`        | `CREATE_TICKET`        |
+| `update-ticket`        | `UPDATE_TICKET`        |
+| `create-ticket-note`   | `CREATE_TICKET_NOTE`   |
+| `create-ticket-charge` | `CREATE_TICKET_CHARGE` |
+| `update-ticket-charge` | `UPDATE_TICKET_CHARGE` |
+| `cancel-ticket-charge` | `CANCEL_TICKET_CHARGE` |
+| `create-company`       | `CREATE_COMPANY`       |
+| `update-company`       | `UPDATE_COMPANY`       |
+| `create-contact`       | `CREATE_CONTACT`       |
+| `update-contact`       | `UPDATE_CONTACT`       |
+| `create-time-entry`    | `CREATE_TIME_ENTRY`    |
+| `call_api`             | (Per-op confirm token) |
 
 ## Examples
 
@@ -330,7 +350,7 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 }
 ```
 
-**Create a ticket** (`create-ticket`) — note the required `confirm` token:
+**Create a ticket** (`create-ticket`): note the required `confirm` token:
 
 ```json
 {
@@ -341,7 +361,7 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 }
 ```
 
-**Find open, unassigned tickets** (`search-tickets`) — the reliable way to do triage. Use the `openOnly` + `unassigned` flags instead of enumerating statuses, so no open status is ever missed:
+**Find open, unassigned tickets** (`search-tickets`): the reliable way to do triage. Use the `openOnly` + `unassigned` flags instead of enumerating statuses, so no open status is ever missed:
 
 ```json
 {
@@ -351,7 +371,7 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 }
 ```
 
-This builds a single server-side filter — `assignedResourceID notExist` plus a closed-status denylist (`status != 5`, `status != 16` by default) — rather than a fragile per-status allowlist.
+This builds a single server-side filter: `assignedResourceID notExist` plus a closed-status denylist (`status != 5`, `status != 16` by default), rather than a fragile per-status allowlist.
 
 **Run read-only** (no write tools registered):
 
@@ -362,11 +382,11 @@ AUTOTASK_READ_ONLY=true node dist/index.js
 **HTTP transport**:
 
 ```bash
-# Liveness/readiness — no auth, safe for orchestrators
+# Liveness/readiness: no auth, safe for orchestrators
 curl http://127.0.0.1:3000/health
 # {"ok":true,"mode":"full","uptimeSeconds":41,"sessions":2,"autotaskUsagePct":12.4}
 
-# MCP endpoint — requires a bearer from the Google sign-in flow
+# MCP endpoint: requires a bearer from the Google sign-in flow
 curl -i -X POST http://127.0.0.1:3000/mcp   # 401 + WWW-Authenticate: Bearer resource_metadata=...
 ```
 
@@ -460,9 +480,9 @@ The probe costs one call per minute and its reading is surfaced on `/health`.
 
 ## Security model
 
-- **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, all write tools are never registered (11 of 31 tools) — a misconfigured agent cannot mutate data.
+- **Read-only mode**: with `AUTOTASK_READ_ONLY=true`, all write tools are never registered (14 of 47 tools): a misconfigured agent cannot mutate data.
 - **Per-person authorization** (HTTP transport): what each signed-in person may do is derived from their Autotask security level, and tools beyond it are never registered for their session. See below.
-- **Confirmation tokens**: _every_ mutating tool — generic and convenience alike (`create-*`, `update-*`, `delete-*`) — requires a `confirm` argument equal to the upper-snake-cased tool name (e.g. `CREATE_TICKET`, `DELETE_ENTITY`) before it executes. This blocks accidental single-call writes to production data.
+- **Confirmation tokens**: _every_ mutating tool (generic and convenience alike: `create-*`, `update-*`, `delete-*`, `cancel-*`) requires a `confirm` argument equal to the upper-snake-cased tool name (e.g. `CREATE_TICKET`, `DELETE_ENTITY`) before it executes. This blocks accidental single-call writes to production data.
 - **Strict argument validation**: every tool rejects an argument it does not declare, naming the offending key, so a wrong parameter name can never be silently dropped and turned into an unfiltered "fetch everything" query. Numeric arguments are validated too; non-numeric input is rejected with a clear error instead of being sent to Autotask as `null`.
 - **Secret redaction**: credentials and tokens are stripped from error messages before they reach the model or logs.
 - **HTTP auth**: `/mcp` requires a bearer issued by this server's own Google sign-in flow, and returns `401` with a `WWW-Authenticate` challenge pointing at the OAuth metadata otherwise. There is no shared static token. `/health` is intentionally unauthenticated, for container/orchestrator health checks only. Default bind host is `127.0.0.1`; expose beyond localhost (e.g. `0.0.0.0` in Docker) only behind your own network controls.

@@ -1,4 +1,4 @@
-import { ToolDefinition } from '../types.js';
+import type { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
 import {
   jsonResponse,
@@ -6,7 +6,6 @@ import {
   parseMaxRecords,
   collectClauses,
   eqClause,
-  containsClause,
   anyContainsClause,
   intArg,
 } from './shared.js';
@@ -15,18 +14,26 @@ import {
 export const contactTools: ToolDefinition[] = [
   {
     name: 'search-contacts',
+    title: 'Search Contacts',
     description:
       'Search contacts. Filters are optional and ANDed; with none, returns contacts up to maxRecords.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
-        companyID: { type: 'string', description: 'Filter by company id' },
+        companyID: { type: 'string', description: 'Filter by parent company id' },
         nameContains: {
           type: 'string',
-          description: 'Substring match on first name, last name or email address',
+          description: 'Search first name, last name, or email for a substring',
         },
-        lastNameContains: { type: 'string', description: 'Substring match on last name' },
-        emailContains: { type: 'string', description: 'Substring match on email address' },
+        firstName: { type: 'string', description: 'Exact first name match' },
+        lastName: { type: 'string', description: 'Exact last name match' },
+        emailAddress: { type: 'string', description: 'Exact email address match' },
         maxRecords: { type: 'string', description: 'Max records to return (default 50, max 500)' },
       },
     },
@@ -34,8 +41,9 @@ export const contactTools: ToolDefinition[] = [
       const filter = collectClauses(
         eqClause('companyID', args.companyID),
         anyContainsClause(['firstName', 'lastName', 'emailAddress'], args.nameContains),
-        containsClause('lastName', args.lastNameContains),
-        containsClause('emailAddress', args.emailContains),
+        eqClause('firstName', args.firstName),
+        eqClause('lastName', args.lastName),
+        eqClause('emailAddress', args.emailAddress),
       );
       const query = { filter, MaxRecords: parseMaxRecords(args.maxRecords) };
       return searchResponse(filter, await api.query('Contacts', query));
@@ -43,7 +51,14 @@ export const contactTools: ToolDefinition[] = [
   },
   {
     name: 'get-contact',
+    title: 'Get Contact',
     description: 'Get a single contact by its numeric id.',
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string', description: 'Contact id' } },
@@ -53,17 +68,25 @@ export const contactTools: ToolDefinition[] = [
   },
   {
     name: 'create-contact',
+    title: 'Create Contact',
     description:
       'Create a contact under a company. DESTRUCTIVE (write). companyID, firstName and lastName are required. For other fields use generic create-entity.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
-        companyID: { type: 'string', description: 'Company id the contact belongs to' },
+        companyID: { type: 'string', description: 'Parent company id' },
         firstName: { type: 'string', description: 'First name' },
         lastName: { type: 'string', description: 'Last name' },
-        title: { type: 'string', description: 'Job title' },
-        emailAddress: { type: 'string', description: 'Email address' },
+        emailAddress: { type: 'string', description: 'Primary email address' },
         phone: { type: 'string', description: 'Phone number' },
+        mobilePhone: { type: 'string', description: 'Mobile phone number' },
+        title: { type: 'string', description: 'Job title' },
       },
       required: ['companyID', 'firstName', 'lastName'],
     },
@@ -74,16 +97,25 @@ export const contactTools: ToolDefinition[] = [
         firstName: args.firstName,
         lastName: args.lastName,
       };
-      if (args.title) body.title = args.title;
       if (args.emailAddress) body.emailAddress = args.emailAddress;
       if (args.phone) body.phone = args.phone;
+      if (args.mobilePhone) body.mobilePhone = args.mobilePhone;
+      if (args.title) body.title = args.title;
+      // Contacts must be created under a company in Autotask REST.
       return jsonResponse(await api.create(`Companies/${companyID}/Contacts`, body));
     },
   },
   {
     name: 'update-contact',
+    title: 'Update Contact',
     description:
       'Update fields on a contact. DESTRUCTIVE (write). Only supplied fields change. For fields not listed here, use generic update-entity.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -91,37 +123,39 @@ export const contactTools: ToolDefinition[] = [
         companyID: {
           type: 'string',
           description:
-            'Company id the contact belongs to (recommended; looked up from contact if omitted)',
+            'Parent company id. If omitted, it will be fetched from the contact before updating.',
         },
         firstName: { type: 'string', description: 'New first name' },
         lastName: { type: 'string', description: 'New last name' },
-        title: { type: 'string', description: 'New job title' },
         emailAddress: { type: 'string', description: 'New email address' },
         phone: { type: 'string', description: 'New phone number' },
+        mobilePhone: { type: 'string', description: 'New mobile phone' },
+        title: { type: 'string', description: 'New job title' },
       },
       required: ['id'],
     },
     handler: async (args) => {
-      const contactId = intArg('id', args.id);
-      const body: Record<string, unknown> = { id: contactId };
-      if (args.firstName) body.firstName = args.firstName;
-      if (args.lastName) body.lastName = args.lastName;
-      if (args.title) body.title = args.title;
-      if (args.emailAddress) body.emailAddress = args.emailAddress;
-      if (args.phone) body.phone = args.phone;
-
-      let companyID = args.companyID ? intArg('companyID', args.companyID) : undefined;
-      if (companyID === undefined) {
-        const contact = (await api.getById('Contacts', String(contactId))) as {
+      let companyID: number | undefined;
+      if (args.companyID) {
+        companyID = intArg('companyID', args.companyID);
+      } else {
+        const existing = (await api.getById('Contacts', args.id)) as {
           item?: { companyID?: number };
         };
-        companyID = contact?.item?.companyID;
-        if (!companyID) {
-          throw new Error(
-            `Unable to determine companyID for contact ${contactId}. Specify companyID explicitly.`,
-          );
+        companyID = existing?.item?.companyID;
+        if (companyID === undefined) {
+          throw new Error(`Could not determine companyID for contact ${args.id}`);
         }
       }
+
+      const body: Record<string, unknown> = { id: intArg('id', args.id) };
+      if (args.firstName) body.firstName = args.firstName;
+      if (args.lastName) body.lastName = args.lastName;
+      if (args.emailAddress) body.emailAddress = args.emailAddress;
+      if (args.phone) body.phone = args.phone;
+      if (args.mobilePhone) body.mobilePhone = args.mobilePhone;
+      if (args.title) body.title = args.title;
+
       return jsonResponse(await api.update(`Companies/${companyID}/Contacts`, body));
     },
   },

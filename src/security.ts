@@ -21,8 +21,10 @@ export const TOOL_CAPABILITY: ReadonlyMap<string, Capability> = new Map<string, 
   ['update-contact', 'update'],
   ['create-time-entry', 'create'],
   ['create-ticket-note', 'create'],
+  ['create-ticket-charge', 'create'],
+  ['update-ticket-charge', 'update'],
+  ['cancel-ticket-charge', 'update'],
 ]);
-
 /** The capability a tool needs. Unlisted tools only read. */
 export function capabilityForTool(toolName: string): Capability {
   return TOOL_CAPABILITY.get(toolName) ?? 'read';

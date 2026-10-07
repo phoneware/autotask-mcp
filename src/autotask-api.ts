@@ -1,7 +1,7 @@
 import { ZoneInformation } from './types.js';
 import { governor } from './governor.js';
 import { currentCaller } from './auth/context.js';
-
+import { resolveWritePath } from './tools/entity-resolver.js';
 // Unauthenticated endpoint used to discover which Autotask zone (data center)
 // an account lives in. Returns the correct REST base URL for that account.
 const ZONE_INFO_URL = 'https://webservices.autotask.net/atservicesrest/V1.0/zoneInformation';
@@ -302,60 +302,64 @@ export class AutotaskApi {
   }
 
   /** Create a record. */
-  async create(entity: string, fields: unknown): Promise<unknown> {
-    let resolvedEntity = entity;
-    if (resolvedEntity.toLowerCase() === 'contacts' && fields && typeof fields === 'object') {
-      const rec = fields as Record<string, unknown>;
-      const companyID = rec.companyID ?? rec.CompanyID;
-      if (
-        typeof companyID === 'number' ||
-        (typeof companyID === 'string' && /^\d+$/.test(companyID))
-      ) {
-        resolvedEntity = `Companies/${companyID}/Contacts`;
-      }
-    }
+  async create(
+    entity: string,
+    fields: unknown,
+    parentEntity?: string,
+    parentId?: string,
+  ): Promise<unknown> {
+    const rec =
+      fields && typeof fields === 'object' ? (fields as Record<string, unknown>) : undefined;
+    const resolvedEntity = await resolveWritePath(
+      entity,
+      'POST',
+      parentEntity,
+      parentId,
+      undefined,
+      rec,
+      (e, id) => this.getById(e, id),
+    );
     return this.request('POST', `V1.0/${this.encodePath(resolvedEntity)}`, fields);
   }
 
   /** Partially update a record. Body must include the record `id`. */
-  async update(entity: string, fields: unknown): Promise<unknown> {
-    let resolvedEntity = entity;
-    if (resolvedEntity.toLowerCase() === 'contacts' && fields && typeof fields === 'object') {
-      const rec = fields as Record<string, unknown>;
-      let companyID = rec.companyID ?? rec.CompanyID;
-      if (companyID === undefined && rec.id !== undefined) {
-        try {
-          const existing = (await this.getById('Contacts', String(rec.id))) as {
-            item?: { companyID?: number };
-          };
-          companyID = existing?.item?.companyID;
-        } catch {
-          // Fall through to original entity path
-        }
-      }
-      if (companyID !== undefined) {
-        resolvedEntity = `Companies/${companyID}/Contacts`;
-      }
-    }
+  async update(
+    entity: string,
+    fields: unknown,
+    parentEntity?: string,
+    parentId?: string,
+  ): Promise<unknown> {
+    const rec =
+      fields && typeof fields === 'object' ? (fields as Record<string, unknown>) : undefined;
+    const id = rec?.id !== undefined ? String(rec.id) : undefined;
+    const resolvedEntity = await resolveWritePath(
+      entity,
+      'PATCH',
+      parentEntity,
+      parentId,
+      id,
+      rec,
+      (e, recordId) => this.getById(e, recordId),
+    );
     return this.request('PATCH', `V1.0/${this.encodePath(resolvedEntity)}`, fields);
   }
 
   /** Delete a record by id. */
-  async deleteById(entity: string, id: string): Promise<unknown> {
-    let resolvedEntity = entity;
-    if (resolvedEntity.toLowerCase() === 'contacts') {
-      try {
-        const existing = (await this.getById('Contacts', id)) as {
-          item?: { companyID?: number };
-        };
-        const companyID = existing?.item?.companyID;
-        if (companyID !== undefined) {
-          resolvedEntity = `Companies/${companyID}/Contacts`;
-        }
-      } catch {
-        // Fall through to original entity path
-      }
-    }
+  async deleteById(
+    entity: string,
+    id: string,
+    parentEntity?: string,
+    parentId?: string,
+  ): Promise<unknown> {
+    const resolvedEntity = await resolveWritePath(
+      entity,
+      'DELETE',
+      parentEntity,
+      parentId,
+      id,
+      undefined,
+      (e, recordId) => this.getById(e, recordId),
+    );
     return this.request(
       'DELETE',
       `V1.0/${this.encodePath(resolvedEntity)}/${encodeURIComponent(id)}`,
