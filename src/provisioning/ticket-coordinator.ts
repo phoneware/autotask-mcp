@@ -39,8 +39,11 @@ export class TicketCoordinatorSession {
     ttlMs?: number;
   }) {
     this.accountKey = deriveAccountKey();
-    this.ticketId = params.ticketId;
-    this.actor = params.actor;
+    const numericTicket = Number(params.ticketId);
+    if (!Number.isSafeInteger(numericTicket) || numericTicket <= 0) {
+      throw new Error(`Invalid ticket ID: "${params.ticketId}" must be a positive integer`);
+    }
+    this.ticketId = String(numericTicket);
     this.operationId = params.operationId;
     this.kind = params.kind;
     this.payload = params.payload;

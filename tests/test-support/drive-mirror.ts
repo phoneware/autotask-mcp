@@ -82,6 +82,12 @@ export class DriveMirror {
       res.end(JSON.stringify(data));
     };
 
+    // 0. ID generation
+    if (url.includes('/drive/v3/files/generateIds') && method === 'GET') {
+      sendJson(200, { ids: [crypto.randomUUID()] });
+      return;
+    }
+
     // 1. Multipart upload
     if (url.includes('/upload/drive/v3/files') && method === 'POST') {
       const contentType = req.headers['content-type'] || '';
@@ -117,7 +123,7 @@ export class DriveMirror {
         parents: meta.parents || [],
         sha256Checksum,
         bytes: fileBytes,
-        driveId: 'shared-drive-001',
+        driveId: 'shared-drive-hazelbrook',
       };
 
       this.files.set(fileId, stored);
@@ -136,12 +142,23 @@ export class DriveMirror {
     const fileGetMatch = url.match(/\/drive\/v3\/files\/([^?]+)/);
     if (fileGetMatch && method === 'GET') {
       const fileId = decodeURIComponent(fileGetMatch[1]);
+      if (fileId.includes('folder')) {
+        sendJson(200, {
+          id: fileId,
+          name: 'Customer Archive Folder',
+          mimeType: 'application/vnd.google-apps.folder',
+          trashed: false,
+          driveId: 'shared-drive-hazelbrook',
+          capabilities: { canAddChildren: true },
+        });
+        return;
+      }
+
       const file = this.files.get(fileId);
       if (!file) {
         sendJson(404, { error: { message: `File ${fileId} not found` } });
         return;
       }
-
       if (url.includes('alt=media')) {
         res.writeHead(200, {
           'Content-Type': file.mimeType,

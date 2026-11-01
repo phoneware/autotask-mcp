@@ -53,7 +53,17 @@ export async function fetchPrivatePdfAttachment(params: {
     throw new Error(`Ticket ${safeTicketId} not found`);
   }
 
+  if (ticket.id === undefined || ticket.id === null || String(ticket.id) !== safeTicketId) {
+    throw new Error(
+      `Ticket ID mismatch: requested ticket ${safeTicketId} but record returned id ${ticket.id ?? 'unknown'}`,
+    );
+  }
+
   const actualCompanyId = String(ticket.companyID ?? '');
+  if (!actualCompanyId) {
+    throw new Error(`Ticket ${safeTicketId} has no associated companyID; archival refused`);
+  }
+
   if (params.expectedCompanyId) {
     const safeExpectedCompanyId = assertSafeNumericId(params.expectedCompanyId, 'expectedCompanyId');
     if (actualCompanyId !== safeExpectedCompanyId) {
@@ -73,13 +83,23 @@ export async function fetchPrivatePdfAttachment(params: {
     throw new Error(`Attachment ${safeAttachmentId} not found on ticket ${safeTicketId}`);
   }
 
-  // 3. Parent ticket relationship check
-  if (att.ticketID !== undefined && att.ticketID !== null && String(att.ticketID) !== safeTicketId) {
+  // Enforce attachment ID match
+  if (att.id === undefined || att.id === null || String(att.id) !== safeAttachmentId) {
     throw new Error(
-      `Parent mismatch: attachment ${safeAttachmentId} belongs to ticketID ${att.ticketID}, not ${safeTicketId}; access refused`,
+      `Attachment ID mismatch: requested attachment ${safeAttachmentId} but record returned id ${att.id ?? 'unknown'}; access refused`,
     );
   }
 
+  // Enforce parent ticket relationship (fails closed on absent or wrong parent)
+  if (
+    att.ticketID === undefined ||
+    att.ticketID === null ||
+    String(att.ticketID) !== safeTicketId
+  ) {
+    throw new Error(
+      `Parent mismatch: attachment ${safeAttachmentId} belongs to ticketID ${att.ticketID ?? 'unknown'}, not ${safeTicketId}; access refused`,
+    );
+  }
   // 4. Validate PDF MIME type
   const rawContentType = typeof att.contentType === 'string' ? att.contentType.trim() : '';
   const mimeType = rawContentType.split(';')[0].trim().toLowerCase();
@@ -96,6 +116,19 @@ export async function fetchPrivatePdfAttachment(params: {
     throw new Error(`Attachment ${safeAttachmentId} on ticket ${safeTicketId} contains no binary data`);
   }
 
+  // Bounded encoded check before decoding buffer
+  const maxEncodedLen = Math.ceil((MAX_PDF_BYTES * 4) / 3) + 16;
+  if (base64Data.length > maxEncodedLen) {
+    throw new Error(
+      `Attachment size exceeds maximum permitted size of ${MAX_PDF_BYTES} bytes for archival`,
+    );
+  }
+
+  // Strict base64 validation (valid alphabet and padding)
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64Data) || base64Data.length % 4 !== 0) {
+    throw new Error(`Integrity check failed: attachment data contains malformed base64`);
+  }
+
   const buffer = Buffer.from(base64Data, 'base64');
   if (buffer.byteLength === 0) {
     throw new Error(`Attachment ${safeAttachmentId} decoded to zero bytes`);
@@ -107,6 +140,12 @@ export async function fetchPrivatePdfAttachment(params: {
     );
   }
 
+  // Check consistency with declared fileSize if present
+  if (typeof att.fileSize === 'number' && att.fileSize > 0 && att.fileSize !== buffer.byteLength) {
+    throw new Error(
+      `Integrity check failed: declared fileSize (${att.fileSize}) does not match decoded bytes (${buffer.byteLength})`,
+    );
+  }
   // 6. Magic bytes check: %PDF- (0x25 0x50 0x44 0x46 0x2D)
   if (buffer.length < 5 || buffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
     throw new Error(`Integrity check failed: attachment content does not have valid PDF magic bytes (%PDF-)`);
@@ -124,10 +163,13 @@ export async function fetchPrivatePdfAttachment(params: {
   }
 
   const metadata: AttachmentMetadata = {
-    ticketId: safeTicketId,
-    attachmentId: safeAttachmentId,
+    ticketId: String(ticket.id),
+    attachmentId: String(att.id),
     companyId: actualCompanyId,
-    filename: typeof att.title === 'string' && att.title.trim() ? att.title.trim() : `ticket-${safeTicketId}-attachment-${safeAttachmentId}.pdf`,
+    filename:
+      typeof att.title === 'string' && att.title.trim()
+        ? att.title.trim()
+        : `ticket-${ticket.id}-attachment-${att.id}.pdf`,
     mimeType: 'application/pdf',
     byteLength: buffer.byteLength,
     sha256: actualSha256,

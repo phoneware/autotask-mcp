@@ -235,6 +235,9 @@ export const attachmentTools: ToolDefinition[] = [
       const actorEmail = caller?.email ?? 'autotask-mcp';
       const actorResourceId = caller?.resourceId ?? 0;
 
+      const provider = new DriveArchiveProvider();
+      const pregeneratedFileId = await provider.generateFileId();
+
       // 1. Prepare operation and acquire coordinator lease
       const session = new TicketCoordinatorSession({
         ticketId,
@@ -246,9 +249,9 @@ export const attachmentTools: ToolDefinition[] = [
           attachmentID: attachmentId,
           expectedCompanyID: expectedCompanyId,
           expectedSha256,
+          driveFileId: pregeneratedFileId,
         },
       });
-
       const { alreadyVerified } = await session.prepareAndAcquire();
       if (alreadyVerified) {
         const op = session.getOperation();
@@ -275,17 +278,24 @@ export const attachmentTools: ToolDefinition[] = [
           expectedSha256,
         });
 
+        // Re-check binding version right before dispatch
+        await assertAuthorizedArchiveBinding({
+          accountKey: session.accountKey,
+          companyId: expectedCompanyId,
+          actorResourceId,
+          expectedVersion: binding.version,
+        });
+
         // 4. Arm sticky dispatch barrier before external Drive upload
         await session.armDispatch();
 
         // 5. Upload to Drive and verify readback
-        const provider = new DriveArchiveProvider();
         const receipt = await provider.uploadAndVerify({
           operationId,
           attachment: privateAtt,
           binding,
+          fileId: pregeneratedFileId,
         });
-
         // 6. Mark verified and clear dispatch barrier
         await session.markVerified(receipt as unknown as Record<string, unknown>);
 

@@ -72,6 +72,7 @@ export async function assertAuthorizedArchiveBinding(params: {
   accountKey: string;
   companyId: string;
   actorResourceId: number;
+  expectedVersion?: number;
 }): Promise<CompanyArchiveBinding> {
   const store = getBindingsStore();
   const binding = await store.get(params.accountKey, params.companyId);
@@ -82,19 +83,42 @@ export async function assertAuthorizedArchiveBinding(params: {
     );
   }
 
+  // Schema validation of stored binding
+  if (
+    typeof binding.driveId !== 'string' ||
+    !binding.driveId.trim() ||
+    typeof binding.folderId !== 'string' ||
+    !binding.folderId.trim() ||
+    typeof binding.archivePrincipal !== 'string' ||
+    !binding.archivePrincipal.trim() ||
+    typeof binding.version !== 'number'
+  ) {
+    throw new Error(
+      `Invalid archive binding for company ID ${params.companyId}: malformed or incomplete destination schema; archival refused`,
+    );
+  }
+
   if (binding.disabled) {
     throw new Error(
       `Archive destination binding for company ID ${params.companyId} is currently disabled; archival refused`,
     );
   }
 
+  // Strict authorization: allowedActorResourceIds MUST exist, be non-empty, and include caller
   if (
-    binding.allowedActorResourceIds &&
-    binding.allowedActorResourceIds.length > 0 &&
+    !Array.isArray(binding.allowedActorResourceIds) ||
+    binding.allowedActorResourceIds.length === 0 ||
     !binding.allowedActorResourceIds.includes(params.actorResourceId)
   ) {
     throw new Error(
-      `Actor resource ID ${params.actorResourceId} is not authorized by archive binding for company ${params.companyId}`,
+      `Actor resource ID ${params.actorResourceId} is not authorized by archive binding for company ${params.companyId}; archival refused`,
+    );
+  }
+
+  // Version check if caller expects specific binding version
+  if (params.expectedVersion !== undefined && binding.version !== params.expectedVersion) {
+    throw new Error(
+      `Conflict: archive destination binding version changed from ${params.expectedVersion} to ${binding.version} during execution; write refused`,
     );
   }
 

@@ -8,6 +8,7 @@ import { attachmentTools } from '../src/tools/attachments.js';
 import { ticketTools } from '../src/tools/tickets.js';
 import { DESTRUCTIVE_TOOLS } from '../src/security.js';
 import { withCaller } from '../src/auth/context.js';
+import { resetApi } from '../src/autotask-api.js';
 import {
   setOperationStore,
   MemoryOperationStore,
@@ -74,6 +75,8 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
     process.env.DRIVE_UPLOAD_BASE_URL = driveStarted.uploadBaseUrl;
     delete process.env.AUTOTASK_READ_ONLY;
 
+    resetApi();
+
     operationStore = new MemoryOperationStore();
     setOperationStore(operationStore);
 
@@ -82,6 +85,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
   });
 
   afterEach(async () => {
+    resetApi();
     await autotaskMirror.stop();
     await driveMirror.stop();
     setOperationStore(null);
@@ -295,6 +299,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
             ticketID: '1001',
             checklistItemID: '501',
             completed: 'true',
+            evidenceNoteID: '702',
           }),
         ),
       ).rejects.toThrow(/Parent mismatch: checklist item 501 belongs to ticketID 9999, not 1001/);
@@ -302,7 +307,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(autotaskMirror.checklistItems.get(501)?.isCompleted).toBe(false);
     });
 
-    it('refuses checklist item completion when requireEvidence is true and evidence is missing', async () => {
+    it('refuses checklist item completion when evidence is missing', async () => {
       autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
       autotaskMirror.seedChecklistItem({
         id: 502,
@@ -317,7 +322,6 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
             ticketID: '1001',
             checklistItemID: '502',
             completed: 'true',
-            requireEvidence: 'true',
           }),
         ),
       ).rejects.toThrow(/checklist item completion requires observed evidence/);
@@ -454,6 +458,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         approvalEvidenceRef: 'board-approval-2026-10-31',
         disabled: false,
       });
+
       // Agent first reads attachment metadata via get-ticket-attachment to obtain sha256 without raw bytes
       const inspectRes = await withCaller(testCaller, () =>
         getAttachmentTool.handler({
@@ -475,6 +480,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
           operationId: 'op-archive-sow-1001',
         }),
       );
+
       // 1. Output contains receipt metadata only, NO raw binary or base64 bytes
       expect(res.content).toHaveLength(1);
       expect(res.content[0].type).toBe('text');
@@ -537,6 +543,24 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         data: Buffer.from('%PDF-1.4 data').toString('base64'),
       });
 
+      const accountKey = crypto
+        .createHash('sha256')
+        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
+        .digest('hex')
+        .slice(0, 16);
+
+      await bindingsStore.set({
+        accountKey,
+        companyId: '450',
+        driveId: 'shared-drive-hazelbrook',
+        folderId: 'folder-sow-archive',
+        archivePrincipal: 'autotask-archive@phoneware-edge.iam.gserviceaccount.com',
+        allowedActorResourceIds: [77],
+        version: 1,
+        approvalEvidenceRef: 'board-approval-2026-10-31',
+        disabled: false,
+      });
+
       await expect(
         withCaller(testCaller, () =>
           archiveAttachmentTool.handler({
@@ -564,6 +588,24 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         data: Buffer.from('NOT_A_REAL_PDF_HEADER').toString('base64'),
       });
 
+      const accountKey = crypto
+        .createHash('sha256')
+        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
+        .digest('hex')
+        .slice(0, 16);
+
+      await bindingsStore.set({
+        accountKey,
+        companyId: '450',
+        driveId: 'shared-drive-hazelbrook',
+        folderId: 'folder-sow-archive',
+        archivePrincipal: 'autotask-archive@phoneware-edge.iam.gserviceaccount.com',
+        allowedActorResourceIds: [77],
+        version: 1,
+        approvalEvidenceRef: 'board-approval-2026-10-31',
+        disabled: false,
+      });
+
       await expect(
         withCaller(testCaller, () =>
           archiveAttachmentTool.handler({
@@ -575,6 +617,129 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
           }),
         ),
       ).rejects.toThrow(/does not have valid PDF magic bytes/);
+    });
+
+    it('refuses archival when actor resource ID is not authorized by binding', async () => {
+      autotaskMirror.seedTicket({ id: 1001, companyID: 450 });
+      autotaskMirror.seedAttachment({
+        id: 904,
+        ticketID: 1001,
+        title: 'sow.pdf',
+        contentType: 'application/pdf',
+        data: Buffer.from('%PDF-1.4 test').toString('base64'),
+      });
+
+      const accountKey = crypto
+        .createHash('sha256')
+        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
+        .digest('hex')
+        .slice(0, 16);
+
+      await bindingsStore.set({
+        accountKey,
+        companyId: '450',
+        driveId: 'shared-drive-hazelbrook',
+        folderId: 'folder-sow-archive',
+        archivePrincipal: 'autotask-archive@phoneware-edge.iam.gserviceaccount.com',
+        allowedActorResourceIds: [999], // 77 not allowed!
+        version: 1,
+        approvalEvidenceRef: 'board-approval',
+        disabled: false,
+      });
+
+      await expect(
+        withCaller(testCaller, () =>
+          archiveAttachmentTool.handler({
+            ticketID: '1001',
+            attachmentID: '904',
+            expectedCompanyID: '450',
+            expectedSha256: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+            operationId: 'op-archive-actor-unauthorized',
+          }),
+        ),
+      ).rejects.toThrow(/Actor resource ID 77 is not authorized by archive binding/);
+    });
+
+    it('refuses archival when binding has empty allowedActorResourceIds (fails closed)', async () => {
+      autotaskMirror.seedTicket({ id: 1001, companyID: 450 });
+      autotaskMirror.seedAttachment({
+        id: 905,
+        ticketID: 1001,
+        title: 'sow.pdf',
+        contentType: 'application/pdf',
+        data: Buffer.from('%PDF-1.4 test').toString('base64'),
+      });
+
+      const accountKey = crypto
+        .createHash('sha256')
+        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
+        .digest('hex')
+        .slice(0, 16);
+
+      await bindingsStore.set({
+        accountKey,
+        companyId: '450',
+        driveId: 'shared-drive-hazelbrook',
+        folderId: 'folder-sow-archive',
+        archivePrincipal: 'autotask-archive@phoneware-edge.iam.gserviceaccount.com',
+        allowedActorResourceIds: [], // Empty fails closed!
+        version: 1,
+        approvalEvidenceRef: 'board-approval',
+        disabled: false,
+      });
+
+      await expect(
+        withCaller(testCaller, () =>
+          archiveAttachmentTool.handler({
+            ticketID: '1001',
+            attachmentID: '905',
+            expectedCompanyID: '450',
+            expectedSha256: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+            operationId: 'op-archive-empty-actors',
+          }),
+        ),
+      ).rejects.toThrow(/Actor resource ID 77 is not authorized by archive binding/);
+    });
+
+    it('refuses archival when binding is disabled', async () => {
+      autotaskMirror.seedTicket({ id: 1001, companyID: 450 });
+      autotaskMirror.seedAttachment({
+        id: 906,
+        ticketID: 1001,
+        title: 'sow.pdf',
+        contentType: 'application/pdf',
+        data: Buffer.from('%PDF-1.4 test').toString('base64'),
+      });
+
+      const accountKey = crypto
+        .createHash('sha256')
+        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
+        .digest('hex')
+        .slice(0, 16);
+
+      await bindingsStore.set({
+        accountKey,
+        companyId: '450',
+        driveId: 'shared-drive-hazelbrook',
+        folderId: 'folder-sow-archive',
+        archivePrincipal: 'autotask-archive@phoneware-edge.iam.gserviceaccount.com',
+        allowedActorResourceIds: [77],
+        version: 1,
+        approvalEvidenceRef: 'board-approval',
+        disabled: true, // Disabled!
+      });
+
+      await expect(
+        withCaller(testCaller, () =>
+          archiveAttachmentTool.handler({
+            ticketID: '1001',
+            attachmentID: '906',
+            expectedCompanyID: '450',
+            expectedSha256: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+            operationId: 'op-archive-disabled',
+          }),
+        ),
+      ).rejects.toThrow(/Archive destination binding for company ID 450 is currently disabled/);
     });
   });
 

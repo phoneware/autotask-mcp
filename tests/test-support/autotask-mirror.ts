@@ -310,6 +310,7 @@ export class AutotaskMirror {
     if (url.match(/\/V1\.0\/Tickets\/(\d+)\/Notes$/) && method === 'POST') {
       const tMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/Notes$/)!;
       const ticketId = Number(tMatch[1]);
+      const newId = ++this.idCounter;
       const title = typeof body?.title === 'string' ? body.title : 'Note';
       const description = typeof body?.description === 'string' ? body.description : '';
       const noteType = typeof body?.noteType === 'number' ? body.noteType : 1;
@@ -322,7 +323,8 @@ export class AutotaskMirror {
         noteType,
         publish,
       };
-      sendJson(200, { item: newNote, itemId: newId });
+      this.notes.set(newId, newNote);
+      sendJson(200, { itemId: newId });
       return;
     }
 
@@ -355,7 +357,11 @@ export class AutotaskMirror {
         sendJson(404, { message: `Ticket ${ticketId} not found` });
         return;
       }
-      sendJson(200, { item: ticket });
+      const ticketCopy = { ...ticket };
+      if (this.simulateConcurrentResolutionModification !== null) {
+        ticket.resolution = this.simulateConcurrentResolutionModification;
+      }
+      sendJson(200, { item: ticketCopy });
       return;
     }
 
@@ -368,14 +374,10 @@ export class AutotaskMirror {
         return;
       }
 
-      // If concurrent modification simulation is active
-      if (this.simulateConcurrentResolutionModification !== null) {
-        ticket.resolution = this.simulateConcurrentResolutionModification;
-      }
-
       if (typeof body?.resolution === 'string') {
         ticket.resolution = body.resolution;
       }
+      sendJson(200, { item: ticket });
       return;
     }
 
