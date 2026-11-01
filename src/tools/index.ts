@@ -2,6 +2,8 @@ import type { ToolDefinition } from '../types.js';
 import { genericTools } from './generic.js';
 import { ticketTools } from './tickets.js';
 import { ticketChargeTools } from './ticket-charges.js';
+import { ticketWriteTools } from './ticket-writes.js';
+import { attachmentTools } from './attachments.js';
 import { companyTools } from './companies.js';
 import { contactTools } from './contacts.js';
 import { projectTools } from './projects.js';
@@ -17,6 +19,8 @@ export const allTools: ToolDefinition[] = [
   ...genericTools,
   ...ticketTools,
   ...ticketChargeTools,
+  ...ticketWriteTools,
+  ...attachmentTools,
   ...companyTools,
   ...contactTools,
   ...projectTools,
