@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { ToolDefinition, ToolResponse } from '../types.js';
 import { api } from '../autotask-api.js';
 import { assertSafeNumericId } from '../security.js';
@@ -65,14 +66,14 @@ export const attachmentTools: ToolDefinition[] = [
         throw new Error(`Attachment ${attachmentId} not found on ticket ${ticketId}`);
       }
 
-      // Enforce parent ticket relationship
+      // Enforce parent ticket relationship: wrong or absent parent fails closed
       if (
-        att.ticketID !== undefined &&
-        att.ticketID !== null &&
+        att.ticketID === undefined ||
+        att.ticketID === null ||
         String(att.ticketID) !== ticketId
       ) {
         throw new Error(
-          `Parent mismatch: attachment ${attachmentId} belongs to ticketID ${att.ticketID}, not ${ticketId}; access refused`,
+          `Parent mismatch: attachment ${attachmentId} belongs to ticketID ${att.ticketID ?? 'unknown'}, not ${ticketId}; access refused`,
         );
       }
 
@@ -92,12 +93,35 @@ export const attachmentTools: ToolDefinition[] = [
       }
 
       if (!isImage) {
+        let sha256: string | undefined = undefined;
+        if (base64Data.length > 0) {
+          const maxAllowedBytes = 5_000_000;
+          if (decodedBytes > maxAllowedBytes) {
+            const metadata = {
+              id: att.id !== undefined ? Number(att.id) : Number(attachmentId),
+              ticketID: Number(ticketId),
+              title,
+              contentType: rawContentType || 'application/octet-stream',
+              fileSize: decodedBytes,
+              attached_as_image: false,
+              reason: `Attachment size (${decodedBytes} bytes) exceeds maximum limit of ${maxAllowedBytes} bytes.`,
+            };
+            return {
+              content: [{ type: 'text', text: JSON.stringify(metadata, null, 2) }],
+              structuredContent: metadata,
+            };
+          }
+          const buffer = Buffer.from(base64Data, 'base64');
+          sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+        }
+
         const metadata = {
           id: att.id !== undefined ? Number(att.id) : Number(attachmentId),
-          ticketID: att.ticketID !== undefined ? Number(att.ticketID) : Number(ticketId),
+          ticketID: Number(ticketId),
           title,
           contentType: rawContentType || 'application/octet-stream',
           fileSize: typeof att.fileSize === 'number' ? att.fileSize : decodedBytes,
+          sha256,
           attached_as_image: false,
           reason: `Content type "${rawContentType || 'unknown'}" is not an image; inline image content omitted.`,
         };

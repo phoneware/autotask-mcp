@@ -454,17 +454,27 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         approvalEvidenceRef: 'board-approval-2026-10-31',
         disabled: false,
       });
+      // Agent first reads attachment metadata via get-ticket-attachment to obtain sha256 without raw bytes
+      const inspectRes = await withCaller(testCaller, () =>
+        getAttachmentTool.handler({
+          ticketID: '1001',
+          attachmentID: '901',
+        }),
+      );
+      const inspectMeta = JSON.parse(inspectRes.content[0].text);
+      expect(inspectMeta.sha256).toBe(expectedSha);
+      expect(inspectRes.content[0].text).not.toContain(pdfPayload.toString('base64'));
 
+      // Agent archives attachment citing discovered expectedSha256
       const res = await withCaller(testCaller, () =>
         archiveAttachmentTool.handler({
           ticketID: '1001',
           attachmentID: '901',
           expectedCompanyID: '450',
-          expectedSha256: expectedSha,
+          expectedSha256: inspectMeta.sha256,
           operationId: 'op-archive-sow-1001',
         }),
       );
-
       // 1. Output contains receipt metadata only, NO raw binary or base64 bytes
       expect(res.content).toHaveLength(1);
       expect(res.content[0].type).toBe('text');
