@@ -83,14 +83,14 @@ export class FirestoreClientsStore implements OAuthRegisteredClientsStore {
     const hit = this.cache.get(clientId);
     if (hit) return hit;
     try {
-      const ref = this.db.collection(this.collection).doc(docId(clientId));
-      const snap = await ref.get();
-      if (!snap.exists) return undefined;
-      const client = snap.data() as OAuthClientInformationFull;
-      const normalized = normalizePublicClient(client);
-      if (normalized !== client) await ref.set(normalized);
-      this.cache.set(clientId, normalized);
-      return normalized;
+    const ref = this.db.collection(this.collection).doc(docId(clientId));
+    const snap = await ref.get();
+    if (!snap.exists) return undefined;
+    const client = snap.data() as OAuthClientInformationFull;
+    const normalized = normalizePublicClient(client);
+    if (normalized !== client) await ref.set(normalized);
+    this.cache.set(clientId, normalized);
+    return normalized;
     } catch (err) {
       wrapStoreError(err);
     }
@@ -108,9 +108,9 @@ export class FirestoreClientsStore implements OAuthRegisteredClientsStore {
       client_id_issued_at: client.client_id_issued_at ?? Math.floor(Date.now() / 1000),
     });
     try {
-      await this.db.collection(this.collection).doc(docId(registered.client_id)).set(registered);
-      this.cache.set(registered.client_id, registered);
-      return registered;
+    await this.db.collection(this.collection).doc(docId(registered.client_id)).set(registered);
+    this.cache.set(registered.client_id, registered);
+    return registered;
     } catch (err) {
       wrapStoreError(err);
     }
@@ -151,8 +151,8 @@ export class FirestoreTokenStore implements TokenStoreLike {
 
   async get(accessToken: string): Promise<StoredToken | undefined> {
     try {
-      const snap = await this.db.collection(this.collection).doc(docId(accessToken)).get();
-      return snap.exists ? (snap.data() as StoredToken) : undefined;
+    const snap = await this.db.collection(this.collection).doc(docId(accessToken)).get();
+    return snap.exists ? (snap.data() as StoredToken) : undefined;
     } catch (err) {
       wrapStoreError(err);
     }
@@ -160,15 +160,15 @@ export class FirestoreTokenStore implements TokenStoreLike {
 
   async getByRefreshToken(refreshToken: string): Promise<StoredToken | undefined> {
     try {
-      const snap = await this.db.collection(this.refreshCollection).doc(docId(refreshToken)).get();
-      if (!snap.exists) return undefined;
-      const raw = snap.data() as StoredRefreshRecord | LegacyRefreshPointer;
-      if ('status' in raw) return raw.status === 'active' ? raw.token : undefined;
+    const snap = await this.db.collection(this.refreshCollection).doc(docId(refreshToken)).get();
+    if (!snap.exists) return undefined;
+    const raw = snap.data() as StoredRefreshRecord | LegacyRefreshPointer;
+    if ('status' in raw) return raw.status === 'active' ? raw.token : undefined;
 
-      // Production used access-token pointers before refresh families existed.
-      // Migrate them lazily so an upgrade does not invalidate a live connector.
-      const legacy = await this.get(raw.accessToken);
-      return legacy ? this.migrateLegacyToken(legacy) : undefined;
+    // Production used access-token pointers before refresh families existed.
+    // Migrate them lazily so an upgrade does not invalidate a live connector.
+    const legacy = await this.get(raw.accessToken);
+    return legacy ? this.migrateLegacyToken(legacy) : undefined;
     } catch (err) {
       wrapStoreError(err);
     }
@@ -178,20 +178,20 @@ export class FirestoreTokenStore implements TokenStoreLike {
     const familyId = token.refreshFamilyId ?? randomUUID();
     const stored = { ...token, refreshFamilyId: familyId };
     try {
-      const batch = this.db.batch();
-      batch.set(this.db.collection(this.collection).doc(docId(stored.accessToken)), stored);
-      batch.set(this.db.collection(this.refreshCollection).doc(docId(stored.refreshToken)), {
-        status: 'active',
-        familyId,
-        token: stored,
-      });
-      batch.set(this.db.collection(this.familyCollection).doc(docId(familyId)), {
-        id: familyId,
-        currentAccessToken: stored.accessToken,
-        currentRefreshToken: stored.refreshToken,
-        retiredRefreshFingerprints: [],
-      });
-      await batch.commit();
+    const batch = this.db.batch();
+    batch.set(this.db.collection(this.collection).doc(docId(stored.accessToken)), stored);
+    batch.set(this.db.collection(this.refreshCollection).doc(docId(stored.refreshToken)), {
+      status: 'active',
+      familyId,
+      token: stored,
+    });
+    batch.set(this.db.collection(this.familyCollection).doc(docId(familyId)), {
+      id: familyId,
+      currentAccessToken: stored.accessToken,
+      currentRefreshToken: stored.refreshToken,
+      retiredRefreshFingerprints: [],
+    });
+    await batch.commit();
     } catch (err) {
       wrapStoreError(err);
     }
@@ -199,9 +199,9 @@ export class FirestoreTokenStore implements TokenStoreLike {
 
   async delete(accessToken: string): Promise<void> {
     try {
-      const token = await this.get(accessToken);
-      if (token && !token.refreshFamilyId) await this.migrateLegacyToken(token);
-      await this.db.collection(this.collection).doc(docId(accessToken)).delete();
+    const token = await this.get(accessToken);
+    if (token && !token.refreshFamilyId) await this.migrateLegacyToken(token);
+    await this.db.collection(this.collection).doc(docId(accessToken)).delete();
     } catch (err) {
       wrapStoreError(err);
     }
@@ -209,17 +209,17 @@ export class FirestoreTokenStore implements TokenStoreLike {
 
   async revokeByAccessToken(accessToken: string): Promise<void> {
     try {
-      const token = await this.get(accessToken);
-      if (!token) return;
-      if (token.refreshFamilyId) {
-        await this.revokeFamily(token.refreshFamilyId);
-        return;
-      }
+    const token = await this.get(accessToken);
+    if (!token) return;
+    if (token.refreshFamilyId) {
+      await this.revokeFamily(token.refreshFamilyId);
+      return;
+    }
 
-      const batch = this.db.batch();
-      batch.delete(this.db.collection(this.collection).doc(docId(token.accessToken)));
-      batch.delete(this.db.collection(this.refreshCollection).doc(docId(token.refreshToken)));
-      await batch.commit();
+    const batch = this.db.batch();
+    batch.delete(this.db.collection(this.collection).doc(docId(token.accessToken)));
+    batch.delete(this.db.collection(this.refreshCollection).doc(docId(token.refreshToken)));
+    await batch.commit();
     } catch (err) {
       wrapStoreError(err);
     }
@@ -227,21 +227,21 @@ export class FirestoreTokenStore implements TokenStoreLike {
 
   async deleteByRefreshToken(refreshToken: string): Promise<void> {
     try {
-      const ref = this.db.collection(this.refreshCollection).doc(docId(refreshToken));
-      const snap = await ref.get();
-      if (snap.exists) {
-        const raw = snap.data() as StoredRefreshRecord | LegacyRefreshPointer;
-        if ('status' in raw) {
-          await this.revokeFamily(raw.familyId);
-        } else {
-          const batch = this.db.batch();
-          batch.delete(ref);
-          batch.delete(this.db.collection(this.collection).doc(docId(raw.accessToken)));
-          await batch.commit();
-        }
-        return;
+    const ref = this.db.collection(this.refreshCollection).doc(docId(refreshToken));
+    const snap = await ref.get();
+    if (snap.exists) {
+      const raw = snap.data() as StoredRefreshRecord | LegacyRefreshPointer;
+      if ('status' in raw) {
+        await this.revokeFamily(raw.familyId);
+      } else {
+        const batch = this.db.batch();
+        batch.delete(ref);
+        batch.delete(this.db.collection(this.collection).doc(docId(raw.accessToken)));
+        await batch.commit();
       }
-      await this.revokeRetiredToken(refreshToken);
+      return;
+    }
+    await this.revokeRetiredToken(refreshToken);
     } catch (err) {
       wrapStoreError(err);
     }
@@ -254,105 +254,105 @@ export class FirestoreTokenStore implements TokenStoreLike {
     now: number = Date.now(),
   ): Promise<RefreshRotationResult> {
     try {
-      const oldRef = this.db.collection(this.refreshCollection).doc(docId(oldRefreshToken));
-      const result = await this.db.runTransaction(async (transaction: Transaction) => {
-        const oldSnap = await transaction.get(oldRef);
-        if (!oldSnap.exists) return { status: 'missing' } as const;
-        const raw = oldSnap.data() as StoredRefreshRecord | LegacyRefreshPointer;
-        if (!('status' in raw) || raw.token.clientId !== expectedClientId) {
-          return { status: 'missing' } as const;
-        }
-        const oldRecord = raw;
-        const familyRef = this.db.collection(this.familyCollection).doc(docId(oldRecord.familyId));
-        const familySnap = await transaction.get(familyRef);
-        const family: StoredRefreshFamily = familySnap.exists
-          ? {
-              ...(familySnap.data() as StoredRefreshFamily),
-              retiredRefreshFingerprints:
-                (familySnap.data() as StoredRefreshFamily).retiredRefreshFingerprints ?? [],
-            }
-          : {
-              id: oldRecord.familyId,
-              currentAccessToken: oldRecord.token.accessToken,
-              currentRefreshToken: oldRefreshToken,
-              retiredRefreshFingerprints: [],
-            };
-
-        if (oldRecord.status === 'consumed') {
-          const successor = oldRecord.successorRefreshToken
-            ? await transaction.get(
-                this.db
-                  .collection(this.refreshCollection)
-                  .doc(docId(oldRecord.successorRefreshToken)),
-              )
-            : undefined;
-          if (
-            family.previousRefreshToken === oldRefreshToken &&
-            oldRecord.consumedAt !== undefined &&
-            now - oldRecord.consumedAt <= REFRESH_RETRY_WINDOW_MS &&
-            successor?.exists
-          ) {
-            const successorRecord = successor.data() as StoredRefreshRecord;
-            if (
-              successorRecord.status === 'active' &&
-              successorRecord.token.clientId === expectedClientId
-            ) {
-              return { status: 'retry', token: successorRecord.token } as const;
-            }
+    const oldRef = this.db.collection(this.refreshCollection).doc(docId(oldRefreshToken));
+    const result = await this.db.runTransaction(async (transaction: Transaction) => {
+      const oldSnap = await transaction.get(oldRef);
+      if (!oldSnap.exists) return { status: 'missing' } as const;
+      const raw = oldSnap.data() as StoredRefreshRecord | LegacyRefreshPointer;
+      if (!('status' in raw) || raw.token.clientId !== expectedClientId) {
+        return { status: 'missing' } as const;
+      }
+      const oldRecord = raw;
+      const familyRef = this.db.collection(this.familyCollection).doc(docId(oldRecord.familyId));
+      const familySnap = await transaction.get(familyRef);
+      const family: StoredRefreshFamily = familySnap.exists
+        ? {
+            ...(familySnap.data() as StoredRefreshFamily),
+            retiredRefreshFingerprints:
+              (familySnap.data() as StoredRefreshFamily).retiredRefreshFingerprints ?? [],
           }
-          this.deleteFamilyInTransaction(transaction, familyRef, family);
-          return { status: 'replay' } as const;
-        }
+        : {
+            id: oldRecord.familyId,
+            currentAccessToken: oldRecord.token.accessToken,
+            currentRefreshToken: oldRefreshToken,
+            retiredRefreshFingerprints: [],
+          };
 
-        const retiredRefreshFingerprints = [...family.retiredRefreshFingerprints];
-        if (family.previousRefreshToken) {
-          retiredRefreshFingerprints.push(refreshFingerprint(family.previousRefreshToken));
-          transaction.delete(
-            this.db.collection(this.refreshCollection).doc(docId(family.previousRefreshToken)),
-          );
+      if (oldRecord.status === 'consumed') {
+        const successor = oldRecord.successorRefreshToken
+          ? await transaction.get(
+              this.db
+                .collection(this.refreshCollection)
+                .doc(docId(oldRecord.successorRefreshToken)),
+            )
+          : undefined;
+        if (
+          family.previousRefreshToken === oldRefreshToken &&
+          oldRecord.consumedAt !== undefined &&
+          now - oldRecord.consumedAt <= REFRESH_RETRY_WINDOW_MS &&
+          successor?.exists
+        ) {
+          const successorRecord = successor.data() as StoredRefreshRecord;
+          if (
+            successorRecord.status === 'active' &&
+            successorRecord.token.clientId === expectedClientId
+          ) {
+            return { status: 'retry', token: successorRecord.token } as const;
+          }
         }
-        const boundedRetired = [
-          ...new Set(retiredRefreshFingerprints.slice(-MAX_RETIRED_REFRESH_FINGERPRINTS)),
-        ];
-        const stored = { ...replacement, refreshFamilyId: oldRecord.familyId };
-        if (family.previousAccessToken) {
-          transaction.delete(
-            this.db.collection(this.collection).doc(docId(family.previousAccessToken)),
-          );
-        }
+        this.deleteFamilyInTransaction(transaction, familyRef, family);
+        return { status: 'replay' } as const;
+      }
+
+      const retiredRefreshFingerprints = [...family.retiredRefreshFingerprints];
+      if (family.previousRefreshToken) {
+        retiredRefreshFingerprints.push(refreshFingerprint(family.previousRefreshToken));
         transaction.delete(
-          this.db.collection(this.collection).doc(docId(oldRecord.token.accessToken)),
+          this.db.collection(this.refreshCollection).doc(docId(family.previousRefreshToken)),
         );
-        transaction.set(oldRef, {
-          ...oldRecord,
-          status: 'consumed',
-          successorRefreshToken: stored.refreshToken,
-          consumedAt: now,
-        });
-        transaction.set(this.db.collection(this.collection).doc(docId(stored.accessToken)), stored);
+      }
+      const boundedRetired = [
+        ...new Set(retiredRefreshFingerprints.slice(-MAX_RETIRED_REFRESH_FINGERPRINTS)),
+      ];
+      const stored = { ...replacement, refreshFamilyId: oldRecord.familyId };
+      if (family.previousAccessToken) {
+        transaction.delete(
+          this.db.collection(this.collection).doc(docId(family.previousAccessToken)),
+        );
+      }
+      transaction.delete(
+        this.db.collection(this.collection).doc(docId(oldRecord.token.accessToken)),
+      );
+      transaction.set(oldRef, {
+        ...oldRecord,
+        status: 'consumed',
+        successorRefreshToken: stored.refreshToken,
+        consumedAt: now,
+      });
+      transaction.set(this.db.collection(this.collection).doc(docId(stored.accessToken)), stored);
         transaction.set(
           this.db.collection(this.refreshCollection).doc(docId(stored.refreshToken)),
           {
-            status: 'active',
-            familyId: oldRecord.familyId,
-            token: stored,
+        status: 'active',
+        familyId: oldRecord.familyId,
+        token: stored,
           },
         );
-        transaction.set(familyRef, {
-          id: oldRecord.familyId,
-          currentAccessToken: stored.accessToken,
-          currentRefreshToken: stored.refreshToken,
-          previousAccessToken: oldRecord.token.accessToken,
-          previousRefreshToken: oldRefreshToken,
-          retiredRefreshFingerprints: boundedRetired,
-        });
-        return { status: 'claimed', token: stored } as const;
+      transaction.set(familyRef, {
+        id: oldRecord.familyId,
+        currentAccessToken: stored.accessToken,
+        currentRefreshToken: stored.refreshToken,
+        previousAccessToken: oldRecord.token.accessToken,
+        previousRefreshToken: oldRefreshToken,
+        retiredRefreshFingerprints: boundedRetired,
       });
+      return { status: 'claimed', token: stored } as const;
+    });
 
-      if (result.status !== 'missing') return result;
-      return (await this.revokeRetiredToken(oldRefreshToken))
-        ? { status: 'replay' }
-        : { status: 'missing' };
+    if (result.status !== 'missing') return result;
+    return (await this.revokeRetiredToken(oldRefreshToken))
+      ? { status: 'replay' }
+      : { status: 'missing' };
     } catch (err) {
       wrapStoreError(err);
     }
