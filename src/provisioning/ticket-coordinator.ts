@@ -44,6 +44,7 @@ export class TicketCoordinatorSession {
       throw new Error(`Invalid ticket ID: "${params.ticketId}" must be a positive integer`);
     }
     this.ticketId = String(numericTicket);
+    this.actor = params.actor;
     this.operationId = params.operationId;
     this.kind = params.kind;
     this.payload = params.payload;
@@ -66,7 +67,7 @@ export class TicketCoordinatorSession {
     return this.armed;
   }
 
-  async prepareAndAcquire(maxWaitMs = 15000): Promise<{ alreadyVerified: boolean }> {
+  async prepareAndAcquire(maxWaitMs = 15000): Promise<{ alreadyVerified: boolean; isRecovery: boolean }> {
     // 1. Transactionally register/validate operation intent
     this.operation = await this.store.prepareOperation({
       accountKey: this.accountKey,
@@ -79,8 +80,11 @@ export class TicketCoordinatorSession {
     });
 
     if (this.operation.phase === 'verified') {
-      return { alreadyVerified: true };
+      return { alreadyVerified: true, isRecovery: false };
     }
+
+    const isRecovery =
+      this.operation.phase === 'dispatching' || this.operation.phase === 'uncertain';
 
     // 2. Acquire preparation lease on ticket coordinator
     const start = Date.now();
@@ -98,7 +102,7 @@ export class TicketCoordinatorSession {
         this.fence = res.fence;
         this.expiresAt = res.expiresAt;
         this.startHeartbeat();
-        return { alreadyVerified: false };
+        return { alreadyVerified: false, isRecovery };
       }
 
       if (Date.now() - start > maxWaitMs) {
@@ -110,6 +114,13 @@ export class TicketCoordinatorSession {
       }
 
       await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  async savePreparedState(preparedState: Record<string, unknown>): Promise<void> {
+    await this.store.savePreparedState(this.accountKey, this.operationId, preparedState);
+    if (this.operation) {
+      this.operation.preparedState = { ...(this.operation.preparedState ?? {}), ...preparedState };
     }
   }
 

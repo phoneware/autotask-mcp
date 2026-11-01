@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
+import { recordTicketEvidenceHandler } from './ticket-writes.js';
 import {
   jsonResponse,
   searchResponse,
@@ -221,36 +222,16 @@ export const ticketTools: ToolDefinition[] = [
     handler: async (args) => {
       const ticketID = intArg('ticketID', args.ticketID);
       const opId = (args.operationId || '').trim();
-
       if (opId) {
-        try {
-          const filter: FilterClause[] = [{ op: 'eq', field: 'ticketID', value: ticketID }];
-          const existingResult = (await api.query('TicketNotes', {
-            filter,
-            MaxRecords: 100,
-          })) as { items?: Array<Record<string, unknown>> };
-          if (existingResult && Array.isArray(existingResult.items)) {
-            const prior = existingResult.items.find((n) => {
-              const desc = typeof n.description === 'string' ? n.description : '';
-              const title = typeof n.title === 'string' ? n.title : '';
-              return desc.includes(`[op:${opId}]`) || title.includes(`[op:${opId}]`);
-            });
-            if (prior) {
-              return jsonResponse({
-                ...prior,
-                already_present: true,
-                reconciled_from_prior_evidence: true,
-                created: false,
-                operationId: opId,
-                verified: true,
-              });
-            }
-          }
-        } catch {
-          // Proceed to creation if query fails or is empty
-        }
+        return recordTicketEvidenceHandler({
+          ticketID: String(ticketID),
+          title: args.title || 'Note',
+          description: args.description,
+          operationId: opId,
+          noteType: args.noteType,
+          publish: args.publish,
+        });
       }
-
       const finalDesc = opId ? `${args.description}\n[op:${opId}]` : args.description;
       const body: Record<string, unknown> = {
         ticketID,

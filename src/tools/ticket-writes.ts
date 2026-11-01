@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
-import type { ToolDefinition } from '../types.js';
+import type { ToolDefinition, ToolResponse } from '../types.js';
 import { api } from '../autotask-api.js';
 import { currentCaller } from '../auth/context.js';
 import { assertSafeNumericId } from '../security.js';
 import { jsonResponse } from './shared.js';
 import { TicketCoordinatorSession } from '../provisioning/ticket-coordinator.js';
+import { deriveAccountKey, getOperationStore } from '../provisioning/operation-store.js';
 
 interface TicketModel {
   id?: number | string;
@@ -124,6 +125,214 @@ export function findMatchingResolutionLine(
   return null;
 }
 
+export async function recordTicketEvidenceHandler(args: {
+  ticketID: string;
+  title: string;
+  description: string;
+  operationId: string;
+  noteType?: string | number;
+  publish?: string | number;
+}): Promise<ToolResponse> {
+  const ticketId = assertSafeNumericId(args.ticketID, 'ticketID');
+  const opId = String(args.operationId || '').trim();
+
+  if (!opId) {
+    throw new Error('operationId is required for evidence recording');
+  }
+
+  if (!args.title || args.title.trim().length === 0 || args.title.length > 250) {
+    throw new Error('Evidence note title must be between 1 and 250 characters');
+  }
+
+  if (
+    !args.description ||
+    args.description.trim().length === 0 ||
+    args.description.length > 32000
+  ) {
+    throw new Error('Evidence note description must be between 1 and 32000 characters');
+  }
+
+  if (SECRET_PATTERN.test(args.title) || SECRET_PATTERN.test(args.description)) {
+    throw new Error('Refused: evidence note contains sensitive credential pattern');
+  }
+
+  const caller = currentCaller();
+  const author = caller?.email ?? 'autotask-mcp';
+  const actorResourceId = caller?.resourceId ?? 0;
+
+  const noteType = args.noteType !== undefined && args.noteType !== '' ? Number(args.noteType) : 1;
+  const publish = args.publish !== undefined && args.publish !== '' ? Number(args.publish) : 1;
+
+  // Bind noteType and publish into immutable intent
+  const session = new TicketCoordinatorSession({
+    ticketId,
+    actor: { email: author, resourceId: actorResourceId },
+    operationId: opId,
+    kind: 'evidence_note',
+    payload: {
+      ticketID: ticketId,
+      title: args.title.trim(),
+      description: args.description.trim(),
+      noteType,
+      publish,
+    },
+  });
+
+  const { alreadyVerified } = await session.prepareAndAcquire();
+  if (alreadyVerified) {
+    const op = session.getOperation();
+    return jsonResponse(
+      op?.receipt ?? { ticketID: Number(ticketId), verified: true, operationId: opId },
+    );
+  }
+
+  try {
+    // Read ticket to verify parent exists
+    const ticketRes = await api.getById('Tickets', ticketId);
+    const ticket = unwrapRecord<TicketModel>(ticketRes);
+    if (!ticket || Object.keys(ticket).length === 0) {
+      throw new Error(`Ticket ${ticketId} not found`);
+    }
+
+    // Follow complete pagination chain to scan for matching operation
+    const matchingNotes: Array<Record<string, unknown>> = [];
+    const filter = [{ op: 'eq', field: 'ticketID', value: Number(ticketId) }];
+    let pageResult = (await api.query('TicketNotes', {
+      filter,
+      MaxRecords: 100,
+    })) as { items?: Array<Record<string, unknown>>; pageDetails?: { nextPageUrl?: string } };
+
+    while (pageResult && Array.isArray(pageResult.items)) {
+      for (const note of pageResult.items) {
+        const noteDesc = typeof note.description === 'string' ? note.description : '';
+        const noteTitle = typeof note.title === 'string' ? note.title : '';
+        const match =
+          noteDesc.match(/\[op:([^\s,\]]+)\]/) || noteTitle.match(/\[op:([^\s,\]]+)\]/);
+        if (match && match[1] === opId) {
+          matchingNotes.push(note);
+        }
+      }
+      if (pageResult.pageDetails?.nextPageUrl) {
+        pageResult = (await api.request(
+          'GET',
+          pageResult.pageDetails.nextPageUrl,
+        )) as typeof pageResult;
+      } else {
+        break;
+      }
+    }
+
+    if (matchingNotes.length > 1) {
+      throw new Error(
+        `Conflict: multiple notes on ticket ${ticketId} match operationId "${opId}"; evidence is ambiguous`,
+      );
+    }
+
+    if (matchingNotes.length === 1) {
+      const note = matchingNotes[0];
+      const noteDesc = typeof note.description === 'string' ? note.description : '';
+      const logicalDesc = noteDesc.replace(/\n?\[op:[^\]]+\]/, '').trim();
+      if (logicalDesc !== args.description.trim()) {
+        throw new Error(
+          `Conflict: operationId "${opId}" was previously recorded with different description on ticket ${ticketId}`,
+        );
+      }
+      const receipt = {
+        ticketID: Number(ticketId),
+        noteID: Number(note.id),
+        title: typeof note.title === 'string' ? note.title : args.title,
+        operationId: opId,
+        status: 'verified',
+        created: false,
+        already_present: true,
+        observedAt: new Date().toISOString(),
+      };
+      await session.markVerified(receipt);
+      return jsonResponse(receipt);
+    }
+
+    // Arm dispatch barrier
+    await session.armDispatch();
+
+    const finalDescription = `${args.description}\n[op:${opId}]`;
+
+    const body: Record<string, unknown> = {
+      ticketID: Number(ticketId),
+      title: args.title,
+      description: finalDescription,
+      noteType,
+      publish,
+    };
+
+    // Single dispatch mutation with immediate armBeforeFetch
+    const createdRes = (await api.singleDispatchMutation(
+      'POST',
+      `V1.0/Tickets/${ticketId}/Notes`,
+      body,
+      {
+        armBeforeFetch: async () => {
+          await session.armDispatch();
+        },
+      },
+    )) as {
+      itemId?: number | string;
+      id?: number | string;
+      item?: { id?: number | string };
+    };
+    const createdId = createdRes?.itemId ?? createdRes?.id ?? createdRes?.item?.id;
+    if (!createdId) {
+      throw new Error('Failed to create evidence note: no ID returned from Autotask');
+    }
+
+    // Readback verification through parent route
+    const verifyRes = await api.request(
+      'GET',
+      `V1.0/Tickets/${encodeURIComponent(ticketId)}/Notes/${encodeURIComponent(String(createdId))}`,
+    );
+    const verifiedNote = unwrapRecord<Record<string, unknown>>(verifyRes);
+    if (!verifiedNote || Object.keys(verifiedNote).length === 0) {
+      throw new Error(`Verification failed: created note ${createdId} not found on ticket ${ticketId}`);
+    }
+
+    if (
+      String(verifiedNote.id) !== String(createdId) ||
+      String(verifiedNote.ticketID) !== ticketId
+    ) {
+      throw new Error(
+        `Verification failed: readback note id/ticketID mismatch for note ${createdId}`,
+      );
+    }
+
+    const verifiedDesc =
+      typeof verifiedNote.description === 'string' ? verifiedNote.description : '';
+    if (!verifiedDesc.includes(`[op:${opId}]`)) {
+      throw new Error(`Verification failed: readback note missing operation marker [op:${opId}]`);
+    }
+
+    const receipt = {
+      ticketID: Number(ticketId),
+      noteID: Number(createdId),
+      title: args.title,
+      operationId: opId,
+      status: 'verified',
+      created: true,
+      already_present: false,
+      observedAt: new Date().toISOString(),
+    };
+
+    await session.markVerified(receipt);
+    return jsonResponse(receipt);
+  } catch (err: unknown) {
+    if (session.isArmed()) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      await session.markUncertain(errMsg);
+    }
+    throw err;
+  } finally {
+    await session.release();
+  }
+}
+
 export const ticketWriteTools: ToolDefinition[] = [
   {
     name: 'append-ticket-resolution',
@@ -144,17 +353,17 @@ export const ticketWriteTools: ToolDefinition[] = [
       properties: {
         ticketID: { type: 'string', description: 'Autotask ticket id' },
         text: { type: 'string', description: 'Resolution text to append (1..2000 characters)' },
-        expectedResolutionSha256: {
-          type: 'string',
-          description: 'Optional SHA256 hex of current resolution text as a concurrency guard',
-        },
         operationId: {
           type: 'string',
           description:
             'Stable operation identifier for idempotent retries and durable dispatch coordination across clock changes',
         },
+        expectedResolutionSha256: {
+          type: 'string',
+          description: 'Optional SHA256 hex of current resolution text as a concurrency guard',
+        },
       },
-      required: ['ticketID', 'text'],
+      required: ['ticketID', 'text', 'operationId'],
     },
     handler: async (args) => {
       const ticketId = assertSafeNumericId(args.ticketID, 'ticketID');
@@ -167,37 +376,37 @@ export const ticketWriteTools: ToolDefinition[] = [
         throw new Error('Refused: resolution text contains sensitive credential pattern');
       }
 
+      const callerProvidedOpId = Boolean(args.operationId && String(args.operationId).trim());
+      const opId = callerProvidedOpId
+        ? String(args.operationId).trim()
+        : `anon-${crypto.createHash('sha256').update(args.text.trim()).digest('hex').slice(0, 16)}`;
       const caller = currentCaller();
       const author = caller?.email ?? 'autotask-mcp';
       const actorResourceId = caller?.resourceId ?? 0;
-      const opId = (args.operationId || '').trim();
 
-      const session = opId
-        ? new TicketCoordinatorSession({
-            ticketId,
-            actor: { email: author, resourceId: actorResourceId },
-            operationId: opId,
-            kind: 'resolution_append',
-            payload: { ticketID: ticketId, text: args.text.trim() },
-          })
-        : null;
+      const session = new TicketCoordinatorSession({
+        ticketId,
+        actor: { email: author, resourceId: actorResourceId },
+        operationId: opId,
+        kind: 'resolution_append',
+        payload: { ticketID: ticketId, text: args.text.trim() },
+      });
 
-      if (session) {
-        const { alreadyVerified } = await session.prepareAndAcquire();
-        if (alreadyVerified) {
-          const op = session.getOperation();
-          const priorLine = (op?.receipt?.appended_line as string) || args.text;
-          return jsonResponse({
-            ticketID: Number(ticketId),
-            written: false,
-            already_present: true,
-            reconciled_from_prior_evidence: true,
-            operationId: opId,
-            appended_line: priorLine,
-            concurrency_notice: CONCURRENCY_NOTICE,
-            verified: true,
-          });
-        }
+      const { alreadyVerified, isRecovery } = await session.prepareAndAcquire();
+      if (alreadyVerified) {
+        const op = session.getOperation();
+        const priorLine = (op?.receipt?.appended_line as string) || args.text;
+        return jsonResponse({
+          ticketID: Number(ticketId),
+          operationId: opId,
+          status: 'verified',
+          written: false,
+          already_present: true,
+          reconciled_from_prior_evidence: true,
+          appended_line: priorLine,
+          concurrency_notice: CONCURRENCY_NOTICE,
+          verified: true,
+        });
       }
 
       try {
@@ -211,25 +420,39 @@ export const ticketWriteTools: ToolDefinition[] = [
         const currentResolution = typeof ticket1.resolution === 'string' ? ticket1.resolution : '';
         const currentSha = crypto.createHash('sha256').update(currentResolution).digest('hex');
 
-        // Check if exact line or logical operation is already present before SHA check
-        // to ensure clock-advanced retries gracefully reconcile prior evidence.
-        const priorLine = findMatchingResolutionLine(currentResolution, args.text, opId, ticketId);
+        // Check if exact line or logical operation is already present
+        const priorLine = findMatchingResolutionLine(
+          currentResolution,
+          args.text,
+          callerProvidedOpId ? opId : undefined,
+          ticketId,
+        );
         if (priorLine) {
-          if (session) {
-            await session.markVerified({ ticketID: Number(ticketId), appended_line: priorLine });
-          }
-          return jsonResponse({
+          const receipt = {
             ticketID: Number(ticketId),
+            operationId: opId,
+            status: 'verified',
             written: false,
             already_present: true,
-            reconciled_from_prior_evidence: true,
-            operationId: opId || null,
             appended_line: priorLine,
             resolution_length_before: currentResolution.length,
             resolution_length_after: currentResolution.length,
+            observedAt: new Date().toISOString(),
+          };
+          await session.markVerified(receipt);
+          return jsonResponse({
+            ...receipt,
+            reconciled_from_prior_evidence: true,
             concurrency_notice: CONCURRENCY_NOTICE,
             verified: true,
           });
+        }
+
+        // If in recovery but priorLine was NOT found, do NOT redispatch! Must remain uncertain
+        if (isRecovery) {
+          throw new Error(
+            `Conflict: operation "${opId}" has an uncertain dispatch and line was not verified in Autotask; read-only reconciliation required`,
+          );
         }
 
         if (args.expectedResolutionSha256) {
@@ -242,7 +465,7 @@ export const ticketWriteTools: ToolDefinition[] = [
         }
 
         const timestamp = formatUtcTimestamp();
-        const appendedLine = opId
+        const appendedLine = callerProvidedOpId
           ? `${args.text} [${timestamp}, ${author}, op:${opId}]`
           : `${args.text} [${timestamp}, ${author}]`;
 
@@ -253,6 +476,13 @@ export const ticketWriteTools: ToolDefinition[] = [
             : currentResolution.endsWith('\n')
               ? `${currentResolution}${appendedLine}`
               : `${currentResolution}\n${appendedLine}`;
+
+        // Save prepared state
+        await session.savePreparedState({
+          observedResolutionBefore: currentResolution,
+          frozenTimestamp: timestamp,
+          appendedLine,
+        });
 
         // Max length validation from entityFields('Tickets') resolution.length
         try {
@@ -278,7 +508,7 @@ export const ticketWriteTools: ToolDefinition[] = [
         }
 
         // Fencing check before pre-write read
-        if (session && !session.isFencedAndValid()) {
+        if (!session.isFencedAndValid()) {
           throw new Error('Conflict: ticket lease expired before write; write refused');
         }
 
@@ -292,18 +522,19 @@ export const ticketWriteTools: ToolDefinition[] = [
           );
         }
 
-        // Arm sticky dispatch barrier before sending the outbound PATCH
-        if (session) {
-          await session.armDispatch();
-        }
-
-        // Write update
-        await api.update('Tickets', { id: Number(ticketId), resolution: newResolution });
-
+        // Single dispatch mutation with immediate armBeforeFetch
+        await api.singleDispatchMutation(
+          'PATCH',
+          'V1.0/Tickets',
+          { id: Number(ticketId), resolution: newResolution },
+          {
+            armBeforeFetch: async () => {
+              await session.armDispatch();
+            },
+          },
+        );
         // Post-patch lease validation
-        // Critically: a lease expiring during external PATCH must result in uncertain outcome
-        // and never report verified success without reconciliation.
-        if (session && !session.isFencedAndValid()) {
+        if (!session.isFencedAndValid()) {
           throw new Error(
             'Conflict: ticket lease expired or was lost during external update; outcome is uncertain and requires reconciliation before retry',
           );
@@ -320,36 +551,35 @@ export const ticketWriteTools: ToolDefinition[] = [
           );
         }
 
-        if (session) {
-          await session.markVerified({
-            ticketID: Number(ticketId),
-            appended_line: appendedLine,
-            written: true,
-          });
-        }
-
-        return jsonResponse({
+        const receipt = {
           ticketID: Number(ticketId),
+          operationId: opId,
+          status: 'verified',
           written: true,
           already_present: false,
-          reconciled_from_prior_evidence: false,
-          operationId: opId || null,
           appended_line: appendedLine,
           resolution_length_before: currentResolution.length,
           resolution_length_after: read3Resolution.length,
+          observedAt: new Date().toISOString(),
+        };
+
+        await session.markVerified(receipt);
+
+        return jsonResponse({
+          ...receipt,
+          operationId: callerProvidedOpId ? opId : null,
+          reconciled_from_prior_evidence: false,
           concurrency_notice: CONCURRENCY_NOTICE,
           verified: true,
         });
       } catch (err: unknown) {
-        if (session && session.isArmed()) {
+        if (session.isArmed()) {
           const errMsg = err instanceof Error ? err.message : String(err);
           await session.markUncertain(errMsg);
         }
         throw err;
       } finally {
-        if (session) {
-          await session.release();
-        }
+        await session.release();
       }
     },
   },
@@ -387,154 +617,7 @@ export const ticketWriteTools: ToolDefinition[] = [
       },
       required: ['ticketID', 'title', 'description', 'operationId'],
     },
-    handler: async (args) => {
-      const ticketId = assertSafeNumericId(args.ticketID, 'ticketID');
-      const opId = String(args.operationId || '').trim();
-
-      if (!opId) {
-        throw new Error('operationId is required for evidence recording');
-      }
-
-      if (!args.title || args.title.trim().length === 0 || args.title.length > 250) {
-        throw new Error('Evidence note title must be between 1 and 250 characters');
-      }
-
-      if (
-        !args.description ||
-        args.description.trim().length === 0 ||
-        args.description.length > 32000
-      ) {
-        throw new Error('Evidence note description must be between 1 and 32000 characters');
-      }
-
-      if (SECRET_PATTERN.test(args.title) || SECRET_PATTERN.test(args.description)) {
-        throw new Error('Refused: evidence note contains sensitive credential pattern');
-      }
-
-      const caller = currentCaller();
-      const author = caller?.email ?? 'autotask-mcp';
-      const actorResourceId = caller?.resourceId ?? 0;
-
-      const session = new TicketCoordinatorSession({
-        ticketId,
-        actor: { email: author, resourceId: actorResourceId },
-        operationId: opId,
-        kind: 'evidence_note',
-        payload: {
-          ticketID: ticketId,
-          title: args.title.trim(),
-          description: args.description.trim(),
-        },
-      });
-
-      const { alreadyVerified } = await session.prepareAndAcquire();
-      if (alreadyVerified) {
-        const op = session.getOperation();
-        return jsonResponse(op?.receipt ?? { ticketID: Number(ticketId), verified: true, operationId: opId });
-      }
-
-      try {
-        // Read ticket to verify parent exists
-        const ticketRes = await api.getById('Tickets', ticketId);
-        const ticket = unwrapRecord<TicketModel>(ticketRes);
-        if (!ticket || Object.keys(ticket).length === 0) {
-          throw new Error(`Ticket ${ticketId} not found`);
-        }
-
-        // Query existing notes to check if this operationId was already recorded
-        const queryRes = (await api.query('TicketNotes', {
-          filter: [{ op: 'eq', field: 'ticketID', value: Number(ticketId) }],
-          MaxRecords: 100,
-        })) as { items?: Array<Record<string, unknown>> };
-
-        if (queryRes && Array.isArray(queryRes.items)) {
-          for (const note of queryRes.items) {
-            const noteDesc = typeof note.description === 'string' ? note.description : '';
-            const noteTitle = typeof note.title === 'string' ? note.title : '';
-            const match = noteDesc.match(/\[op:([^\s,\]]+)\]/) || noteTitle.match(/\[op:([^\s,\]]+)\]/);
-            if (match && match[1] === opId) {
-              const logicalDesc = noteDesc.replace(/\n?\[op:[^\]]+\]/, '').trim();
-              if (logicalDesc !== args.description.trim()) {
-                throw new Error(
-                  `Conflict: operationId "${opId}" was previously recorded with different description on ticket ${ticketId}`,
-                );
-              }
-              const receipt = {
-                ticketID: Number(ticketId),
-                noteID: Number(note.id),
-                title: noteTitle,
-                created: false,
-                already_present: true,
-                reconciled_from_prior_evidence: true,
-                operationId: opId,
-                verified: true,
-              };
-              await session.markVerified(receipt);
-              return jsonResponse(receipt);
-            }
-          }
-        }
-
-        // Arm dispatch barrier
-        await session.armDispatch();
-
-        const finalDescription = `${args.description}\n[op:${opId}]`;
-        const noteType = args.noteType ? Number(args.noteType) : 1;
-        const publish = args.publish ? Number(args.publish) : 1;
-
-        const body: Record<string, unknown> = {
-          ticketID: Number(ticketId),
-          title: args.title,
-          description: finalDescription,
-          noteType,
-          publish,
-        };
-
-        // Autotask create endpoint returns OperationResultModel: { itemId }
-        const createdRes = (await api.create(`Tickets/${ticketId}/Notes`, body)) as {
-          itemId?: number | string;
-          id?: number | string;
-          item?: { id?: number | string };
-        };
-        const createdId = createdRes?.itemId ?? createdRes?.id ?? createdRes?.item?.id;
-
-        if (!createdId) {
-          throw new Error('Failed to create evidence note: no ID returned from Autotask');
-        }
-
-        // Readback verification through parent route
-        const verifyRes = await api.request(
-          'GET',
-          `V1.0/Tickets/${encodeURIComponent(ticketId)}/Notes/${encodeURIComponent(String(createdId))}`,
-        );
-        const verifiedNote = unwrapRecord<Record<string, unknown>>(verifyRes);
-        if (!verifiedNote || Object.keys(verifiedNote).length === 0) {
-          throw new Error(`Verification failed: created note ${createdId} not found on ticket ${ticketId}`);
-        }
-
-        const receipt = {
-          ticketID: Number(ticketId),
-          noteID: Number(createdId),
-          title: args.title,
-          created: true,
-          already_present: false,
-          reconciled_from_prior_evidence: false,
-          operationId: opId,
-          verified: true,
-        };
-
-        await session.markVerified(receipt);
-        return jsonResponse(receipt);
-      } catch (err: unknown) {
-        if (session.isArmed()) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          await session.markUncertain(errMsg);
-        }
-        throw err;
-      } finally {
-        await session.release();
-      }
-    },
+    handler: (args) => recordTicketEvidenceHandler(args),
   },
   {
     name: 'set-ticket-checklist-item',
@@ -542,7 +625,7 @@ export const ticketWriteTools: ToolDefinition[] = [
     description:
       'Set completion status of a checklist item on an Autotask ticket. ' +
       'DESTRUCTIVE (write): requires confirm token SET_TICKET_CHECKLIST_ITEM. ' +
-      'Verifies parent ticket relationship and requires observed evidence (evidenceNoteID or evidenceArchiveReceipt) before reporting complete.',
+      'Verifies parent ticket relationship and requires observed evidence (evidenceNoteID or evidenceOperationId) before reporting complete.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -562,15 +645,14 @@ export const ticketWriteTools: ToolDefinition[] = [
           type: 'string',
           description: 'Optional Autotask ticket note ID containing the verification evidence',
         },
+        evidenceOperationId: {
+          type: 'string',
+          description: 'Optional operationId of the verified evidence note or archive operation',
+        },
         evidenceAttachmentID: {
           type: 'string',
           description:
-            'Optional Autotask ticket attachment ID containing the document/verification evidence',
-        },
-        requireEvidence: {
-          type: 'string',
-          description:
-            'Optional "true" | "false". When "true", completing an item requires observed evidence on the parent ticket',
+            'Optional Autotask ticket attachment ID containing the document evidence',
         },
       },
       required: ['ticketID', 'checklistItemID', 'completed'],
@@ -586,14 +668,31 @@ export const ticketWriteTools: ToolDefinition[] = [
       const targetCompleted = completedLower === 'true';
       let evidenceNoteIdNum: number | null = null;
       let evidenceAttachmentIdNum: number | null = null;
+      let evidenceOpId: string | null = null;
 
-      // Validate evidence requirements when marking complete
+      // Validate evidence requirements when marking complete (enforced server-side)
       if (targetCompleted) {
-        const requireEvidence = (args.requireEvidence || '').trim().toLowerCase() === 'true';
-        if (requireEvidence && !args.evidenceNoteID && !args.evidenceAttachmentID) {
+        if (!args.evidenceNoteID && !args.evidenceOperationId && !args.evidenceAttachmentID) {
           throw new Error(
-            `Refused: checklist item completion requires observed evidence (evidenceNoteID or evidenceAttachmentID on ticket ${ticketId})`,
+            `Refused: checklist item completion requires observed evidence (evidenceNoteID, evidenceOperationId, or evidenceAttachmentID on ticket ${ticketId})`,
           );
+        }
+
+        if (args.evidenceOperationId) {
+          evidenceOpId = String(args.evidenceOperationId).trim();
+          const op = await getOperationStore().getOperation(deriveAccountKey(), evidenceOpId);
+          if (!op || op.phase !== 'verified') {
+            throw new Error(
+              `Evidence operation "${evidenceOpId}" is not verified (current phase: ${
+                op?.phase ?? 'missing'
+              }); checklist completion refused`,
+            );
+          }
+          if (op.ticketId !== ticketId) {
+            throw new Error(
+              `Parent mismatch: evidence operation "${evidenceOpId}" belongs to ticketID ${op.ticketId}, not ${ticketId}; checklist completion refused`,
+            );
+          }
         }
 
         if (args.evidenceNoteID) {
@@ -683,9 +782,10 @@ export const ticketWriteTools: ToolDefinition[] = [
           itemName: safeItemName,
           already_in_state: true,
           updated: false,
-          evidenceVerified: Boolean(evidenceNoteIdNum || evidenceAttachmentIdNum),
+          evidenceVerified: Boolean(evidenceNoteIdNum || evidenceAttachmentIdNum || evidenceOpId),
           evidenceNoteID: evidenceNoteIdNum,
           evidenceAttachmentID: evidenceAttachmentIdNum,
+          evidenceOperationId: evidenceOpId,
         });
       }
 
@@ -724,9 +824,10 @@ export const ticketWriteTools: ToolDefinition[] = [
         itemName: updatedItemName,
         already_in_state: false,
         updated: true,
-        evidenceVerified: Boolean(evidenceNoteIdNum || evidenceAttachmentIdNum),
+        evidenceVerified: Boolean(evidenceNoteIdNum || evidenceAttachmentIdNum || evidenceOpId),
         evidenceNoteID: evidenceNoteIdNum,
         evidenceAttachmentID: evidenceAttachmentIdNum,
+        evidenceOperationId: evidenceOpId,
       });
     },
   },

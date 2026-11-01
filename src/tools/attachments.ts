@@ -235,9 +235,6 @@ export const attachmentTools: ToolDefinition[] = [
       const actorEmail = caller?.email ?? 'autotask-mcp';
       const actorResourceId = caller?.resourceId ?? 0;
 
-      const provider = new DriveArchiveProvider();
-      const pregeneratedFileId = await provider.generateFileId();
-
       // 1. Prepare operation and acquire coordinator lease
       const session = new TicketCoordinatorSession({
         ticketId,
@@ -249,10 +246,10 @@ export const attachmentTools: ToolDefinition[] = [
           attachmentID: attachmentId,
           expectedCompanyID: expectedCompanyId,
           expectedSha256,
-          driveFileId: pregeneratedFileId,
         },
       });
-      const { alreadyVerified } = await session.prepareAndAcquire();
+
+      const { alreadyVerified, isRecovery } = await session.prepareAndAcquire();
       if (alreadyVerified) {
         const op = session.getOperation();
         const receipt = op?.receipt ?? { status: 'verified', operationId };
@@ -278,6 +275,39 @@ export const attachmentTools: ToolDefinition[] = [
           expectedSha256,
         });
 
+        const provider = new DriveArchiveProvider();
+        const existingPrepared = session.getOperation()?.preparedState;
+        let fileId = (existingPrepared?.driveFileId as string) || '';
+
+        // If in recovery, attempt read-only reconciliation before arming dispatch
+        if (isRecovery && fileId) {
+          try {
+            const receipt = await provider.uploadAndVerify({
+              operationId,
+              attachment: privateAtt,
+              binding,
+              fileId,
+            });
+            await session.markVerified(receipt as unknown as Record<string, unknown>);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
+              structuredContent: receipt,
+            };
+          } catch {
+            throw new Error(
+              `Conflict: operation "${operationId}" has an uncertain dispatch and file was not verified in Drive; read-only reconciliation required`,
+            );
+          }
+        }
+
+        if (!fileId) {
+          fileId = await provider.generateFileId();
+          await session.savePreparedState({
+            driveFileId: fileId,
+            bindingFingerprint: `${binding.driveId}:${binding.folderId}:${binding.version}`,
+          });
+        }
+
         // Re-check binding version right before dispatch
         await assertAuthorizedArchiveBinding({
           accountKey: session.accountKey,
@@ -294,8 +324,9 @@ export const attachmentTools: ToolDefinition[] = [
           operationId,
           attachment: privateAtt,
           binding,
-          fileId: pregeneratedFileId,
+          fileId,
         });
+
         // 6. Mark verified and clear dispatch barrier
         await session.markVerified(receipt as unknown as Record<string, unknown>);
 

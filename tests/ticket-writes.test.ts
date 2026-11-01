@@ -14,14 +14,34 @@ import {
   setOperationStore,
   MemoryOperationStore,
 } from '../src/provisioning/operation-store.js';
-const { getById, update, request, entityFields, create, query } = vi.hoisted(() => ({
-  getById: vi.fn(),
-  update: vi.fn(),
-  request: vi.fn(),
-  entityFields: vi.fn(),
-  create: vi.fn(),
-  query: vi.fn(),
-}));
+const { getById, update, request, entityFields, create, query, singleDispatchMutation } =
+  vi.hoisted(() => ({
+    getById: vi.fn(),
+    update: vi.fn(),
+    request: vi.fn(),
+    entityFields: vi.fn(),
+    create: vi.fn(),
+    query: vi.fn(),
+    singleDispatchMutation: vi.fn(
+      async (
+        method: string,
+        path: string,
+        body: unknown,
+        opts?: { armBeforeFetch?: () => Promise<void> },
+      ) => {
+        if (opts?.armBeforeFetch) {
+          await opts.armBeforeFetch();
+        }
+        if (method === 'PATCH' && path === 'V1.0/Tickets') {
+          return update('Tickets', body);
+        }
+        if (method === 'POST') {
+          return create(path.replace(/^V1\.0\//, ''), body);
+        }
+        return { success: true };
+      },
+    ),
+  }));
 
 vi.mock('../src/autotask-api.js', () => ({
   api: {
@@ -31,6 +51,7 @@ vi.mock('../src/autotask-api.js', () => ({
     entityFields,
     create,
     query,
+    singleDispatchMutation,
   },
 }));
 

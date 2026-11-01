@@ -14,6 +14,14 @@ export class StoreUnavailableError extends Error {
   }
 }
 
+export function canonicalizeNumericId(raw: string | number, label = 'id'): string {
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw).trim(), 10);
+  if (!Number.isSafeInteger(n) || n <= 0) {
+    throw new Error(`${label} must be a positive safe integer (got: ${JSON.stringify(raw)})`);
+  }
+  return String(n);
+}
+
 export function deriveAccountKey(): string {
   const username = (process.env.AUTOTASK_USERNAME || '').toLowerCase().trim();
   const url = (process.env.AUTOTASK_API_URL || '').toLowerCase().trim();
@@ -39,6 +47,12 @@ export interface OperationStore {
     intentSha256: string;
     payload: Record<string, unknown>;
   }): Promise<OperationIntent>;
+
+  savePreparedState(
+    accountKey: string,
+    operationId: string,
+    preparedState: Record<string, unknown>,
+  ): Promise<void>;
 
   getOperation(accountKey: string, operationId: string): Promise<OperationIntent | null>;
 
@@ -115,7 +129,6 @@ export class MemoryOperationStore implements OperationStore {
           `Conflict: operationId "${params.operationId}" was previously recorded with different intent/target; write refused`,
         );
       }
-      // Reliability 8: Compare complete normalized actor identity
       if (
         existing.actor.email !== params.actor.email ||
         existing.actor.resourceId !== params.actor.resourceId
@@ -146,6 +159,19 @@ export class MemoryOperationStore implements OperationStore {
     return { ...intent };
   }
 
+  async savePreparedState(
+    accountKey: string,
+    operationId: string,
+    preparedState: Record<string, unknown>,
+  ): Promise<void> {
+    const key = operationKey(accountKey, operationId);
+    const op = this.operations.get(key);
+    if (op) {
+      op.preparedState = { ...(op.preparedState ?? {}), ...preparedState };
+      op.updatedAt = Date.now();
+    }
+  }
+
   async getOperation(accountKey: string, operationId: string): Promise<OperationIntent | null> {
     const key = operationKey(accountKey, operationId);
     const op = this.operations.get(key);
@@ -168,7 +194,6 @@ export class MemoryOperationStore implements OperationStore {
       this.coordinators.set(coordKey, coord);
     }
 
-    // Sticky dispatch barrier check: if unresolved dispatch exists for different operation, refuse
     if (coord.activeDispatch) {
       if (coord.activeDispatch.operationId !== operationId) {
         throw new Error(
@@ -177,7 +202,6 @@ export class MemoryOperationStore implements OperationStore {
       }
     }
 
-    // Check active preparation lease
     if (coord.lease && coord.lease.expiresAt > now && coord.lease.attemptId !== attemptId) {
       return { acquired: false, fence: coord.fence, expiresAt: coord.lease.expiresAt };
     }
@@ -210,7 +234,6 @@ export class MemoryOperationStore implements OperationStore {
 
     const opKey = operationKey(accountKey, operationId);
     const op = this.operations.get(opKey);
-    // Reliability 1: Prevent redispatch of uncertain or dispatching operations
     if (op?.phase === 'dispatching' || op?.phase === 'uncertain') {
       throw new Error(
         `Conflict: operation "${operationId}" is already in phase "${op.phase}"; cannot redispatch mutation without read-only reconciliation`,
@@ -244,7 +267,6 @@ export class MemoryOperationStore implements OperationStore {
     const now = Date.now();
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coord = this.coordinators.get(coordKey);
-    // Reliability 2: Clear original barrier when operation matches, even if attemptId is recovery
     if (coord && coord.activeDispatch?.operationId === operationId) {
       coord.activeDispatch = null;
     }
@@ -266,15 +288,13 @@ export class MemoryOperationStore implements OperationStore {
     operationId: string,
     error: string,
   ): Promise<void> {
-    const now = Date.now();
     const opKey = operationKey(accountKey, operationId);
     const op = this.operations.get(opKey);
-    if (op) {
+    if (op && op.phase !== 'verified') {
       op.phase = 'uncertain';
-      op.updatedAt = now;
+      op.updatedAt = Date.now();
       op.error = error;
     }
-    // Active dispatch remains sticky on coordinator!
   }
 
   async renewLease(
@@ -349,7 +369,6 @@ export class FirestoreOperationStore implements OperationStore {
             `Conflict: operationId "${params.operationId}" was previously recorded with different intent/target; write refused`,
           );
         }
-        // Reliability 8: Complete actor check (email + resourceId)
         if (
           existing.actor.email !== params.actor.email ||
           existing.actor.resourceId !== params.actor.resourceId
@@ -378,6 +397,18 @@ export class FirestoreOperationStore implements OperationStore {
 
       txn.set(docRef, intent);
       return intent;
+    });
+  }
+
+  async savePreparedState(
+    accountKey: string,
+    operationId: string,
+    preparedState: Record<string, unknown>,
+  ): Promise<void> {
+    const key = operationKey(accountKey, operationId);
+    const docRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(key);
+    await this.firestore.runTransaction(async (txn) => {
+      txn.set(docRef, { preparedState, updatedAt: Date.now() }, { merge: true });
     });
   }
 
@@ -462,7 +493,6 @@ export class FirestoreOperationStore implements OperationStore {
 
       const opSnap = await txn.get(opRef);
       const opData = opSnap.data() as OperationIntent | undefined;
-      // Reliability 1: Refuse redispatch if uncertain or dispatching
       if (opData?.phase === 'dispatching' || opData?.phase === 'uncertain') {
         throw new Error(
           `Conflict: operation "${operationId}" is already in phase "${opData.phase}"; cannot redispatch mutation without read-only reconciliation`,
@@ -504,7 +534,6 @@ export class FirestoreOperationStore implements OperationStore {
     await this.firestore.runTransaction(async (txn) => {
       const coordSnap = await txn.get(coordRef);
       const data = coordSnap.data() as TicketCoordinator | undefined;
-      // Reliability 2: Clear barrier by operationId match even if attemptId is from recovery
       if (coordSnap.exists && data?.activeDispatch && data.activeDispatch.operationId === operationId) {
         txn.update(coordRef, { activeDispatch: null });
       }
@@ -529,11 +558,15 @@ export class FirestoreOperationStore implements OperationStore {
     const opKey = operationKey(accountKey, operationId);
     const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
     await this.firestore.runTransaction(async (txn) => {
-      txn.update(opRef, {
-        phase: 'uncertain',
-        error,
-        updatedAt: Date.now(),
-      });
+      const snap = await txn.get(opRef);
+      const data = snap.data() as OperationIntent | undefined;
+      if (data && data.phase !== 'verified') {
+        txn.update(opRef, {
+          phase: 'uncertain',
+          error,
+          updatedAt: Date.now(),
+        });
+      }
     });
   }
 
@@ -580,7 +613,6 @@ export class FirestoreOperationStore implements OperationStore {
 
 let activeOperationStore: OperationStore | null = null;
 
-// Reliability 5: Preserve ADC project discovery
 export function getOperationStore(): OperationStore {
   if (activeOperationStore) return activeOperationStore;
   try {

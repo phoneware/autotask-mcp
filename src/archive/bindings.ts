@@ -47,18 +47,15 @@ let activeBindingsStore: BindingsStore | null = null;
 
 export function getBindingsStore(): BindingsStore {
   if (activeBindingsStore) return activeBindingsStore;
-  const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
-  if (projectId) {
-    try {
-      const fs = new Firestore({ projectId, ignoreUndefinedProperties: true });
-      activeBindingsStore = new FirestoreBindingsStore(fs);
-      return activeBindingsStore;
-    } catch {
-      // Fallback
-    }
+  try {
+    const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
+    const fs = new Firestore({ projectId, ignoreUndefinedProperties: true });
+    activeBindingsStore = new FirestoreBindingsStore(fs);
+    return activeBindingsStore;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to initialize Firestore bindings store: ${msg}`);
   }
-  activeBindingsStore = new MemoryBindingsStore();
-  return activeBindingsStore;
 }
 
 export function setBindingsStore(store: BindingsStore | null): void {

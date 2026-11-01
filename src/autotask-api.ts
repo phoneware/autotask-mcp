@@ -179,6 +179,53 @@ export class AutotaskApi {
   }
 
   /**
+   * Execute a single-dispatch mutation bound to a strict deadline with zero retries.
+   * Used by provisioning coordinator to ensure that exactly one mutation is sent
+   * per dispatch barrier, without 429 retries or unattributed impersonation fallbacks.
+   */
+  async singleDispatchMutation(
+    method: 'POST' | 'PATCH' | 'PUT',
+    path: string,
+    body?: unknown,
+    opts: { timeoutMs?: number; armBeforeFetch?: () => Promise<void> } = {},
+  ): Promise<unknown> {
+    const timeoutMs = opts.timeoutMs ?? 15000;
+    await governor.assertBudget(() => this.fetchThresholdRaw());
+    return governor.withSlot(path, async () => {
+      const base = await this.getBaseUrl();
+      const url = `${base}${path.replace(/^\//, '')}`;
+      const headers = this.authHeaders(method, path, true);
+      const options: RequestInit = {
+        method,
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+      };
+      if (body !== undefined) {
+        options.body = JSON.stringify(body);
+      }
+
+      // Arm immediately before outbound fetch if callback provided
+      if (opts.armBeforeFetch) {
+        await opts.armBeforeFetch();
+      }
+
+      let resp: Response;
+      try {
+        resp = await fetch(url, options);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Mutation dispatch uncertain (network/timeout): ${redactSecrets(msg)}`);
+      }
+
+      if (resp.status === 204) return { success: true };
+      const text = await resp.text();
+      if (resp.ok) {
+        return text ? JSON.parse(text) : { success: true };
+      }
+      throw new Error(`Autotask API error (${resp.status}): ${redactSecrets(text)}`);
+    });
+  }
+  /**
    * The governor's own budget probe. Never governed (it would deadlock), and
    * never retried: the governor fails open on error, so retrying a failing
    * ThresholdInformation would stall every tool call behind seconds of backoff
