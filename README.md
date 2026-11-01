@@ -286,7 +286,7 @@ Autotask rights; see [Who can do what](#who-can-do-what).
 
 ### Convenience
 
-- **Tickets**: `search-tickets`, `get-ticket`, `create-ticket`, `update-ticket`, `create-ticket-note`, `search-ticket-notes`
+- **Tickets**: `search-tickets`, `get-ticket`, `create-ticket`, `update-ticket`, `append-ticket-resolution`, `set-ticket-checklist-item`, `create-ticket-note`, `search-ticket-notes`, `get-ticket-attachment`
 - **Ticket Charges**: `list-ticket-charges`, `get-ticket-charge`, `create-ticket-charge`, `update-ticket-charge`
 - **Companies**: `search-companies`, `get-company`, `create-company`, `update-company`
 - **Contacts**: `search-contacts`, `get-contact`, `create-contact`, `update-contact`
@@ -305,12 +305,12 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 
 ## Tool safety
 
-**Read-only tools** (33): never mutate data, always available:
+**Read-only tools** (34): never mutate data, always available:
 
 - **Identity**: `whoami`
 - **Meta**: `search_api`
 - **Generic**: `list-known-entities`, `describe-entity-fields`, `query-entity`, `count-entity`, `get-next-page`, `get-entity`, `get-threshold-information`, `get-version`
-- **Tickets**: `search-tickets`, `get-ticket`, `search-ticket-notes`
+- **Tickets**: `search-tickets`, `get-ticket`, `search-ticket-notes`, `get-ticket-attachment`
 - **Ticket Charges**: `list-ticket-charges`, `get-ticket-charge`
 - **Companies**: `search-companies`, `get-company`
 - **Contacts**: `search-contacts`, `get-contact`
@@ -319,24 +319,26 @@ Read-only `autotask://` resources are also exposed: `autotask://threshold`, `aut
 - **Projects & Tasks**: `search-projects`, `get-project`, `search-tasks`, `get-task`
 - **Time entries**: `search-time-entries`
 
-**Mutating tools** (13): require a matching `confirm` token, and are not registered at all in read-only mode:
+**Mutating tools** (15): require a matching `confirm` token, and are not registered at all in read-only mode:
 
-| Tool                   | Required `confirm`     |
-| ---------------------- | ---------------------- |
-| `create-entity`        | `CREATE_ENTITY`        |
-| `update-entity`        | `UPDATE_ENTITY`        |
-| `delete-entity`        | `DELETE_ENTITY`        |
-| `create-ticket`        | `CREATE_TICKET`        |
-| `update-ticket`        | `UPDATE_TICKET`        |
-| `create-ticket-note`   | `CREATE_TICKET_NOTE`   |
-| `create-ticket-charge` | `CREATE_TICKET_CHARGE` |
-| `update-ticket-charge` | `UPDATE_TICKET_CHARGE` |
-| `create-company`       | `CREATE_COMPANY`       |
-| `update-company`       | `UPDATE_COMPANY`       |
-| `create-contact`       | `CREATE_CONTACT`       |
-| `update-contact`       | `UPDATE_CONTACT`       |
-| `create-time-entry`    | `CREATE_TIME_ENTRY`    |
-| `call_api`             | (Per-op confirm token) |
+| Tool                        | Required `confirm`          |
+| --------------------------- | --------------------------- |
+| `create-entity`             | `CREATE_ENTITY`             |
+| `update-entity`             | `UPDATE_ENTITY`             |
+| `delete-entity`             | `DELETE_ENTITY`             |
+| `create-ticket`             | `CREATE_TICKET`             |
+| `update-ticket`             | `UPDATE_TICKET`             |
+| `append-ticket-resolution`  | `APPEND_TICKET_RESOLUTION`  |
+| `set-ticket-checklist-item` | `SET_TICKET_CHECKLIST_ITEM` |
+| `create-ticket-note`        | `CREATE_TICKET_NOTE`        |
+| `create-ticket-charge`      | `CREATE_TICKET_CHARGE`      |
+| `update-ticket-charge`      | `UPDATE_TICKET_CHARGE`      |
+| `create-company`            | `CREATE_COMPANY`            |
+| `update-company`            | `UPDATE_COMPANY`            |
+| `create-contact`            | `CREATE_CONTACT`            |
+| `update-contact`            | `UPDATE_CONTACT`            |
+| `create-time-entry`         | `CREATE_TIME_ENTRY`         |
+| `call_api`                  | (Per-op confirm token)      |
 
 ### Read-only API fields
 

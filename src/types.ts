@@ -21,8 +21,12 @@ export interface ToolDefinition {
   };
   handler: (args: Record<string, string>, context?: ToolContext) => Promise<ToolResponse>;
 }
+export type ToolContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string };
+
 export interface ToolResponse {
-  content: Array<{ type: 'text'; text: string }>;
+  content: ToolContentBlock[];
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }

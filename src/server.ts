@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import type { ToolContentBlock } from './types.js';
 import { allTools } from './tools/index.js';
 import { staticResources, resourceTemplates, handleResource } from './resources.js';
 import {
@@ -118,7 +119,7 @@ export function buildServer(
             ...result,
             structuredContent: result.structuredContent,
           } as {
-            content: Array<{ type: 'text'; text: string }>;
+            content: ToolContentBlock[];
             structuredContent?: Record<string, unknown>;
             isError?: boolean;
             [key: string]: unknown;
@@ -129,7 +130,7 @@ export function buildServer(
             content: [{ type: 'text' as const, text: `Error: ${message}` }],
             isError: true,
           } as {
-            content: Array<{ type: 'text'; text: string }>;
+            content: ToolContentBlock[];
             isError: boolean;
             [key: string]: unknown;
           };
@@ -202,7 +203,7 @@ export function buildServer(
             ...res,
             structuredContent: res.structuredContent,
           } as {
-            content: Array<{ type: 'text'; text: string }>;
+            content: ToolContentBlock[];
             structuredContent?: Record<string, unknown>;
             isError?: boolean;
             [key: string]: unknown;

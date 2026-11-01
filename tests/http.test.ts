@@ -529,7 +529,10 @@ describe('a limited person over real MCP', () => {
 
     expect(names).toContain('search-tickets');
     expect(names).toContain('create-ticket');
+    expect(names).toContain('get-ticket-attachment');
     expect(names).not.toContain('update-ticket');
+    expect(names).not.toContain('append-ticket-resolution');
+    expect(names).not.toContain('set-ticket-checklist-item');
     expect(names).not.toContain('delete-entity');
     expect(names).not.toContain('update-entity');
 
