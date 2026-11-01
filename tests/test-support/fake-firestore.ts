@@ -1,4 +1,4 @@
-// Copied from @phoneware/mcp-oauth-kit 1.0.0 (phoneware/monorepo packages/mcp-oauth-kit/test-support/fake-firestore.ts at 998685a9dd5843a89e6eb1f3659223e7f9e31fc5). Edit the canonical file, then re-copy.
+// Copied from @phoneware/mcp-oauth-kit 1.0.0 (phoneware/monorepo packages/mcp-oauth-kit/test-support/fake-firestore.ts at 998685a9dd10bbeb0dd40d71e8aa8ca3538bd801). Edit the canonical file, then re-copy.
 export class FirestoreError extends Error {
   readonly code: number | string;
 
@@ -158,7 +158,10 @@ export class FakeDocumentReference {
     return new FakeDocumentSnapshot(this, data);
   }
 
-  async set(data: Record<string, unknown>, options?: { merge?: boolean }): Promise<void> {
+  async set(
+    data: Record<string, unknown>,
+    options?: { merge?: boolean },
+  ): Promise<void> {
     this.firestore.checkOutage();
     this.firestore.validatePayload(data);
     const map = this.firestore.getCollectionMap(this.parentPath);
@@ -358,9 +361,7 @@ export class FakeFirestore {
     return new FakeWriteBatch(this);
   }
 
-  async runTransaction<R>(
-    updateFunction: (transaction: FakeTransaction) => Promise<R>,
-  ): Promise<R> {
+  async runTransaction<R>(updateFunction: (transaction: FakeTransaction) => Promise<R>): Promise<R> {
     this.checkOutage();
     // Serialize transactions
     const prior = this.transactionLock;

@@ -1,4 +1,4 @@
-// Copied from @phoneware/mcp-oauth-kit 1.0.0 (phoneware/monorepo packages/mcp-oauth-kit/test-support/permanence-contract.ts at 998685a9dd5843a89e6eb1f3659223e7f9e31fc5). Edit the canonical file, then re-copy.
+// Copied from @phoneware/mcp-oauth-kit 1.0.0 (phoneware/monorepo packages/mcp-oauth-kit/test-support/permanence-contract.ts at 998685a9dd10bbeb0dd40d71e8aa8ca3538bd801). Edit the canonical file, then re-copy.
 import { expect } from 'vitest';
 
 export interface ServerInstance {
@@ -17,10 +17,7 @@ export interface PermanenceHarness<TBacking> {
   name: string;
   newBacking: () => Promise<TBacking>;
   createInstance: (backing: TBacking, opts?: { instanceId?: string }) => Promise<ServerInstance>;
-  signIn: (
-    instanceUrl: string,
-    opts?: { email?: string; scopes?: string[] },
-  ) => Promise<SignInResult>;
+  signIn: (instanceUrl: string, opts?: { email?: string; scopes?: string[] }) => Promise<SignInResult>;
   setNow?: (now: number) => void;
   getNow?: () => number;
   setStoreOutage?: (backing: TBacking, active: boolean) => Promise<void>;
@@ -130,13 +127,12 @@ export async function runPermanenceContract<TBacking>(
     expect(mcpC.status, 'step c: /mcp with expired token must return 401').toBe(401);
     const wwwAuth = mcpC.headers.get('www-authenticate') ?? '';
     expect(wwwAuth, 'step c: WWW-Authenticate must be present').toContain('Bearer');
-    expect(wwwAuth, 'step c: WWW-Authenticate must contain invalid_token').toContain(
-      'invalid_token',
-    );
+    expect(wwwAuth, 'step c: WWW-Authenticate must contain invalid_token').toContain('invalid_token');
     if (harness.resourceMetadataUrl) {
-      expect(wwwAuth, 'step c: WWW-Authenticate must contain resource_metadata').toContain(
-        `resource_metadata="${harness.resourceMetadataUrl}"`,
-      );
+      expect(
+        wwwAuth,
+        'step c: WWW-Authenticate must contain resource_metadata',
+      ).toContain(`resource_metadata="${harness.resourceMetadataUrl}"`);
     }
 
     // Step d: Refresh -> 200 with new pair; new token works; old token gets 401
@@ -234,9 +230,7 @@ export async function runPermanenceContract<TBacking>(
         refresh_token: newRefreshF, // consumed token from step g
         client_id: initial.clientId,
       });
-      expect(tokenIReplay.status, 'step i: consumed token outside window must return 400').toBe(
-        400,
-      );
+      expect(tokenIReplay.status, 'step i: consumed token outside window must return 400').toBe(400);
       expect(tokenIReplay.data.error).toBe('invalid_grant');
 
       // Presenting the current active token should now also fail because family was revoked
@@ -245,10 +239,9 @@ export async function runPermanenceContract<TBacking>(
         refresh_token: activeRefreshG,
         client_id: initial.clientId,
       });
-      expect(
-        tokenICurrent.status,
-        'step i: current token after family revocation must return 400',
-      ).toBe(400);
+      expect(tokenICurrent.status, 'step i: current token after family revocation must return 400').toBe(
+        400,
+      );
       expect(tokenICurrent.data.error).toBe('invalid_grant');
 
       // Sign in again for subsequent steps
@@ -271,9 +264,7 @@ export async function runPermanenceContract<TBacking>(
 
           const mcpJ = await sendMcp(instance1.url, secondSession.accessToken);
           expect(mcpJ.status, 'step j: /mcp under store outage must return 503').toBe(503);
-          expect(mcpJ.headers.get('retry-after'), 'step j: Retry-After header must be set').toBe(
-            '5',
-          );
+          expect(mcpJ.headers.get('retry-after'), 'step j: Retry-After header must be set').toBe('5');
           expect((mcpJ.data as Record<string, unknown>).error).toBe('temporarily_unavailable');
         } finally {
           await harness.setStoreOutage(backing, false);
@@ -316,17 +307,12 @@ export async function runPermanenceContract<TBacking>(
           { redirect: 'manual' },
         );
         expect(resEvil.status, 'step l: evil redirect must return 400').toBe(400);
-        expect(
-          resEvil.headers.get('location'),
-          'step l: evil redirect must have no Location',
-        ).toBeNull();
+        expect(resEvil.headers.get('location'), 'step l: evil redirect must have no Location').toBeNull();
       }
 
       // Step m: Allowlist removal
       if (harness.supportsAllowlist && harness.setAllowlist) {
-        const allowlistSession = await harness.signIn(instance1.url, {
-          email: 'allowed@example.com',
-        });
+        const allowlistSession = await harness.signIn(instance1.url, { email: 'allowed@example.com' });
         await harness.setAllowlist(backing, ['other@example.com']);
         const tokenM = await postToken(instance1.url, {
           grant_type: 'refresh_token',
