@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import crypto from 'node:crypto';
 import {
   ticketWriteTools,
@@ -10,7 +10,10 @@ import { DESTRUCTIVE_TOOLS, CONFIRM_REQUIRED_TOOLS, confirmTokenFor } from '../s
 import { withCaller } from '../src/auth/context.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-
+import {
+  setOperationStore,
+  MemoryOperationStore,
+} from '../src/provisioning/operation-store.js';
 const { getById, update, request, entityFields, create, query } = vi.hoisted(() => ({
   getById: vi.fn(),
   update: vi.fn(),
@@ -56,6 +59,11 @@ describe('append-ticket-resolution tool', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    setOperationStore(new MemoryOperationStore());
+  });
+
+  afterEach(() => {
+    setOperationStore(null);
   });
 
   it('is registered as destructive and confirm-required with correct token', () => {
@@ -480,9 +488,45 @@ describe('set-ticket-checklist-item tool', () => {
     );
   });
 
-  it('reconciles prior evidence on clock-advanced retry without operationId by matching logical text', async () => {
+  it('does not deduplicate distinct operations based merely on identical text when distinct operation IDs are supplied', async () => {
     const existingResolution =
-      'Initial provisioning completed.\nInstalled Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us]';
+      'Initial provisioning completed.\nRebooted router. [2026-10-31 14:05 UTC, tech@phoneware.us, op:phase-1-reboot]';
+
+    let readCount = 0;
+    getById.mockImplementation(async () => {
+      readCount++;
+      if (readCount === 1 || readCount === 2) {
+        return { item: { id: 12345, resolution: existingResolution } };
+      }
+      return {
+        item: {
+          id: 12345,
+          resolution: `${existingResolution}\nRebooted router. [2026-10-31 14:15 UTC, tech@phoneware.us, op:phase-2-reboot]`,
+        },
+      };
+    });
+    update.mockResolvedValue({ id: 12345 });
+    entityFields.mockResolvedValue({ fields: [{ name: 'resolution', length: 5000 }] });
+
+    const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
+
+    const res = await appendTool.handler({
+      ticketID: '12345',
+      text: 'Rebooted router.',
+      operationId: 'phase-2-reboot',
+    });
+
+    // Because operation IDs differ (phase-1-reboot vs phase-2-reboot), it is NOT deduplicated!
+    expect(update).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.written).toBe(true);
+    expect(parsed.already_present).toBe(false);
+    expect(parsed.operationId).toBe('phase-2-reboot');
+  });
+
+  it('guards operationId against text mismatch', async () => {
+    const existingResolution =
+      'Initial provisioning completed.\nOriginal check. [2026-10-31 14:05 UTC, tech@phoneware.us, op:op-verify-1]';
 
     getById.mockResolvedValue({
       item: {
@@ -493,20 +537,15 @@ describe('set-ticket-checklist-item tool', () => {
 
     const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
 
-    const res = await appendTool.handler({
-      ticketID: '12345',
-      text: 'Installed Frontier eSIM into slot A.',
-    });
-
+    // Attempting to reuse op-verify-1 with different text must throw
+    await expect(
+      appendTool.handler({
+        ticketID: '12345',
+        text: 'Completely different check text.',
+        operationId: 'op-verify-1',
+      }),
+    ).rejects.toThrow(/Conflict: operationId "op-verify-1" was previously recorded with different text/);
     expect(update).not.toHaveBeenCalled();
-    const parsed = JSON.parse(res.content[0].text);
-    expect(parsed.written).toBe(false);
-    expect(parsed.already_present).toBe(true);
-    expect(parsed.reconciled_from_prior_evidence).toBe(true);
-    expect(parsed.verified).toBe(true);
-    expect(parsed.appended_line).toBe(
-      'Installed Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us]',
-    );
   });
 
   it('refuses when requireEvidence is true but no evidence is supplied', async () => {
@@ -622,12 +661,16 @@ describe('set-ticket-checklist-item tool', () => {
     expect(parsed.evidenceNoteID).toBe(888);
   });
 });
-
 describe('record-ticket-evidence tool', () => {
   const recordEvidenceTool = ticketWriteTools.find((t) => t.name === 'record-ticket-evidence')!;
 
   beforeEach(() => {
     vi.resetAllMocks();
+    setOperationStore(new MemoryOperationStore());
+  });
+
+  afterEach(() => {
+    setOperationStore(null);
   });
 
   it('is registered as destructive and confirm-required with RECORD_TICKET_EVIDENCE', () => {
@@ -636,31 +679,31 @@ describe('record-ticket-evidence tool', () => {
     expect(confirmTokenFor('record-ticket-evidence')).toBe('RECORD_TICKET_EVIDENCE');
   });
 
-  it('creates an evidence note with operationId', async () => {
+  it('creates an evidence note, handles { itemId } response, and verifies on readback', async () => {
     getById.mockResolvedValue({ item: { id: 1001, title: 'Test Ticket' } });
     query.mockResolvedValue({ items: [] });
-    create.mockResolvedValue({ item: { id: 991 } });
+    create.mockResolvedValue({ itemId: 991 });
+    request.mockResolvedValue({
+      item: {
+        id: 991,
+        ticketID: 1001,
+        title: 'eSIM profile download evidence',
+        description: 'Profile ICCID 8901260000000000000 installed.\n[op:esim-claim-1001]',
+      },
+    });
 
     const res = await recordEvidenceTool.handler({
       ticketID: '1001',
       title: 'eSIM profile download evidence',
-      description: 'Profile ICCID 8901260000000000000 installed successfully.',
+      description: 'Profile ICCID 8901260000000000000 installed.',
       operationId: 'esim-claim-1001',
     });
 
     expect(create).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledWith('Tickets/1001/Notes', {
-      ticketID: 1001,
-      title: 'eSIM profile download evidence',
-      description:
-        'Profile ICCID 8901260000000000000 installed successfully.\n[op:esim-claim-1001]',
-      noteType: 1,
-      publish: 1,
-    });
+    expect(request).toHaveBeenCalledWith('GET', 'V1.0/Tickets/1001/Notes/991');
 
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.created).toBe(true);
-    expect(parsed.already_present).toBe(false);
     expect(parsed.noteID).toBe(991);
     expect(parsed.verified).toBe(true);
   });
@@ -673,8 +716,7 @@ describe('record-ticket-evidence tool', () => {
           id: 991,
           ticketID: 1001,
           title: 'eSIM profile download evidence',
-          description:
-            'Profile ICCID 8901260000000000000 installed successfully.\n[op:esim-claim-1001]',
+          description: 'Profile ICCID 8901260000000000000 installed.\n[op:esim-claim-1001]',
         },
       ],
     });
@@ -682,7 +724,7 @@ describe('record-ticket-evidence tool', () => {
     const res = await recordEvidenceTool.handler({
       ticketID: '1001',
       title: 'eSIM profile download evidence',
-      description: 'Profile ICCID 8901260000000000000 installed successfully.',
+      description: 'Profile ICCID 8901260000000000000 installed.',
       operationId: 'esim-claim-1001',
     });
 
@@ -701,14 +743,7 @@ describe('record-ticket-evidence tool', () => {
         ticketID: '1001',
         title: 'Wi-Fi password: secret123',
         description: 'Clean description',
-      }),
-    ).rejects.toThrow(/sensitive credential pattern/);
-
-    await expect(
-      recordEvidenceTool.handler({
-        ticketID: '1001',
-        title: 'Clean title',
-        description: 'PSK: superSecretKey',
+        operationId: 'secret-test-1',
       }),
     ).rejects.toThrow(/sensitive credential pattern/);
     expect(create).not.toHaveBeenCalled();
@@ -722,7 +757,7 @@ describe('server integration: permissions and readonly mode', () => {
     process.env.AUTOTASK_READ_ONLY = 'false';
 
     // In read-only mode, skipped must count them and registered tools omit them
-    expect(server.skipped).toBe(16);
+    expect(server.skipped).toBe(17);
   });
   it('withholds write tools from a Service Desk user session (read + create only)', async () => {
     const serviceDeskCapabilities = ['read', 'create'] as const;

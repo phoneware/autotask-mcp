@@ -99,34 +99,32 @@ export class AutotaskMirror {
   }
 
   async start(): Promise<{ url: string; port: number }> {
-    const { promise, resolve, reject } = Promise.withResolvers<{ url: string; port: number }>();
+    return new Promise((resolve, reject) => {
+      this.server = http.createServer((req, res) => {
+        this.handleRequest(req, res);
+      });
 
-    this.server = http.createServer((req, res) => {
-      this.handleRequest(req, res);
+      this.server.on('error', (err) => {
+        reject(err);
+      });
+
+      this.server.listen(0, '127.0.0.1', () => {
+        const addr = this.server?.address() as AddressInfo;
+        this.port = addr.port;
+        this.baseUrl = `http://127.0.0.1:${this.port}/atservicesrest/`;
+        resolve({ url: this.baseUrl, port: this.port });
+      });
     });
-
-    this.server.on('error', (err) => {
-      reject(err);
-    });
-
-    this.server.listen(0, '127.0.0.1', () => {
-      const addr = this.server?.address() as AddressInfo;
-      this.port = addr.port;
-      this.baseUrl = `http://127.0.0.1:${this.port}/atservicesrest/`;
-      resolve({ url: this.baseUrl, port: this.port });
-    });
-
-    return promise;
   }
 
   async stop(): Promise<void> {
     if (!this.server) return;
-    const { promise, resolve } = Promise.withResolvers<void>();
-    this.server.close(() => {
-      this.server = null;
-      resolve();
+    return new Promise((resolve) => {
+      this.server?.close(() => {
+        this.server = null;
+        resolve();
+      });
     });
-    return promise;
   }
 
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {

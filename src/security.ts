@@ -25,6 +25,8 @@ export const TOOL_CAPABILITY: ReadonlyMap<string, Capability> = new Map<string, 
   ['create-ticket-note', 'create'],
   ['create-ticket-charge', 'create'],
   ['update-ticket-charge', 'update'],
+  ['archive-ticket-attachment', 'create'],
+  ['record-ticket-evidence', 'create'],
 ]);
 /** The capability a tool needs. Unlisted tools only read. */
 export function capabilityForTool(toolName: string): Capability {

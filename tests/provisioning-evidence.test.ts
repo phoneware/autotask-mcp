@@ -1,34 +1,53 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
 import crypto from 'node:crypto';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AutotaskMirror } from './test-support/autotask-mirror.js';
+import { DriveMirror } from './test-support/drive-mirror.js';
 import { buildServer } from '../src/server.js';
-import { ticketWriteTools, TicketLock } from '../src/tools/ticket-writes.js';
+import { ticketWriteTools } from '../src/tools/ticket-writes.js';
 import { attachmentTools } from '../src/tools/attachments.js';
+import { ticketTools } from '../src/tools/tickets.js';
 import { DESTRUCTIVE_TOOLS } from '../src/security.js';
+import { withCaller } from '../src/auth/context.js';
+import {
+  setOperationStore,
+  MemoryOperationStore,
+} from '../src/provisioning/operation-store.js';
+import {
+  setBindingsStore,
+  MemoryBindingsStore,
+} from '../src/archive/bindings.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
-  let mirror: AutotaskMirror;
-  let mirrorUrl: string;
+  let autotaskMirror: AutotaskMirror;
+  let driveMirror: DriveMirror;
+  let operationStore: MemoryOperationStore;
+  let bindingsStore: MemoryBindingsStore;
+
   let savedEnv: {
     username?: string;
     secret?: string;
     code?: string;
     apiUrl?: string;
     readonly?: string;
+    driveApi?: string;
+    driveUpload?: string;
   };
 
   const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
   const checklistTool = ticketWriteTools.find((t) => t.name === 'set-ticket-checklist-item')!;
-  const evidenceTool = ticketWriteTools.find((t) => t.name === 'record-ticket-evidence')!;
+  const recordEvidenceTool = ticketWriteTools.find((t) => t.name === 'record-ticket-evidence')!;
   const getAttachmentTool = attachmentTools.find((t) => t.name === 'get-ticket-attachment')!;
-  const transferAttachmentTool = attachmentTools.find(
-    (t) => t.name === 'transfer-ticket-attachment',
-  )!;
+  const archiveAttachmentTool = attachmentTools.find((t) => t.name === 'archive-ticket-attachment')!;
+  const createNoteTool = ticketTools.find((t) => t.name === 'create-ticket-note')!;
+
+  const testCaller = {
+    email: 'tech@phoneware.us',
+    resourceId: 77,
+    userType: 14,
+    capabilities: ['read', 'create', 'update', 'delete'] as const,
+  };
 
   beforeEach(async () => {
     savedEnv = {
@@ -37,24 +56,36 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       code: process.env.AUTOTASK_INTEGRATION_CODE,
       apiUrl: process.env.AUTOTASK_API_URL,
       readonly: process.env.AUTOTASK_READ_ONLY,
+      driveApi: process.env.DRIVE_API_BASE_URL,
+      driveUpload: process.env.DRIVE_UPLOAD_BASE_URL,
     };
 
-    mirror = new AutotaskMirror();
-    const started = await mirror.start();
-    mirrorUrl = started.url;
+    autotaskMirror = new AutotaskMirror();
+    const atStarted = await autotaskMirror.start();
+
+    driveMirror = new DriveMirror();
+    const driveStarted = await driveMirror.start();
 
     process.env.AUTOTASK_USERNAME = 'tech@phoneware.us';
     process.env.AUTOTASK_SECRET = 'valid-test-secret';
     process.env.AUTOTASK_INTEGRATION_CODE = 'INTCODE123';
-    process.env.AUTOTASK_API_URL = mirrorUrl;
+    process.env.AUTOTASK_API_URL = atStarted.url;
+    process.env.DRIVE_API_BASE_URL = driveStarted.baseUrl;
+    process.env.DRIVE_UPLOAD_BASE_URL = driveStarted.uploadBaseUrl;
     delete process.env.AUTOTASK_READ_ONLY;
 
-    TicketLock.clear();
+    operationStore = new MemoryOperationStore();
+    setOperationStore(operationStore);
+
+    bindingsStore = new MemoryBindingsStore();
+    setBindingsStore(bindingsStore);
   });
 
   afterEach(async () => {
-    await mirror.stop();
-    TicketLock.clear();
+    await autotaskMirror.stop();
+    await driveMirror.stop();
+    setOperationStore(null);
+    setBindingsStore(null);
 
     if (savedEnv.username !== undefined) process.env.AUTOTASK_USERNAME = savedEnv.username;
     else delete process.env.AUTOTASK_USERNAME;
@@ -70,44 +101,50 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
 
     if (savedEnv.readonly !== undefined) process.env.AUTOTASK_READ_ONLY = savedEnv.readonly;
     else delete process.env.AUTOTASK_READ_ONLY;
+
+    if (savedEnv.driveApi !== undefined) process.env.DRIVE_API_BASE_URL = savedEnv.driveApi;
+    else delete process.env.DRIVE_API_BASE_URL;
+
+    if (savedEnv.driveUpload !== undefined) process.env.DRIVE_UPLOAD_BASE_URL = savedEnv.driveUpload;
+    else delete process.env.DRIVE_UPLOAD_BASE_URL;
   });
 
-  describe('1. Logical operation deduplication across clock advances', () => {
-    it('does not duplicate logical resolution line when retried after the clock advances', async () => {
-      mirror.seedTicket({
+  describe('1. Logical operation deduplication and mismatch guards', () => {
+    it('does not duplicate logical resolution line when retried with same operationId after clock advances', async () => {
+      autotaskMirror.seedTicket({
         id: 1001,
         title: 'Hazelbrook Provisioning Ticket',
         resolution: 'Scope approved.\nInitial WAN check completed.',
       });
 
-      // Initial execution at T1
-      const res1 = await appendTool.handler({
-        ticketID: '1001',
-        text: 'Installed Frontier eSIM into slot A.',
-        operationId: 'hazelbrook-esim-slot-a',
-      });
+      // Initial execution
+      const res1 = await withCaller(testCaller, () =>
+        appendTool.handler({
+          ticketID: '1001',
+          text: 'Installed Frontier eSIM into slot A.',
+          operationId: 'hazelbrook-esim-slot-a',
+        }),
+      );
 
       const parsed1 = JSON.parse(res1.content[0].text);
       expect(parsed1.written).toBe(true);
       expect(parsed1.already_present).toBe(false);
       expect(parsed1.verified).toBe(true);
 
-      const ticketAfter1 = mirror.tickets.get(1001);
-      expect(ticketAfter1?.resolution).toContain('Installed Frontier eSIM into slot A.');
-
-      // Count occurrences in mirror resolution
+      const ticketAfter1 = autotaskMirror.tickets.get(1001);
       const count1 = (
         ticketAfter1?.resolution?.match(/Installed Frontier eSIM into slot A\./g) || []
       ).length;
       expect(count1).toBe(1);
 
-      // Simulating clock advance / retry after timeout:
-      // Even if called later with the same logical operationId, it must reconcile prior evidence
-      const res2 = await appendTool.handler({
-        ticketID: '1001',
-        text: 'Installed Frontier eSIM into slot A.',
-        operationId: 'hazelbrook-esim-slot-a',
-      });
+      // Clock advances / retry with same operationId
+      const res2 = await withCaller(testCaller, () =>
+        appendTool.handler({
+          ticketID: '1001',
+          text: 'Installed Frontier eSIM into slot A.',
+          operationId: 'hazelbrook-esim-slot-a',
+        }),
+      );
 
       const parsed2 = JSON.parse(res2.content[0].text);
       expect(parsed2.written).toBe(false);
@@ -116,27 +153,75 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(parsed2.verified).toBe(true);
       expect(parsed2.operationId).toBe('hazelbrook-esim-slot-a');
 
-      // Crucial: no second line was appended in Autotask
-      const ticketAfter2 = mirror.tickets.get(1001);
+      // Crucial: no duplicate line appended in Autotask
+      const ticketAfter2 = autotaskMirror.tickets.get(1001);
       const count2 = (
         ticketAfter2?.resolution?.match(/Installed Frontier eSIM into slot A\./g) || []
       ).length;
       expect(count2).toBe(1);
     });
 
-    it('reconciles prior evidence on ticket note creation with operationId across retries', async () => {
-      mirror.seedTicket({
+    it('guards operationId against text mismatch', async () => {
+      autotaskMirror.seedTicket({
+        id: 1001,
+        title: 'Hazelbrook Provisioning Ticket',
+        resolution:
+          'Installed Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us, op:slot-a-install]',
+      });
+
+      await expect(
+        withCaller(testCaller, () =>
+          appendTool.handler({
+            ticketID: '1001',
+            text: 'Completely different text with same operationId.',
+            operationId: 'slot-a-install',
+          }),
+        ),
+      ).rejects.toThrow(
+        /Conflict: operationId "slot-a-install" was previously recorded with different text/,
+      );
+    });
+
+    it('does not deduplicate distinct operations based merely on identical text when distinct operation IDs are supplied', async () => {
+      autotaskMirror.seedTicket({
+        id: 1001,
+        title: 'Hazelbrook Provisioning Ticket',
+        resolution:
+          'Base resolution.\nRebooted router. [2026-10-31 14:05 UTC, tech@phoneware.us, op:phase-1-reboot]',
+      });
+
+      const res = await withCaller(testCaller, () =>
+        appendTool.handler({
+          ticketID: '1001',
+          text: 'Rebooted router.',
+          operationId: 'phase-2-reboot',
+        }),
+      );
+
+      const parsed = JSON.parse(res.content[0].text);
+      expect(parsed.written).toBe(true);
+      expect(parsed.already_present).toBe(false);
+      expect(parsed.operationId).toBe('phase-2-reboot');
+
+      const ticket = autotaskMirror.tickets.get(1001);
+      const count = (ticket?.resolution?.match(/Rebooted router\./g) || []).length;
+      expect(count).toBe(2);
+    });
+
+    it('reconciles prior evidence on record-ticket-evidence with operationId across retries', async () => {
+      autotaskMirror.seedTicket({
         id: 1001,
         title: 'Hazelbrook Provisioning Ticket',
       });
 
-      // Initial evidence note creation
-      const res1 = await evidenceTool.handler({
-        ticketID: '1001',
-        title: 'eSIM Download Verification',
-        description: 'Profile 8901260000000000000 verified active on modem 3.',
-        operationId: 'op-esim-verify-1001',
-      });
+      const res1 = await withCaller(testCaller, () =>
+        recordEvidenceTool.handler({
+          ticketID: '1001',
+          title: 'eSIM Download Verification',
+          description: 'Profile 8901260000000000000 verified active on modem 3.',
+          operationId: 'op-esim-verify-1001',
+        }),
+      );
 
       const parsed1 = JSON.parse(res1.content[0].text);
       expect(parsed1.created).toBe(true);
@@ -144,13 +229,15 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(parsed1.verified).toBe(true);
       const noteId1 = parsed1.noteID;
 
-      // Retry of evidence creation (e.g. after network glitch or restart)
-      const res2 = await evidenceTool.handler({
-        ticketID: '1001',
-        title: 'eSIM Download Verification',
-        description: 'Profile 8901260000000000000 verified active on modem 3.',
-        operationId: 'op-esim-verify-1001',
-      });
+      // Retry
+      const res2 = await withCaller(testCaller, () =>
+        recordEvidenceTool.handler({
+          ticketID: '1001',
+          title: 'eSIM Download Verification',
+          description: 'Profile 8901260000000000000 verified active on modem 3.',
+          operationId: 'op-esim-verify-1001',
+        }),
+      );
 
       const parsed2 = JSON.parse(res2.content[0].text);
       expect(parsed2.created).toBe(false);
@@ -159,66 +246,65 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(parsed2.noteID).toBe(noteId1);
       expect(parsed2.verified).toBe(true);
 
-      // Verify mirror contains only 1 note for this ticket
-      const notes = Array.from(mirror.notes.values()).filter((n) => n.ticketID === 1001);
+      const notes = Array.from(autotaskMirror.notes.values()).filter((n) => n.ticketID === 1001);
       expect(notes).toHaveLength(1);
     });
   });
 
   describe('2. Concurrent-edit uncertainty is not success', () => {
     it('refuses write and reports conflict when concurrent modification occurs between reads', async () => {
-      mirror.seedTicket({
+      autotaskMirror.seedTicket({
         id: 1001,
         title: 'Hazelbrook Provisioning Ticket',
         resolution: 'Base state.',
       });
 
-      // Simulate external concurrent modification occurring right before the write
-      mirror.simulateConcurrentResolutionModification =
+      autotaskMirror.simulateConcurrentResolutionModification =
         'Base state.\nExternal tech modified resolution concurrently!';
 
       await expect(
-        appendTool.handler({
-          ticketID: '1001',
-          text: 'Configured AP mesh SSID.',
-          operationId: 'ap-mesh-1001',
-        }),
+        withCaller(testCaller, () =>
+          appendTool.handler({
+            ticketID: '1001',
+            text: 'Configured AP mesh SSID.',
+            operationId: 'ap-mesh-1001',
+          }),
+        ),
       ).rejects.toThrow(/Conflict: ticket resolution was modified concurrently between reads/);
 
-      // Verify that unverified or conflicting state was NOT reported as success
-      const current = mirror.tickets.get(1001);
+      const current = autotaskMirror.tickets.get(1001);
       expect(current?.resolution).not.toContain('Configured AP mesh SSID.');
     });
   });
 
   describe('3. Wrong-parent attachment and checklist access is refused', () => {
     it('refuses checklist item update when item belongs to a different ticket', async () => {
-      mirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
-      mirror.seedTicket({ id: 9999, title: 'Other Customer Ticket' });
+      autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
+      autotaskMirror.seedTicket({ id: 9999, title: 'Other Customer Ticket' });
 
-      mirror.seedChecklistItem({
+      autotaskMirror.seedChecklistItem({
         id: 501,
         ticketID: 9999, // Belongs to ticket 9999
         itemName: 'Install Starlink dish',
         isCompleted: false,
       });
 
-      // Attempting to access item 501 under ticket 1001 must be refused
       await expect(
-        checklistTool.handler({
-          ticketID: '1001',
-          checklistItemID: '501',
-          completed: 'true',
-        }),
+        withCaller(testCaller, () =>
+          checklistTool.handler({
+            ticketID: '1001',
+            checklistItemID: '501',
+            completed: 'true',
+          }),
+        ),
       ).rejects.toThrow(/Parent mismatch: checklist item 501 belongs to ticketID 9999, not 1001/);
 
-      // Verify item state remains untouched
-      expect(mirror.checklistItems.get(501)?.isCompleted).toBe(false);
+      expect(autotaskMirror.checklistItems.get(501)?.isCompleted).toBe(false);
     });
 
     it('refuses checklist item completion when requireEvidence is true and evidence is missing', async () => {
-      mirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
-      mirror.seedChecklistItem({
+      autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
+      autotaskMirror.seedChecklistItem({
         id: 502,
         ticketID: 1001,
         itemName: 'Verify throughput threshold',
@@ -226,97 +312,97 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       });
 
       await expect(
-        checklistTool.handler({
-          ticketID: '1001',
-          checklistItemID: '502',
-          completed: 'true',
-          requireEvidence: 'true',
-        }),
+        withCaller(testCaller, () =>
+          checklistTool.handler({
+            ticketID: '1001',
+            checklistItemID: '502',
+            completed: 'true',
+            requireEvidence: 'true',
+          }),
+        ),
       ).rejects.toThrow(/checklist item completion requires observed evidence/);
 
-      expect(mirror.checklistItems.get(502)?.isCompleted).toBe(false);
+      expect(autotaskMirror.checklistItems.get(502)?.isCompleted).toBe(false);
     });
 
     it('refuses checklist item completion when evidence note belongs to a different ticket', async () => {
-      mirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
-      mirror.seedTicket({ id: 9999, title: 'Other Ticket' });
+      autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
+      autotaskMirror.seedTicket({ id: 9999, title: 'Other Ticket' });
 
-      mirror.seedChecklistItem({
+      autotaskMirror.seedChecklistItem({
         id: 503,
         ticketID: 1001,
         itemName: 'Verify AP Mesh Link',
         isCompleted: false,
       });
 
-      mirror.seedNote({
+      autotaskMirror.seedNote({
         id: 701,
-        ticketID: 9999, // Note belongs to other ticket 9999
+        ticketID: 9999, // Belongs to ticket 9999
         title: 'Mesh link verified',
         description: 'Operational link confirmed.',
       });
 
       await expect(
-        checklistTool.handler({
-          ticketID: '1001',
-          checklistItemID: '503',
-          completed: 'true',
-          evidenceNoteID: '701',
-        }),
+        withCaller(testCaller, () =>
+          checklistTool.handler({
+            ticketID: '1001',
+            checklistItemID: '503',
+            completed: 'true',
+            evidenceNoteID: '701',
+          }),
+        ),
       ).rejects.toThrow(/Parent mismatch: evidence note 701 belongs to ticketID 9999, not 1001/);
 
-      expect(mirror.checklistItems.get(503)?.isCompleted).toBe(false);
+      expect(autotaskMirror.checklistItems.get(503)?.isCompleted).toBe(false);
     });
 
     it('refuses attachment retrieval when attachment belongs to a different ticket', async () => {
-      mirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
-      mirror.seedTicket({ id: 9999, title: 'Other Ticket' });
+      autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
+      autotaskMirror.seedTicket({ id: 9999, title: 'Other Ticket' });
 
-      mirror.seedAttachment({
+      autotaskMirror.seedAttachment({
         id: 601,
         ticketID: 9999, // Belongs to ticket 9999
         title: 'confidential.pdf',
         contentType: 'application/pdf',
-        data: Buffer.from('data').toString('base64'),
+        data: Buffer.from('%PDF-1.4 sample data').toString('base64'),
       });
 
       await expect(
-        getAttachmentTool.handler({
-          ticketID: '1001',
-          attachmentID: '601',
-        }),
-      ).rejects.toThrow(/Parent mismatch: attachment 601 belongs to ticketID 9999, not 1001/);
-
-      await expect(
-        transferAttachmentTool.handler({
-          ticketID: '1001',
-          attachmentID: '601',
-          destinationPath: '/tmp/test.pdf',
-        }),
+        withCaller(testCaller, () =>
+          getAttachmentTool.handler({
+            ticketID: '1001',
+            attachmentID: '601',
+          }),
+        ),
       ).rejects.toThrow(/Parent mismatch: attachment 601 belongs to ticketID 9999, not 1001/);
     });
 
     it('successfully completes checklist item when valid parent evidence note is provided', async () => {
-      mirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
-      mirror.seedChecklistItem({
+      autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
+      autotaskMirror.seedChecklistItem({
         id: 504,
         ticketID: 1001,
         itemName: 'AP series management adoption',
         isCompleted: false,
       });
 
-      mirror.seedNote({
+      autotaskMirror.seedNote({
         id: 702,
         ticketID: 1001, // Valid parent match
         title: 'AP adoption confirmed',
         description: 'AP One AX serial 1234 adopted by B One.',
       });
 
-      const res = await checklistTool.handler({
-        ticketID: '1001',
-        checklistItemID: '504',
-        completed: 'true',
-        evidenceNoteID: '702',
-      });
+      const res = await withCaller(testCaller, () =>
+        checklistTool.handler({
+          ticketID: '1001',
+          checklistItemID: '504',
+          completed: 'true',
+          evidenceNoteID: '702',
+        }),
+      );
 
       const parsed = JSON.parse(res.content[0].text);
       expect(parsed.updated).toBe(true);
@@ -324,82 +410,161 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(parsed.evidenceVerified).toBe(true);
       expect(parsed.evidenceNoteID).toBe(702);
 
-      expect(mirror.checklistItems.get(504)?.isCompleted).toBe(true);
+      expect(autotaskMirror.checklistItems.get(504)?.isCompleted).toBe(true);
     });
   });
 
-  describe('4. PDF transfer to isolated consumer and content-hash verification', () => {
-    it('transfers PDF binary data to consumer path without dumping bytes into model output', async () => {
-      mirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
+  describe('4. Server-side PDF archive transport to approved Drive destination', () => {
+    it('archives PDF to approved customer Drive folder and returns receipt metadata without exposing raw bytes', async () => {
+      autotaskMirror.seedTicket({
+        id: 1001,
+        companyID: 450,
+        title: 'Hazelbrook Provisioning Ticket',
+      });
 
       const pdfPayload = Buffer.from(
         '%PDF-1.4\n%Hazelbrook Statement of Work and Customer Signed Acceptance\n%%EOF',
       );
       const expectedSha = crypto.createHash('sha256').update(pdfPayload).digest('hex');
-      const base64Payload = pdfPayload.toString('base64');
 
-      mirror.seedAttachment({
+      autotaskMirror.seedAttachment({
         id: 901,
         ticketID: 1001,
         title: 'hazelbrook-sow-signed.pdf',
         contentType: 'application/pdf',
         fileSize: pdfPayload.byteLength,
-        data: base64Payload,
+        data: pdfPayload.toString('base64'),
       });
 
-      const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hazelbrook-archival-'));
-      const destinationFile = path.join(tmpDir, 'transferred-sow.pdf');
+      // Seed approved company archive binding
+      const accountKey = crypto
+        .createHash('sha256')
+        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
+        .digest('hex')
+        .slice(0, 16);
 
-      try {
-        const res = await transferAttachmentTool.handler({
+      await bindingsStore.set({
+        accountKey,
+        companyId: '450',
+        driveId: 'shared-drive-hazelbrook',
+        folderId: 'folder-sow-archive',
+        archivePrincipal: 'autotask-archive@phoneware-edge.iam.gserviceaccount.com',
+        allowedActorResourceIds: [77],
+        version: 1,
+        approvalEvidenceRef: 'board-approval-2026-10-31',
+        disabled: false,
+      });
+
+      const res = await withCaller(testCaller, () =>
+        archiveAttachmentTool.handler({
           ticketID: '1001',
           attachmentID: '901',
-          destinationPath: destinationFile,
+          expectedCompanyID: '450',
           expectedSha256: expectedSha,
-          allowedMimeTypes: ['application/pdf'],
-        });
+          operationId: 'op-archive-sow-1001',
+        }),
+      );
 
-        // 1. Destination file exists on disk and exact bytes match
-        const fileBytes = await fs.promises.readFile(destinationFile);
-        expect(fileBytes.equals(pdfPayload)).toBe(true);
+      // 1. Output contains receipt metadata only, NO raw binary or base64 bytes
+      expect(res.content).toHaveLength(1);
+      expect(res.content[0].type).toBe('text');
+      const receipt = JSON.parse(res.content[0].text);
+      expect(receipt.status).toBe('verified');
+      expect(receipt.operationId).toBe('op-archive-sow-1001');
+      expect(receipt.source.ticketId).toBe('1001');
+      expect(receipt.source.attachmentId).toBe('901');
+      expect(receipt.source.companyId).toBe('450');
+      expect(receipt.source.sha256).toBe(expectedSha);
+      expect(receipt.destination.provider).toBe('google-drive');
+      expect(receipt.destination.folderId).toBe('folder-sow-archive');
+      expect(receipt.destination.sha256).toBe(expectedSha);
+      expect(res.content[0].text).not.toContain(pdfPayload.toString('base64'));
 
-        // 2. Output contains metadata only and no raw binary/base64 text
-        expect(res.content).toHaveLength(1);
-        expect(res.content[0].type).toBe('text');
-        const metadata = JSON.parse(res.content[0].text);
-        expect(metadata.ticketID).toBe(1001);
-        expect(metadata.attachmentID).toBe(901);
-        expect(metadata.title).toBe('hazelbrook-sow-signed.pdf');
-        expect(metadata.contentType).toBe('application/pdf');
-        expect(metadata.fileSize).toBe(pdfPayload.byteLength);
-        expect(metadata.sha256).toBe(expectedSha);
-        expect(metadata.transferred).toBe(true);
-        expect(metadata.verified).toBe(true);
+      // 2. Drive mirror contains the uploaded file
+      const uploadedFile = driveMirror.files.get(receipt.destination.fileId);
+      expect(uploadedFile).toBeDefined();
+      expect(uploadedFile?.parents).toContain('folder-sow-archive');
+      expect(uploadedFile?.sha256Checksum).toBe(expectedSha);
+      expect(uploadedFile?.bytes.equals(pdfPayload)).toBe(true);
 
-        expect(res.content[0].text).not.toContain(base64Payload);
-      } finally {
-        await fs.promises.rm(tmpDir, { recursive: true, force: true });
-      }
+      // 3. Retry with same operationId returns existing verified receipt without second upload
+      const initialUploadCount = driveMirror.requestLog.filter(
+        (r) => r.method === 'POST' && r.url.includes('/upload/drive/v3/files'),
+      ).length;
+
+      const res2 = await withCaller(testCaller, () =>
+        archiveAttachmentTool.handler({
+          ticketID: '1001',
+          attachmentID: '901',
+          expectedCompanyID: '450',
+          expectedSha256: expectedSha,
+          operationId: 'op-archive-sow-1001',
+        }),
+      );
+
+      const receipt2 = JSON.parse(res2.content[0].text);
+      expect(receipt2.status).toBe('verified');
+      expect(receipt2.destination.fileId).toBe(receipt.destination.fileId);
+
+      const finalUploadCount = driveMirror.requestLog.filter(
+        (r) => r.method === 'POST' && r.url.includes('/upload/drive/v3/files'),
+      ).length;
+      expect(finalUploadCount).toBe(initialUploadCount);
     });
 
-    it('refuses transfer when content SHA-256 does not match expected hash', async () => {
-      mirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
-      mirror.seedAttachment({
+    it('refuses archival when company ID does not match expectedCompanyID', async () => {
+      autotaskMirror.seedTicket({
+        id: 1001,
+        companyID: 999, // actual company 999
+        title: 'Hazelbrook Provisioning Ticket',
+      });
+
+      autotaskMirror.seedAttachment({
         id: 902,
         ticketID: 1001,
-        title: 'corrupt.pdf',
+        title: 'sow.pdf',
         contentType: 'application/pdf',
-        data: Buffer.from('actual content').toString('base64'),
+        data: Buffer.from('%PDF-1.4 data').toString('base64'),
       });
 
       await expect(
-        transferAttachmentTool.handler({
-          ticketID: '1001',
-          attachmentID: '902',
-          destinationPath: '/tmp/corrupt.pdf',
-          expectedSha256: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
-        }),
-      ).rejects.toThrow(/Integrity check failed: expected SHA-256/);
+        withCaller(testCaller, () =>
+          archiveAttachmentTool.handler({
+            ticketID: '1001',
+            attachmentID: '902',
+            expectedCompanyID: '450', // expected 450
+            expectedSha256: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+            operationId: 'op-archive-company-mismatch',
+          }),
+        ),
+      ).rejects.toThrow(/Company mismatch: ticket 1001 belongs to companyID 999, not expected 450/);
+    });
+
+    it('refuses archival when attachment is not valid PDF (%PDF- missing)', async () => {
+      autotaskMirror.seedTicket({
+        id: 1001,
+        companyID: 450,
+      });
+
+      autotaskMirror.seedAttachment({
+        id: 903,
+        ticketID: 1001,
+        title: 'fake.pdf',
+        contentType: 'application/pdf',
+        data: Buffer.from('NOT_A_REAL_PDF_HEADER').toString('base64'),
+      });
+
+      await expect(
+        withCaller(testCaller, () =>
+          archiveAttachmentTool.handler({
+            ticketID: '1001',
+            attachmentID: '903',
+            expectedCompanyID: '450',
+            expectedSha256: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+            operationId: 'op-archive-fake-pdf',
+          }),
+        ),
+      ).rejects.toThrow(/does not have valid PDF magic bytes/);
     });
   });
 
@@ -421,10 +586,10 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(toolNames).not.toContain('append-ticket-resolution');
       expect(toolNames).not.toContain('set-ticket-checklist-item');
       expect(toolNames).not.toContain('record-ticket-evidence');
+      expect(toolNames).not.toContain('archive-ticket-attachment');
 
       // Safe read tools must be present
       expect(toolNames).toContain('get-ticket-attachment');
-      expect(toolNames).toContain('transfer-ticket-attachment');
 
       await client.close();
     });

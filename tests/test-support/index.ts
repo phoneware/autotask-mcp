@@ -2,3 +2,4 @@
 export * from './fake-firestore.js';
 export * from './permanence-contract.js';
 export * from './autotask-mirror.js';
+export * from './drive-mirror.js';

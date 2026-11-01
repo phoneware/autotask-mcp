@@ -4,6 +4,7 @@ import { api } from '../autotask-api.js';
 import { currentCaller } from '../auth/context.js';
 import { assertSafeNumericId } from '../security.js';
 import { jsonResponse } from './shared.js';
+import { TicketCoordinatorSession } from '../provisioning/ticket-coordinator.js';
 
 interface TicketModel {
   id?: number | string;
@@ -37,8 +38,8 @@ export const SECRET_PATTERN =
 
 export const CONCURRENCY_NOTICE =
   'LIMITATION: Autotask PATCH /V1.0/Tickets does not provide native atomic compare-and-swap (CAS). ' +
-  'Cooperating appenders are serialized via ticket lock in durable/shared storage, but uncoordinated ' +
-  'external writes to Autotask directly can still cause conflicts.';
+  'Cooperating appenders serialize via a durable coordinator lease and sticky dispatch barrier. ' +
+  'External uncoordinated writes to Autotask directly can still cause conflicts.';
 
 /** Format a Date into UTC YYYY-MM-DD HH:MM UTC */
 export function formatUtcTimestamp(date: Date = new Date()): string {
@@ -59,75 +60,15 @@ export function maskSecretTokens(text: string): string {
 }
 
 /**
- * In-memory / durable coordinating lock to serialize cooperating appenders on a ticket.
- * Prevents race conditions among cooperating agents within the environment.
- */
-export class TicketLock {
-  private static locks = new Map<
-    string,
-    { owner: string; expiresAt: number; waiters: Array<() => void> }
-  >();
-
-  static async withLock<T>(
-    ticketId: string,
-    owner: string,
-    action: () => Promise<T>,
-    timeoutMs = 15000,
-  ): Promise<T> {
-    const start = Date.now();
-    while (true) {
-      const now = Date.now();
-      const existing = this.locks.get(ticketId);
-      if (!existing || existing.expiresAt <= now) {
-        this.locks.set(ticketId, { owner, expiresAt: now + timeoutMs, waiters: [] });
-        try {
-          return await action();
-        } finally {
-          const current = this.locks.get(ticketId);
-          if (current && current.owner === owner) {
-            this.locks.delete(ticketId);
-            const next = current.waiters.shift();
-            if (next) next();
-          }
-        }
-      }
-
-      if (Date.now() - start > timeoutMs) {
-        throw new Error(
-          `Conflict: timeout acquiring ticket lock for ticket ${ticketId} (held by ${existing.owner}); write refused`,
-        );
-      }
-
-      const { promise, resolve } = Promise.withResolvers<void>();
-      existing.waiters.push(resolve);
-      setTimeout(resolve, 50);
-      await promise;
-    }
-  }
-
-  static isLocked(ticketId: string): boolean {
-    const existing = this.locks.get(ticketId);
-    if (!existing) return false;
-    if (existing.expiresAt <= Date.now()) {
-      this.locks.delete(ticketId);
-      return false;
-    }
-    return true;
-  }
-
-  static clear(): void {
-    this.locks.clear();
-  }
-}
-
-/**
- * Find if a resolution line already records this logical operation, even if
- * the clock has advanced or a prior attempt recorded a different timestamp.
+ * Find if a resolution line already records this logical operation.
+ * Guards against operationId text mismatch, and prevents distinct operation IDs
+ * from deduplicating based merely on identical text.
  */
 export function findMatchingResolutionLine(
   currentResolution: string,
   targetText: string,
   operationId?: string,
+  ticketId?: string,
 ): string | null {
   if (!currentResolution) return null;
   const lines = currentResolution.split(/\r?\n/);
@@ -138,37 +79,51 @@ export function findMatchingResolutionLine(
     const trimmedLine = line.trim();
     if (!trimmedLine) continue;
 
-    // 1. If operationId is provided, check if line contains op:<opId>
+    // Parse line for [..., op:<opId>]
+    const opMatch = trimmedLine.match(/\[.*?,\s*op:([^\s,\]]+).*?\]$/);
+    const lineOpId = opMatch ? opMatch[1] : null;
+
+    // Parse line for logical text before bracketed timestamp metadata
+    const textMatch = trimmedLine.match(
+      /^(.*?)\s*\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+UTC[^\]]*\]$/,
+    );
+    const lineLogicalText = textMatch ? textMatch[1].trim() : trimmedLine;
+
+    // Case 1: Caller provided an operationId
     if (cleanOpId) {
-      const opMatch = trimmedLine.match(/\[.*?,\s*op:([^\s,\]]+).*?\]$/);
-      if (opMatch && opMatch[1] === cleanOpId) {
-        return trimmedLine;
-      }
-    }
-
-    // 2. Check if line's logical text matches targetText across timestamp/author changes
-    const match = trimmedLine.match(/^(.*?)\s*\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+UTC[^\]]*\]$/);
-    if (match) {
-      const lineLogicalText = match[1].trim();
-      if (lineLogicalText === cleanTarget) {
-        // If an operationId was given on this call, verify that the line does not carry a different operationId
-        if (cleanOpId) {
-          const opMatch = trimmedLine.match(/\[.*?,\s*op:([^\s,\]]+).*?\]$/);
-          if (opMatch && opMatch[1] !== cleanOpId) {
-            continue;
+      if (lineOpId) {
+        if (lineOpId === cleanOpId) {
+          // Guard against text mismatch with same operationId
+          if (lineLogicalText !== cleanTarget) {
+            throw new Error(
+              `Conflict: operationId "${cleanOpId}" was previously recorded with different text on ticket ${
+                ticketId ?? ''
+              }: "${lineLogicalText}" vs requested "${cleanTarget}"`,
+            );
           }
+          return trimmedLine; // Exact operation identity match
         }
-        return trimmedLine;
+        // Different operationId: distinct operation, do NOT deduplicate even if text is identical
+        continue;
       }
+      // Line has no operationId: do NOT match with an explicit operationId
+      continue;
     }
 
-    // 3. Exact line match without bracketed metadata
-    if (trimmedLine === cleanTarget) {
+    // Case 2: Caller did NOT provide an operationId (anonymous call)
+    // If the line has an operationId, it belongs to an explicit operation, so do not match it
+    if (lineOpId) {
+      continue;
+    }
+
+    // Match if logical text matches
+    if (lineLogicalText === cleanTarget) {
       return trimmedLine;
     }
   }
   return null;
 }
+
 export const ticketWriteTools: ToolDefinition[] = [
   {
     name: 'append-ticket-resolution',
@@ -176,7 +131,8 @@ export const ticketWriteTools: ToolDefinition[] = [
     description:
       'Append a timestamped line to a ticket resolution without rewriting existing text. ' +
       'DESTRUCTIVE (write): requires confirm token APPEND_TICKET_RESOLUTION. ' +
-      'Refuses secret-looking text (passwords, PINs, PSKs, LPA activation codes) and concurrent edits.',
+      'Refuses secret-looking text (passwords, PINs, PSKs, LPA activation codes) and concurrent edits. ' +
+      'Coordinates mutations via a durable coordinator lease and sticky dispatch barrier.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -195,7 +151,7 @@ export const ticketWriteTools: ToolDefinition[] = [
         operationId: {
           type: 'string',
           description:
-            'Optional stable operation identifier for idempotent retries across clock changes',
+            'Stable operation identifier for idempotent retries and durable dispatch coordination across clock changes',
         },
       },
       required: ['ticketID', 'text'],
@@ -213,9 +169,38 @@ export const ticketWriteTools: ToolDefinition[] = [
 
       const caller = currentCaller();
       const author = caller?.email ?? 'autotask-mcp';
+      const actorResourceId = caller?.resourceId ?? 0;
       const opId = (args.operationId || '').trim();
 
-      return TicketLock.withLock(ticketId, author, async () => {
+      const session = opId
+        ? new TicketCoordinatorSession({
+            ticketId,
+            actor: { email: author, resourceId: actorResourceId },
+            operationId: opId,
+            kind: 'resolution_append',
+            payload: { ticketID: ticketId, text: args.text.trim() },
+          })
+        : null;
+
+      if (session) {
+        const { alreadyVerified } = await session.prepareAndAcquire();
+        if (alreadyVerified) {
+          const op = session.getOperation();
+          const priorLine = (op?.receipt?.appended_line as string) || args.text;
+          return jsonResponse({
+            ticketID: Number(ticketId),
+            written: false,
+            already_present: true,
+            reconciled_from_prior_evidence: true,
+            operationId: opId,
+            appended_line: priorLine,
+            concurrency_notice: CONCURRENCY_NOTICE,
+            verified: true,
+          });
+        }
+      }
+
+      try {
         // Read 1: check ticket and expectedResolutionSha256
         const ticketRes1 = await api.getById('Tickets', ticketId);
         const ticket1 = unwrapRecord<TicketModel>(ticketRes1);
@@ -228,8 +213,11 @@ export const ticketWriteTools: ToolDefinition[] = [
 
         // Check if exact line or logical operation is already present before SHA check
         // to ensure clock-advanced retries gracefully reconcile prior evidence.
-        const priorLine = findMatchingResolutionLine(currentResolution, args.text, opId);
+        const priorLine = findMatchingResolutionLine(currentResolution, args.text, opId, ticketId);
         if (priorLine) {
+          if (session) {
+            await session.markVerified({ ticketID: Number(ticketId), appended_line: priorLine });
+          }
           return jsonResponse({
             ticketID: Number(ticketId),
             written: false,
@@ -289,6 +277,11 @@ export const ticketWriteTools: ToolDefinition[] = [
           }
         }
 
+        // Fencing check before pre-write read
+        if (session && !session.isFencedAndValid()) {
+          throw new Error('Conflict: ticket lease expired before write; write refused');
+        }
+
         // Read 2: immediate pre-write check to detect concurrent resolution changes
         const ticketRes2 = await api.getById('Tickets', ticketId);
         const ticket2 = unwrapRecord<TicketModel>(ticketRes2);
@@ -299,8 +292,22 @@ export const ticketWriteTools: ToolDefinition[] = [
           );
         }
 
+        // Arm sticky dispatch barrier before sending the outbound PATCH
+        if (session) {
+          await session.armDispatch();
+        }
+
         // Write update
         await api.update('Tickets', { id: Number(ticketId), resolution: newResolution });
+
+        // Post-patch lease validation
+        // Critically: a lease expiring during external PATCH must result in uncertain outcome
+        // and never report verified success without reconciliation.
+        if (session && !session.isFencedAndValid()) {
+          throw new Error(
+            'Conflict: ticket lease expired or was lost during external update; outcome is uncertain and requires reconciliation before retry',
+          );
+        }
 
         // Read 3: verify written resolution normalizing \r\n
         const ticketRes3 = await api.getById('Tickets', ticketId);
@@ -311,6 +318,14 @@ export const ticketWriteTools: ToolDefinition[] = [
           throw new Error(
             'Verification failed: written resolution does not match read-back resolution',
           );
+        }
+
+        if (session) {
+          await session.markVerified({
+            ticketID: Number(ticketId),
+            appended_line: appendedLine,
+            written: true,
+          });
         }
 
         return jsonResponse({
@@ -325,7 +340,200 @@ export const ticketWriteTools: ToolDefinition[] = [
           concurrency_notice: CONCURRENCY_NOTICE,
           verified: true,
         });
+      } catch (err: unknown) {
+        if (session && session.isArmed()) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          await session.markUncertain(errMsg);
+        }
+        throw err;
+      } finally {
+        if (session) {
+          await session.release();
+        }
+      }
+    },
+  },
+  {
+    name: 'record-ticket-evidence',
+    title: 'Record Ticket Evidence',
+    description:
+      'Record verification evidence on an Autotask ticket as a TicketNote. ' +
+      'DESTRUCTIVE (write): requires confirm token RECORD_TICKET_EVIDENCE. ' +
+      'Idempotent across retries: uses operationId to reconcile prior evidence, checks itemId in response, and verifies note on readback.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticketID: { type: 'string', description: 'Autotask ticket id' },
+        title: { type: 'string', description: 'Evidence note title' },
+        description: { type: 'string', description: 'Evidence note content (1..32000 characters)' },
+        operationId: {
+          type: 'string',
+          description: 'Stable operation identifier for idempotent retries and dispatch coordination',
+        },
+        noteType: {
+          type: 'string',
+          description: 'Optional numeric note type picklist code (default 1)',
+        },
+        publish: {
+          type: 'string',
+          description: 'Optional publish code: 1 = internal (default), 2 = all users',
+        },
+      },
+      required: ['ticketID', 'title', 'description', 'operationId'],
+    },
+    handler: async (args) => {
+      const ticketId = assertSafeNumericId(args.ticketID, 'ticketID');
+      const opId = String(args.operationId || '').trim();
+
+      if (!opId) {
+        throw new Error('operationId is required for evidence recording');
+      }
+
+      if (!args.title || args.title.trim().length === 0 || args.title.length > 250) {
+        throw new Error('Evidence note title must be between 1 and 250 characters');
+      }
+
+      if (
+        !args.description ||
+        args.description.trim().length === 0 ||
+        args.description.length > 32000
+      ) {
+        throw new Error('Evidence note description must be between 1 and 32000 characters');
+      }
+
+      if (SECRET_PATTERN.test(args.title) || SECRET_PATTERN.test(args.description)) {
+        throw new Error('Refused: evidence note contains sensitive credential pattern');
+      }
+
+      const caller = currentCaller();
+      const author = caller?.email ?? 'autotask-mcp';
+      const actorResourceId = caller?.resourceId ?? 0;
+
+      const session = new TicketCoordinatorSession({
+        ticketId,
+        actor: { email: author, resourceId: actorResourceId },
+        operationId: opId,
+        kind: 'evidence_note',
+        payload: {
+          ticketID: ticketId,
+          title: args.title.trim(),
+          description: args.description.trim(),
+        },
       });
+
+      const { alreadyVerified } = await session.prepareAndAcquire();
+      if (alreadyVerified) {
+        const op = session.getOperation();
+        return jsonResponse(op?.receipt ?? { ticketID: Number(ticketId), verified: true, operationId: opId });
+      }
+
+      try {
+        // Read ticket to verify parent exists
+        const ticketRes = await api.getById('Tickets', ticketId);
+        const ticket = unwrapRecord<TicketModel>(ticketRes);
+        if (!ticket || Object.keys(ticket).length === 0) {
+          throw new Error(`Ticket ${ticketId} not found`);
+        }
+
+        // Query existing notes to check if this operationId was already recorded
+        const queryRes = (await api.query('TicketNotes', {
+          filter: [{ op: 'eq', field: 'ticketID', value: Number(ticketId) }],
+          MaxRecords: 100,
+        })) as { items?: Array<Record<string, unknown>> };
+
+        if (queryRes && Array.isArray(queryRes.items)) {
+          for (const note of queryRes.items) {
+            const noteDesc = typeof note.description === 'string' ? note.description : '';
+            const noteTitle = typeof note.title === 'string' ? note.title : '';
+            const match = noteDesc.match(/\[op:([^\s,\]]+)\]/) || noteTitle.match(/\[op:([^\s,\]]+)\]/);
+            if (match && match[1] === opId) {
+              const logicalDesc = noteDesc.replace(/\n?\[op:[^\]]+\]/, '').trim();
+              if (logicalDesc !== args.description.trim()) {
+                throw new Error(
+                  `Conflict: operationId "${opId}" was previously recorded with different description on ticket ${ticketId}`,
+                );
+              }
+              const receipt = {
+                ticketID: Number(ticketId),
+                noteID: Number(note.id),
+                title: noteTitle,
+                created: false,
+                already_present: true,
+                reconciled_from_prior_evidence: true,
+                operationId: opId,
+                verified: true,
+              };
+              await session.markVerified(receipt);
+              return jsonResponse(receipt);
+            }
+          }
+        }
+
+        // Arm dispatch barrier
+        await session.armDispatch();
+
+        const finalDescription = `${args.description}\n[op:${opId}]`;
+        const noteType = args.noteType ? Number(args.noteType) : 1;
+        const publish = args.publish ? Number(args.publish) : 1;
+
+        const body: Record<string, unknown> = {
+          ticketID: Number(ticketId),
+          title: args.title,
+          description: finalDescription,
+          noteType,
+          publish,
+        };
+
+        // Autotask create endpoint returns OperationResultModel: { itemId }
+        const createdRes = (await api.create(`Tickets/${ticketId}/Notes`, body)) as {
+          itemId?: number | string;
+          id?: number | string;
+          item?: { id?: number | string };
+        };
+        const createdId = createdRes?.itemId ?? createdRes?.id ?? createdRes?.item?.id;
+
+        if (!createdId) {
+          throw new Error('Failed to create evidence note: no ID returned from Autotask');
+        }
+
+        // Readback verification through parent route
+        const verifyRes = await api.request(
+          'GET',
+          `V1.0/Tickets/${encodeURIComponent(ticketId)}/Notes/${encodeURIComponent(String(createdId))}`,
+        );
+        const verifiedNote = unwrapRecord<Record<string, unknown>>(verifyRes);
+        if (!verifiedNote || Object.keys(verifiedNote).length === 0) {
+          throw new Error(`Verification failed: created note ${createdId} not found on ticket ${ticketId}`);
+        }
+
+        const receipt = {
+          ticketID: Number(ticketId),
+          noteID: Number(createdId),
+          title: args.title,
+          created: true,
+          already_present: false,
+          reconciled_from_prior_evidence: false,
+          operationId: opId,
+          verified: true,
+        };
+
+        await session.markVerified(receipt);
+        return jsonResponse(receipt);
+      } catch (err: unknown) {
+        if (session.isArmed()) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          await session.markUncertain(errMsg);
+        }
+        throw err;
+      } finally {
+        await session.release();
+      }
     },
   },
   {
@@ -334,7 +542,7 @@ export const ticketWriteTools: ToolDefinition[] = [
     description:
       'Set completion status of a checklist item on an Autotask ticket. ' +
       'DESTRUCTIVE (write): requires confirm token SET_TICKET_CHECKLIST_ITEM. ' +
-      'Verifies parent ticket relationship and idempotently no-ops if already in requested state.',
+      'Verifies parent ticket relationship and requires observed evidence (evidenceNoteID or evidenceArchiveReceipt) before reporting complete.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -417,7 +625,9 @@ export const ticketWriteTools: ToolDefinition[] = [
           evidenceAttachmentIdNum = Number(evidenceAttachmentId);
           const attRes = await api.request(
             'GET',
-            `V1.0/Tickets/${encodeURIComponent(ticketId)}/Attachments/${encodeURIComponent(evidenceAttachmentId)}`,
+            `V1.0/Tickets/${encodeURIComponent(ticketId)}/Attachments/${encodeURIComponent(
+              evidenceAttachmentId,
+            )}`,
           );
           const att = unwrapRecord<Record<string, unknown>>(attRes);
           if (!att || Object.keys(att).length === 0) {
@@ -436,6 +646,7 @@ export const ticketWriteTools: ToolDefinition[] = [
           }
         }
       }
+
       // Read 1: GET V1.0/Tickets/{ticketId}/ChecklistItems/{itemId}
       const itemRes = await api.request(
         'GET',
@@ -516,151 +727,6 @@ export const ticketWriteTools: ToolDefinition[] = [
         evidenceVerified: Boolean(evidenceNoteIdNum || evidenceAttachmentIdNum),
         evidenceNoteID: evidenceNoteIdNum,
         evidenceAttachmentID: evidenceAttachmentIdNum,
-      });
-    },
-  },
-  {
-    name: 'record-ticket-evidence',
-    title: 'Record Ticket Evidence',
-    description:
-      'Record immutable verification evidence on an Autotask ticket as a TicketNote. ' +
-      'DESTRUCTIVE (write): requires confirm token RECORD_TICKET_EVIDENCE. ' +
-      'Idempotent across retries: uses operationId or logical content to reconcile prior evidence and prevent duplicate notes.',
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: true,
-      idempotentHint: true,
-      openWorldHint: true,
-    },
-    inputSchema: {
-      type: 'object',
-      properties: {
-        ticketID: { type: 'string', description: 'Autotask ticket id' },
-        title: { type: 'string', description: 'Evidence note title' },
-        description: { type: 'string', description: 'Evidence note content (1..32000 characters)' },
-        operationId: {
-          type: 'string',
-          description:
-            'Stable operation identity for idempotent retry deduplication across clock changes',
-        },
-        noteType: {
-          type: 'string',
-          description: 'Optional numeric note type picklist code (default 1)',
-        },
-        publish: {
-          type: 'string',
-          description: 'Optional publish code: 1 = internal (default), 2 = all users',
-        },
-      },
-      required: ['ticketID', 'title', 'description'],
-    },
-    handler: async (args) => {
-      const ticketId = assertSafeNumericId(args.ticketID, 'ticketID');
-
-      if (!args.title || args.title.trim().length === 0 || args.title.length > 250) {
-        throw new Error('Evidence note title must be between 1 and 250 characters');
-      }
-
-      if (
-        !args.description ||
-        args.description.trim().length === 0 ||
-        args.description.length > 32000
-      ) {
-        throw new Error('Evidence note description must be between 1 and 32000 characters');
-      }
-
-      if (SECRET_PATTERN.test(args.title) || SECRET_PATTERN.test(args.description)) {
-        throw new Error('Refused: evidence note contains sensitive credential pattern');
-      }
-
-      // Check ticket exists
-      const ticketRes = await api.getById('Tickets', ticketId);
-      const ticket = unwrapRecord<TicketModel>(ticketRes);
-      if (!ticket || Object.keys(ticket).length === 0) {
-        throw new Error(`Ticket ${ticketId} not found`);
-      }
-
-      const opId = (args.operationId || '').trim();
-
-      // Check existing notes on ticket to reconcile prior evidence
-      let existingNotes: Array<Record<string, unknown>> = [];
-      try {
-        const queryRes = (await api.query('TicketNotes', {
-          filter: [{ op: 'eq', field: 'ticketID', value: Number(ticketId) }],
-          MaxRecords: 100,
-        })) as { items?: Array<Record<string, unknown>> };
-        if (queryRes && Array.isArray(queryRes.items)) {
-          existingNotes = queryRes.items;
-        }
-      } catch {
-        // Proceed to creation if query returns empty or fails
-      }
-
-      for (const note of existingNotes) {
-        const noteDesc = typeof note.description === 'string' ? note.description : '';
-        const noteTitle = typeof note.title === 'string' ? note.title : '';
-
-        if (opId) {
-          if (noteDesc.includes(`[op:${opId}]`) || noteTitle.includes(`[op:${opId}]`)) {
-            return jsonResponse({
-              ticketID: Number(ticketId),
-              noteID: Number(note.id),
-              title: noteTitle,
-              created: false,
-              already_present: true,
-              reconciled_from_prior_evidence: true,
-              operationId: opId,
-              verified: true,
-            });
-          }
-        } else if (
-          noteTitle.trim() === args.title.trim() &&
-          noteDesc.trim() === args.description.trim()
-        ) {
-          return jsonResponse({
-            ticketID: Number(ticketId),
-            noteID: Number(note.id),
-            title: noteTitle,
-            created: false,
-            already_present: true,
-            reconciled_from_prior_evidence: true,
-            operationId: null,
-            verified: true,
-          });
-        }
-      }
-
-      const finalDescription = opId ? `${args.description}\n[op:${opId}]` : args.description;
-      const noteType = args.noteType ? Number(args.noteType) : 1;
-      const publish = args.publish ? Number(args.publish) : 1;
-
-      const body: Record<string, unknown> = {
-        ticketID: Number(ticketId),
-        title: args.title,
-        description: finalDescription,
-        noteType,
-        publish,
-      };
-
-      const createdRes = (await api.create(`Tickets/${ticketId}/Notes`, body)) as {
-        id?: number | string;
-        item?: { id?: number | string };
-      };
-      const createdId = createdRes?.item?.id ?? createdRes?.id;
-
-      if (!createdId) {
-        throw new Error('Failed to create evidence note: no ID returned from Autotask');
-      }
-
-      return jsonResponse({
-        ticketID: Number(ticketId),
-        noteID: Number(createdId),
-        title: args.title,
-        created: true,
-        already_present: false,
-        reconciled_from_prior_evidence: false,
-        operationId: opId || null,
-        verified: true,
       });
     },
   },
