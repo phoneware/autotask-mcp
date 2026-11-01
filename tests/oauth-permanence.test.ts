@@ -14,12 +14,7 @@ import {
   runPermanenceContract,
 } from './test-support/permanence-contract.js';
 import { FakeFirestore } from './test-support/fake-firestore.js';
-import {
-  createApp,
-  defaultCreateSession,
-  SessionStore,
-  type AppOptions,
-} from '../src/http.js';
+import { createApp, defaultCreateSession, SessionStore, type AppOptions } from '../src/http.js';
 import { GoogleAuthProvider } from '../src/auth/google-provider.js';
 import { FirestoreClientsStore, FirestoreTokenStore } from '../src/auth/firestore-stores.js';
 import { resetResourceCache } from '../src/auth/resource-lookup.js';
@@ -59,13 +54,10 @@ function stubUpstream(claims: Record<string, unknown> = {}) {
         });
       }
       if (url.includes('Resources/query')) {
-        return new Response(
-          JSON.stringify({ items: [{ id: 77, isActive: true, userType: 14 }] }),
-          {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          },
-        );
+        return new Response(JSON.stringify({ items: [{ id: 77, isActive: true, userType: 14 }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
       if (url.includes('ThresholdInformation') || url.includes('zoneInformation')) {
         return new Response(

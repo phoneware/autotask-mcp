@@ -1,4 +1,4 @@
-// Copied from @phoneware/mcp-oauth-kit 1.0.0 (phoneware/monorepo packages/mcp-oauth-kit/test-support/permanence-contract.ts at d2e87fa11f1f62a8b97259d5be46db895f1d0acf). Edit the canonical file, then re-copy.
+// Copied from @phoneware/mcp-oauth-kit 1.0.0 (phoneware/monorepo packages/mcp-oauth-kit/test-support/permanence-contract.ts at 998685a9dd5843a89e6eb1f3659223e7f9e31fc5). Edit the canonical file, then re-copy.
 import { expect } from 'vitest';
 
 export interface ServerInstance {
@@ -209,6 +209,8 @@ export async function runPermanenceContract<TBacking>(
       const activeAccessG = String(conc1.data.access_token);
       let activeRefreshG = String(conc1.data.refresh_token);
 
+      const mcpG = await sendMcp(instance1.url, activeAccessG);
+      expect(mcpG.status, 'step g: /mcp with concurrent access token must return 200').toBe(200);
       // Step h: Bogus refresh token -> 400 invalid_grant
       const tokenH = await postToken(instance1.url, {
         grant_type: 'refresh_token',
