@@ -1,10 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import crypto from 'node:crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { attachmentTools } from '../src/tools/attachments.js';
 import { DESTRUCTIVE_TOOLS } from '../src/security.js';
 import { buildServer } from '../src/server.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-
 const { request } = vi.hoisted(() => ({
   request: vi.fn(),
 }));
@@ -186,6 +189,24 @@ describe('get-ticket-attachment tool', () => {
     ).rejects.toThrow(/numeric id/);
   });
 
+  it('refuses when attachment belongs to a different ticket (parent mismatch)', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 706,
+        ticketID: 9999, // Belongs to ticket 9999
+        title: 'secret-scan.png',
+        contentType: 'image/png',
+      },
+    });
+
+    await expect(
+      getAttachmentTool.handler({
+        ticketID: '1001', // Request specifies ticket 1001
+        attachmentID: '706',
+      }),
+    ).rejects.toThrow(/Parent mismatch: attachment 706 belongs to ticketID 9999, not 1001/);
+  });
+
   it('is available in read-only mode and for Service Desk callers over real MCP server', async () => {
     process.env.AUTOTASK_READ_ONLY = 'true';
     const ro = buildServer();
@@ -198,8 +219,10 @@ describe('get-ticket-attachment tool', () => {
 
     const roTools = (await roClient.listTools()).tools.map((t) => t.name);
     expect(roTools).toContain('get-ticket-attachment');
+    expect(roTools).toContain('transfer-ticket-attachment');
     expect(roTools).not.toContain('append-ticket-resolution');
     expect(roTools).not.toContain('set-ticket-checklist-item');
+    expect(roTools).not.toContain('record-ticket-evidence');
     await roClient.close();
 
     // Service Desk caller (read + create capabilities)
@@ -213,8 +236,186 @@ describe('get-ticket-attachment tool', () => {
 
     const sdTools = (await sdClient.listTools()).tools.map((t) => t.name);
     expect(sdTools).toContain('get-ticket-attachment');
+    expect(sdTools).toContain('transfer-ticket-attachment');
     expect(sdTools).not.toContain('append-ticket-resolution');
     expect(sdTools).not.toContain('set-ticket-checklist-item');
+    expect(sdTools).not.toContain('record-ticket-evidence');
     await sdClient.close();
+  });
+});
+
+describe('transfer-ticket-attachment tool', () => {
+  const transferTool = attachmentTools.find((t) => t.name === 'transfer-ticket-attachment')!;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('is read-only and not in DESTRUCTIVE_TOOLS', () => {
+    expect(DESTRUCTIVE_TOOLS.has('transfer-ticket-attachment')).toBe(false);
+    expect(transferTool.annotations?.readOnlyHint).toBe(true);
+    expect(transferTool.annotations?.destructiveHint).toBe(false);
+  });
+
+  it('transfers PDF binary data to local file and verifies content hash without dumping bytes in output', async () => {
+    const pdfContent = Buffer.from(
+      '%PDF-1.4\n1 0 obj\n<< /Title (Hazelbrook SOW) >>\nendobj\ntrailer\n<<>>\n%%EOF',
+    );
+    const expectedSha256 = crypto.createHash('sha256').update(pdfContent).digest('hex');
+    const base64Data = pdfContent.toString('base64');
+
+    request.mockResolvedValue({
+      item: {
+        id: 801,
+        ticketID: 1001,
+        title: 'hazelbrook-sow-signed.pdf',
+        contentType: 'application/pdf',
+        fileSize: pdfContent.byteLength,
+        data: base64Data,
+      },
+    });
+
+    const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'autotask-pdf-test-'));
+    const destPath = path.join(tmpDir, 'archived-sow.pdf');
+
+    try {
+      const res = await transferTool.handler({
+        ticketID: '1001',
+        attachmentID: '801',
+        destinationPath: destPath,
+        expectedSha256,
+        allowedMimeTypes: ['application/pdf'],
+      });
+
+      // File on disk exists and matches exact content
+      const written = await fs.promises.readFile(destPath);
+      expect(written.equals(pdfContent)).toBe(true);
+
+      // Response contains text metadata only, zero raw bytes or image blocks
+      expect(res.content).toHaveLength(1);
+      expect(res.content[0].type).toBe('text');
+      const metadata = JSON.parse(res.content[0].text);
+      expect(metadata.ticketID).toBe(1001);
+      expect(metadata.attachmentID).toBe(801);
+      expect(metadata.title).toBe('hazelbrook-sow-signed.pdf');
+      expect(metadata.contentType).toBe('application/pdf');
+      expect(metadata.fileSize).toBe(pdfContent.byteLength);
+      expect(metadata.sha256).toBe(expectedSha256);
+      expect(metadata.destinationPath).toBe(destPath);
+      expect(metadata.transferred).toBe(true);
+      expect(metadata.verified).toBe(true);
+
+      // No raw binary or base64 in text
+      expect(res.content[0].text).not.toContain(base64Data);
+    } finally {
+      await fs.promises.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses when attachment belongs to a different ticket (parent mismatch)', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 802,
+        ticketID: 9999, // Wrong parent
+        title: 'invoice.pdf',
+        contentType: 'application/pdf',
+        data: Buffer.from('data').toString('base64'),
+      },
+    });
+
+    await expect(
+      transferTool.handler({
+        ticketID: '1001',
+        attachmentID: '802',
+        destinationPath: '/tmp/test.pdf',
+      }),
+    ).rejects.toThrow(/Parent mismatch: attachment 802 belongs to ticketID 9999, not 1001/);
+  });
+
+  it('refuses disallowed executable MIME types', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 803,
+        ticketID: 1001,
+        title: 'installer.exe',
+        contentType: 'application/x-msdownload',
+        data: Buffer.from('MZ...').toString('base64'),
+      },
+    });
+
+    await expect(
+      transferTool.handler({
+        ticketID: '1001',
+        attachmentID: '803',
+        destinationPath: '/tmp/installer.exe',
+      }),
+    ).rejects.toThrow(/disallowed executable type/);
+  });
+
+  it('refuses MIME type not in allowedMimeTypes list', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 804,
+        ticketID: 1001,
+        title: 'data.xml',
+        contentType: 'application/xml',
+        data: Buffer.from('<xml/>').toString('base64'),
+      },
+    });
+
+    await expect(
+      transferTool.handler({
+        ticketID: '1001',
+        attachmentID: '804',
+        destinationPath: '/tmp/data.xml',
+        allowedMimeTypes: ['application/pdf'],
+      }),
+    ).rejects.toThrow(/not in allowedMimeTypes list/);
+  });
+
+  it('refuses when content SHA-256 does not match expectedSha256', async () => {
+    const pdfContent = Buffer.from('PDF content here');
+    request.mockResolvedValue({
+      item: {
+        id: 805,
+        ticketID: 1001,
+        title: 'sow.pdf',
+        contentType: 'application/pdf',
+        fileSize: pdfContent.byteLength,
+        data: pdfContent.toString('base64'),
+      },
+    });
+
+    await expect(
+      transferTool.handler({
+        ticketID: '1001',
+        attachmentID: '805',
+        destinationPath: '/tmp/sow.pdf',
+        expectedSha256: '0000000000000000000000000000000000000000000000000000000000000000',
+      }),
+    ).rejects.toThrow(/Integrity check failed: expected SHA-256/);
+  });
+
+  it('refuses when attachment exceeds maxSizeBytes', async () => {
+    const bytes = Buffer.alloc(2000);
+    request.mockResolvedValue({
+      item: {
+        id: 806,
+        ticketID: 1001,
+        title: 'large.pdf',
+        contentType: 'application/pdf',
+        fileSize: bytes.byteLength,
+        data: bytes.toString('base64'),
+      },
+    });
+
+    await expect(
+      transferTool.handler({
+        ticketID: '1001',
+        attachmentID: '806',
+        destinationPath: '/tmp/large.pdf',
+        maxSizeBytes: 1000, // lower than 2000
+      }),
+    ).rejects.toThrow(/exceeds maximum permitted size/);
   });
 });

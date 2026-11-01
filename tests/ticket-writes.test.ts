@@ -11,11 +11,13 @@ import { withCaller } from '../src/auth/context.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
-const { getById, update, request, entityFields } = vi.hoisted(() => ({
+const { getById, update, request, entityFields, create, query } = vi.hoisted(() => ({
   getById: vi.fn(),
   update: vi.fn(),
   request: vi.fn(),
   entityFields: vi.fn(),
+  create: vi.fn(),
+  query: vi.fn(),
 }));
 
 vi.mock('../src/autotask-api.js', () => ({
@@ -24,6 +26,8 @@ vi.mock('../src/autotask-api.js', () => ({
     update,
     request,
     entityFields,
+    create,
+    query,
   },
 }));
 
@@ -443,18 +447,283 @@ describe('set-ticket-checklist-item tool', () => {
       }),
     ).rejects.toThrow(/completed must be "true" or "false"/);
   });
+
+  it('reconciles prior evidence on clock-advanced retry with operationId without duplicate write', async () => {
+    const existingResolution =
+      'Initial provisioning completed.\nInstalled Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us, op:esim-slot-a]';
+
+    getById.mockResolvedValue({
+      item: {
+        id: 12345,
+        resolution: existingResolution,
+      },
+    });
+
+    const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
+
+    // Retry 10 minutes later (clock has advanced)
+    const res = await appendTool.handler({
+      ticketID: '12345',
+      text: 'Installed Frontier eSIM into slot A.',
+      operationId: 'esim-slot-a',
+    });
+
+    expect(update).not.toHaveBeenCalled();
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.written).toBe(false);
+    expect(parsed.already_present).toBe(true);
+    expect(parsed.reconciled_from_prior_evidence).toBe(true);
+    expect(parsed.verified).toBe(true);
+    expect(parsed.operationId).toBe('esim-slot-a');
+    expect(parsed.appended_line).toBe(
+      'Installed Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us, op:esim-slot-a]',
+    );
+  });
+
+  it('reconciles prior evidence on clock-advanced retry without operationId by matching logical text', async () => {
+    const existingResolution =
+      'Initial provisioning completed.\nInstalled Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us]';
+
+    getById.mockResolvedValue({
+      item: {
+        id: 12345,
+        resolution: existingResolution,
+      },
+    });
+
+    const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
+
+    const res = await appendTool.handler({
+      ticketID: '12345',
+      text: 'Installed Frontier eSIM into slot A.',
+    });
+
+    expect(update).not.toHaveBeenCalled();
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.written).toBe(false);
+    expect(parsed.already_present).toBe(true);
+    expect(parsed.reconciled_from_prior_evidence).toBe(true);
+    expect(parsed.verified).toBe(true);
+    expect(parsed.appended_line).toBe(
+      'Installed Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us]',
+    );
+  });
+
+  it('refuses when requireEvidence is true but no evidence is supplied', async () => {
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+        requireEvidence: 'true',
+      }),
+    ).rejects.toThrow(/checklist item completion requires observed evidence/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses when evidence note belongs to a different ticket (parent mismatch)', async () => {
+    getById.mockResolvedValue({
+      item: {
+        id: 888,
+        ticketID: 9999, // Wrong parent
+        title: 'Evidence on another ticket',
+        description: 'Verified',
+      },
+    });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+        evidenceNoteID: '888',
+      }),
+    ).rejects.toThrow(/Parent mismatch: evidence note 888 belongs to ticketID 9999, not 1001/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses when evidence attachment belongs to a different ticket (parent mismatch)', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 777,
+        ticketID: 9999, // Wrong parent
+        title: 'photo.jpg',
+      },
+    });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+        evidenceAttachmentID: '777',
+      }),
+    ).rejects.toThrow(
+      /Parent mismatch: evidence attachment 777 belongs to ticketID 9999, not 1001/,
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('successfully completes checklist item when valid evidence note is verified', async () => {
+    getById.mockImplementation(async (_entity: string, id: string | number) => {
+      if (String(id) === '888') {
+        return {
+          item: {
+            id: 888,
+            ticketID: 1001,
+            title: 'Verified mesh backhaul',
+            description: 'Link confirmed active',
+          },
+        };
+      }
+      throw new Error(`Unexpected getById for ${id}`);
+    });
+
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) {
+          return {
+            item: {
+              id: 501,
+              ticketID: 1001,
+              isCompleted: false,
+              itemName: 'Configure mesh backhaul',
+            },
+          };
+        }
+        return {
+          item: {
+            id: 501,
+            ticketID: 1001,
+            isCompleted: true,
+            itemName: 'Configure mesh backhaul',
+          },
+        };
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+
+    const res = await setChecklistTool.handler({
+      ticketID: '1001',
+      checklistItemID: '501',
+      completed: 'true',
+      evidenceNoteID: '888',
+    });
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.updated).toBe(true);
+    expect(parsed.isCompleted).toBe(true);
+    expect(parsed.evidenceVerified).toBe(true);
+    expect(parsed.evidenceNoteID).toBe(888);
+  });
+});
+
+describe('record-ticket-evidence tool', () => {
+  const recordEvidenceTool = ticketWriteTools.find((t) => t.name === 'record-ticket-evidence')!;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('is registered as destructive and confirm-required with RECORD_TICKET_EVIDENCE', () => {
+    expect(DESTRUCTIVE_TOOLS.has('record-ticket-evidence')).toBe(true);
+    expect(CONFIRM_REQUIRED_TOOLS.has('record-ticket-evidence')).toBe(true);
+    expect(confirmTokenFor('record-ticket-evidence')).toBe('RECORD_TICKET_EVIDENCE');
+  });
+
+  it('creates an evidence note with operationId', async () => {
+    getById.mockResolvedValue({ item: { id: 1001, title: 'Test Ticket' } });
+    query.mockResolvedValue({ items: [] });
+    create.mockResolvedValue({ item: { id: 991 } });
+
+    const res = await recordEvidenceTool.handler({
+      ticketID: '1001',
+      title: 'eSIM profile download evidence',
+      description: 'Profile ICCID 8901260000000000000 installed successfully.',
+      operationId: 'esim-claim-1001',
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith('Tickets/1001/Notes', {
+      ticketID: 1001,
+      title: 'eSIM profile download evidence',
+      description:
+        'Profile ICCID 8901260000000000000 installed successfully.\n[op:esim-claim-1001]',
+      noteType: 1,
+      publish: 1,
+    });
+
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.created).toBe(true);
+    expect(parsed.already_present).toBe(false);
+    expect(parsed.noteID).toBe(991);
+    expect(parsed.verified).toBe(true);
+  });
+
+  it('reconciles prior evidence on retry with same operationId (idempotent)', async () => {
+    getById.mockResolvedValue({ item: { id: 1001, title: 'Test Ticket' } });
+    query.mockResolvedValue({
+      items: [
+        {
+          id: 991,
+          ticketID: 1001,
+          title: 'eSIM profile download evidence',
+          description:
+            'Profile ICCID 8901260000000000000 installed successfully.\n[op:esim-claim-1001]',
+        },
+      ],
+    });
+
+    const res = await recordEvidenceTool.handler({
+      ticketID: '1001',
+      title: 'eSIM profile download evidence',
+      description: 'Profile ICCID 8901260000000000000 installed successfully.',
+      operationId: 'esim-claim-1001',
+    });
+
+    expect(create).not.toHaveBeenCalled();
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.created).toBe(false);
+    expect(parsed.already_present).toBe(true);
+    expect(parsed.reconciled_from_prior_evidence).toBe(true);
+    expect(parsed.noteID).toBe(991);
+    expect(parsed.verified).toBe(true);
+  });
+
+  it('refuses secret credential patterns in evidence note title or description', async () => {
+    await expect(
+      recordEvidenceTool.handler({
+        ticketID: '1001',
+        title: 'Wi-Fi password: secret123',
+        description: 'Clean description',
+      }),
+    ).rejects.toThrow(/sensitive credential pattern/);
+
+    await expect(
+      recordEvidenceTool.handler({
+        ticketID: '1001',
+        title: 'Clean title',
+        description: 'PSK: superSecretKey',
+      }),
+    ).rejects.toThrow(/sensitive credential pattern/);
+    expect(create).not.toHaveBeenCalled();
+  });
 });
 
 describe('server integration: permissions and readonly mode', () => {
-  it('unregisters both write tools in read-only mode', () => {
+  it('unregisters write tools in read-only mode', () => {
     process.env.AUTOTASK_READ_ONLY = 'true';
     const server = buildServer();
     process.env.AUTOTASK_READ_ONLY = 'false';
 
     // In read-only mode, skipped must count them and registered tools omit them
-    expect(server.skipped).toBe(15);
+    expect(server.skipped).toBe(16);
   });
-
   it('withholds write tools from a Service Desk user session (read + create only)', async () => {
     const serviceDeskCapabilities = ['read', 'create'] as const;
     const { server } = buildServer(serviceDeskCapabilities);

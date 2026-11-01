@@ -208,6 +208,11 @@ export const ticketTools: ToolDefinition[] = [
         ticketID: { type: 'string', description: 'Ticket id to attach the note to' },
         title: { type: 'string', description: 'Note title' },
         description: { type: 'string', description: 'Note body text' },
+        operationId: {
+          type: 'string',
+          description:
+            'Optional stable operation identifier for idempotent retries across clock changes',
+        },
         noteType: { type: 'string', description: 'Numeric note type picklist code' },
         publish: { type: 'string', description: 'Numeric publish/visibility picklist code' },
       },
@@ -215,16 +220,49 @@ export const ticketTools: ToolDefinition[] = [
     },
     handler: async (args) => {
       const ticketID = intArg('ticketID', args.ticketID);
+      const opId = (args.operationId || '').trim();
+
+      if (opId) {
+        try {
+          const filter: FilterClause[] = [{ op: 'eq', field: 'ticketID', value: ticketID }];
+          const existingResult = (await api.query('TicketNotes', {
+            filter,
+            MaxRecords: 100,
+          })) as { items?: Array<Record<string, unknown>> };
+          if (existingResult && Array.isArray(existingResult.items)) {
+            const prior = existingResult.items.find((n) => {
+              const desc = typeof n.description === 'string' ? n.description : '';
+              const title = typeof n.title === 'string' ? n.title : '';
+              return desc.includes(`[op:${opId}]`) || title.includes(`[op:${opId}]`);
+            });
+            if (prior) {
+              return jsonResponse({
+                ...prior,
+                already_present: true,
+                reconciled_from_prior_evidence: true,
+                created: false,
+                operationId: opId,
+                verified: true,
+              });
+            }
+          }
+        } catch {
+          // Proceed to creation if query fails or is empty
+        }
+      }
+
+      const finalDesc = opId ? `${args.description}\n[op:${opId}]` : args.description;
       const body: Record<string, unknown> = {
         ticketID,
-        description: args.description,
+        description: finalDesc,
       };
       if (args.title) body.title = args.title;
       const noteType = optionalIntArg('noteType', args.noteType);
       if (noteType !== undefined) body.noteType = noteType;
       const publish = optionalIntArg('publish', args.publish);
       if (publish !== undefined) body.publish = publish;
-      return jsonResponse(await api.create(`Tickets/${ticketID}/Notes`, body));
+      const created = await api.create(`Tickets/${ticketID}/Notes`, body);
+      return jsonResponse(created);
     },
   },
   {
