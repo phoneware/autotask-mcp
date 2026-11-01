@@ -158,10 +158,7 @@ export class FakeDocumentReference {
     return new FakeDocumentSnapshot(this, data);
   }
 
-  async set(
-    data: Record<string, unknown>,
-    options?: { merge?: boolean },
-  ): Promise<void> {
+  async set(data: Record<string, unknown>, options?: { merge?: boolean }): Promise<void> {
     this.firestore.checkOutage();
     this.firestore.validatePayload(data);
     const map = this.firestore.getCollectionMap(this.parentPath);
@@ -361,7 +358,9 @@ export class FakeFirestore {
     return new FakeWriteBatch(this);
   }
 
-  async runTransaction<R>(updateFunction: (transaction: FakeTransaction) => Promise<R>): Promise<R> {
+  async runTransaction<R>(
+    updateFunction: (transaction: FakeTransaction) => Promise<R>,
+  ): Promise<R> {
     this.checkOutage();
     // Serialize transactions
     const prior = this.transactionLock;
