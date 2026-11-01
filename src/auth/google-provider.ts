@@ -404,6 +404,26 @@ account, start the connection again and pick the right one.</p>
     refreshToken: string,
     scopes?: string[],
   ): Promise<OAuthTokens> {
+    try {
+      return await this.performExchangeRefreshToken(client, refreshToken, scopes);
+    } catch (err) {
+      if (
+        err instanceof InvalidGrantError ||
+        err instanceof InvalidScopeError ||
+        err instanceof TemporarilyUnavailableError
+      ) {
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      throw new TemporarilyUnavailableError(message);
+    }
+  }
+
+  private async performExchangeRefreshToken(
+    client: OAuthClientInformationFull,
+    refreshToken: string,
+    scopes?: string[],
+  ): Promise<OAuthTokens> {
     const stored = await this.opts.tokenStore.getByRefreshToken(refreshToken);
     if (stored?.clientId !== undefined && stored.clientId !== client.client_id) {
       throw new InvalidGrantError('unknown refresh token');

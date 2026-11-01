@@ -43,7 +43,7 @@ import {
   isPlausibleClientId,
   DEFAULT_REDIRECT_ALLOWLIST,
 } from './auth/redirect-policy.js';
-
+import { kitCodeOf } from './auth/kit/errors.js';
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_MAX_SESSIONS = 0;
@@ -591,8 +591,10 @@ function makeAuthMiddleware(opts: AppOptions) {
       ? getOAuthProtectedResourceMetadataUrl(new URL('/mcp', opts.baseUrl))
       : undefined;
 
-  const challenge = (): string => {
+  const challenge = (error?: string, description?: string): string => {
     const parts = ['Bearer realm="autotask-mcp"'];
+    if (error) parts.push(`error="${error}"`);
+    if (description) parts.push(`error_description="${description}"`);
     if (resourceMetadataUrl) parts.push(`resource_metadata="${resourceMetadataUrl}"`);
     return parts.join(', ');
   };
@@ -616,12 +618,21 @@ function makeAuthMiddleware(opts: AppOptions) {
         (req as Request & { auth?: unknown }).auth = await provider.verifyAccessToken(presented);
         next();
         return;
-      } catch {
+      } catch (err) {
+        if (kitCodeOf(err) === 'store_unavailable') {
+          const message = err instanceof Error ? err.message : 'Temporarily unavailable';
+          res.set('Retry-After', '5');
+          res.status(503).json({
+            error: 'temporarily_unavailable',
+            error_description: message,
+          });
+          return;
+        }
         // Fall through to the 401 below.
       }
     }
 
-    res.setHeader('WWW-Authenticate', challenge());
+    res.setHeader('WWW-Authenticate', challenge('invalid_token', 'Invalid access token'));
     rpcError(res, 401, -32001, 'Unauthorized');
   };
 }
