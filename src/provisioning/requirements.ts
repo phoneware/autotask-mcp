@@ -31,16 +31,27 @@ export type ChecklistTaskRequirement = ArchivedPdfRequirement | RecordedNoteRequ
 
 export const REQUIREMENTS_COLLECTION = 'autotask_mcp_checklist_requirements';
 
+export function requirementDocId(
+  accountKey: string,
+  ticketId: string,
+  checklistItemId: string,
+): string {
+  return `${accountKey}_${ticketId}_${checklistItemId}`;
+}
+
 export function computeItemSemanticFingerprint(
   ticketId: string,
   checklistItemId: string,
   itemName: string,
-  taskSourceIdentity = '1',
+  taskSourceIdentity?: string,
+  taskSourceVersion?: number,
 ): string {
-  const normName = itemName.trim().toLowerCase();
+  const normName = itemName.trim();
+  const sourceId = taskSourceIdentity ?? 'task-source-v1';
+  const sourceVer = taskSourceVersion ?? 1;
   return crypto
     .createHash('sha256')
-    .update(`${ticketId}:${checklistItemId}:${normName}:${taskSourceIdentity}`)
+    .update(`${ticketId}:${checklistItemId}:${normName}:${sourceId}:${sourceVer}`)
     .digest('hex');
 }
 

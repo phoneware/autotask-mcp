@@ -4,6 +4,9 @@ import type { CompanyArchiveBinding } from '../provisioning/contracts.js';
 
 export const BINDINGS_COLLECTION = 'autotask_mcp_archive_bindings';
 
+export function bindingDocId(accountKey: string, companyId: string): string {
+  return `${accountKey}_${companyId}`;
+}
 export function computeBindingFingerprint(binding: CompanyArchiveBinding): string {
   const sortedActors = [...binding.allowedActorResourceIds].sort((a, b) => a - b).join(',');
   const parts = [
