@@ -4,6 +4,7 @@ import type {
   CompanyArchiveBinding,
   PrivateAttachment,
 } from '../provisioning/contracts.js';
+import { ArchiveCredentialProvider } from './credentials.js';
 
 export interface DriveUploaderConfig {
   apiBaseUrl?: string;
@@ -35,10 +36,20 @@ export class DriveArchiveProvider {
     this.token = config?.accessToken || process.env.DRIVE_ARCHIVE_ACCESS_TOKEN || null;
   }
 
-  async generateFileId(): Promise<string> {
+  async generateFileId(archivePrincipal?: string): Promise<string> {
     const url = `${this.apiBase}/files/generateIds?count=1&supportsAllDrives=true`;
     const headers: Record<string, string> = {};
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    let token = this.token;
+    const isLocalMirror = this.apiBase.includes('127.0.0.1') || this.apiBase.includes('localhost');
+    if (!token && !isLocalMirror && archivePrincipal) {
+      try {
+        const credProvider = new ArchiveCredentialProvider();
+        token = await credProvider.getDriveAccessToken(archivePrincipal);
+      } catch {
+        // Fallback
+      }
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     try {
       const res = await fetch(url, { method: 'GET', headers });
       if (res.ok) {
@@ -60,17 +71,15 @@ export class DriveArchiveProvider {
     fileId?: string;
   }): Promise<ArchiveReceipt> {
     const isLocalMirror = this.apiBase.includes('127.0.0.1') || this.apiBase.includes('localhost');
-    if (!this.token && !isLocalMirror) {
-      throw new Error(
-        'Google Drive archive credentials unavailable: dedicated archive service account token required for archival. ' +
-          'In test environments, configure DRIVE_API_BASE_URL to point to an isolated Drive mirror.',
-      );
+    let token = this.token;
+    if (!token && !isLocalMirror) {
+      const credProvider = new ArchiveCredentialProvider();
+      token = await credProvider.getDriveAccessToken(params.binding.archivePrincipal);
     }
 
     const { metadata, bytes } = params.attachment;
     const readHeaders: Record<string, string> = {};
-    if (this.token) readHeaders['Authorization'] = `Bearer ${this.token}`;
-
+    if (token) readHeaders['Authorization'] = `Bearer ${token}`;
     // 1. Verify destination folder in Google Drive before attempting upload
     const folderUrl = `${this.apiBase}/files/${encodeURIComponent(
       params.binding.folderId,

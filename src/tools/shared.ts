@@ -4,29 +4,36 @@ import { ToolResponse } from '../types.js';
  * Sanitize response data to prevent large binary attachment blobs from leaking
  * into generic MCP tool output and model transcripts.
  */
-export function sanitizeResponseData(value: unknown): unknown {
+export function sanitizeResponseData(value: unknown, parentKey?: string): unknown {
   if (value === null || value === undefined) return value;
   if (Array.isArray(value)) {
-    return value.map(sanitizeResponseData);
+    // If an array is directly inside a binary field (e.g. byte array), redact it
+    if (parentKey === 'data' || parentKey === 'fileContent') {
+      return '[binary byte array omitted from generic output; use get-ticket-attachment or archive-ticket-attachment]';
+    }
+    return value.map((item) => sanitizeResponseData(item, parentKey));
   }
   if (typeof value === 'object') {
     const copy: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (k === 'data' && typeof v === 'string' && v.length > 100) {
-        const obj = value as Record<string, unknown>;
-        if (
-          'contentType' in obj ||
-          'attachmentId' in obj ||
-          'ticketID' in obj ||
-          'attachCode' in obj ||
-          'fileSize' in obj
-        ) {
+      // Strip private server paths
+      if (k === 'fullPath') {
+        continue;
+      }
+      // Strip binary document fields regardless of type, size, or companion fields
+      if (k === 'data' || k === 'fileContent') {
+        if (typeof v === 'string') {
           copy[k] =
             '[binary data omitted from generic output; use get-ticket-attachment for images or archive-ticket-attachment for archival]';
           continue;
         }
+        if (Array.isArray(v)) {
+          copy[k] =
+            '[binary byte array omitted from generic output; use get-ticket-attachment for images or archive-ticket-attachment for archival]';
+          continue;
+        }
       }
-      copy[k] = sanitizeResponseData(v);
+      copy[k] = sanitizeResponseData(v, k);
     }
     return copy;
   }

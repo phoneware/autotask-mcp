@@ -217,7 +217,9 @@ export type SessionFactory = (
  * rights instead of advertising tools that would be refused.
  */
 export const defaultCreateSession: SessionFactory = (hooks, caller, promotedTools) => {
-  const { server } = buildServer(caller?.capabilities, promotedTools);
+  // If caller is undefined, restrict to empty capabilities rather than unrestricted
+  const capabilities = caller ? caller.capabilities : [];
+  const { server } = buildServer(capabilities, promotedTools);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     onsessioninitialized: hooks.onsessioninitialized,
@@ -682,7 +684,15 @@ async function handleStatelessMcpRequest(
   body?: unknown,
 ): Promise<void> {
   const caller = callerFrom(req);
-  const promotedTools = caller?.email ? await getPromotedToolNames(caller.email) : undefined;
+  if (!caller) {
+    res.setHeader(
+      'WWW-Authenticate',
+      challenge('invalid_token', 'Invalid or incomplete caller identity in access token'),
+    );
+    rpcError(res, 401, -32001, 'Unauthorized: incomplete caller identity');
+    return;
+  }
+  const promotedTools = caller.email ? await getPromotedToolNames(caller.email) : undefined;
   const { server, transport } = opts.createSession(
     {
       onsessioninitialized: () => undefined,

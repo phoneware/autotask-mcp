@@ -12,6 +12,7 @@ import { resetApi } from '../src/autotask-api.js';
 import {
   setOperationStore,
   MemoryOperationStore,
+  deriveAccountKey,
 } from '../src/provisioning/operation-store.js';
 import {
   setBindingsStore,
@@ -441,11 +442,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       });
 
       // Seed approved company archive binding
-      const accountKey = crypto
-        .createHash('sha256')
-        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
-        .digest('hex')
-        .slice(0, 16);
+      const accountKey = deriveAccountKey();
 
       await bindingsStore.set({
         accountKey,
@@ -543,11 +540,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         data: Buffer.from('%PDF-1.4 data').toString('base64'),
       });
 
-      const accountKey = crypto
-        .createHash('sha256')
-        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
-        .digest('hex')
-        .slice(0, 16);
+      const accountKey = deriveAccountKey();
 
       await bindingsStore.set({
         accountKey,
@@ -588,11 +581,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         data: Buffer.from('NOT_A_REAL_PDF_HEADER').toString('base64'),
       });
 
-      const accountKey = crypto
-        .createHash('sha256')
-        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
-        .digest('hex')
-        .slice(0, 16);
+      const accountKey = deriveAccountKey();
 
       await bindingsStore.set({
         accountKey,
@@ -629,11 +618,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         data: Buffer.from('%PDF-1.4 test').toString('base64'),
       });
 
-      const accountKey = crypto
-        .createHash('sha256')
-        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
-        .digest('hex')
-        .slice(0, 16);
+      const accountKey = deriveAccountKey();
 
       await bindingsStore.set({
         accountKey,
@@ -670,11 +655,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         data: Buffer.from('%PDF-1.4 test').toString('base64'),
       });
 
-      const accountKey = crypto
-        .createHash('sha256')
-        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
-        .digest('hex')
-        .slice(0, 16);
+      const accountKey = deriveAccountKey();
 
       await bindingsStore.set({
         accountKey,
@@ -711,11 +692,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         data: Buffer.from('%PDF-1.4 test').toString('base64'),
       });
 
-      const accountKey = crypto
-        .createHash('sha256')
-        .update('tech@phoneware.us\0' + autotaskMirror.baseUrl.toLowerCase().trim())
-        .digest('hex')
-        .slice(0, 16);
+      const accountKey = deriveAccountKey();
 
       await bindingsStore.set({
         accountKey,

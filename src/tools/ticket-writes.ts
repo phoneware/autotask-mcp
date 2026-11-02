@@ -617,7 +617,15 @@ export const ticketWriteTools: ToolDefinition[] = [
       },
       required: ['ticketID', 'title', 'description', 'operationId'],
     },
-    handler: (args) => recordTicketEvidenceHandler(args),
+    handler: (args) =>
+      recordTicketEvidenceHandler({
+        ticketID: String(args.ticketID ?? ''),
+        title: String(args.title ?? ''),
+        description: String(args.description ?? ''),
+        operationId: String(args.operationId ?? ''),
+        noteType: args.noteType !== undefined ? String(args.noteType) : undefined,
+        publish: args.publish !== undefined ? String(args.publish) : undefined,
+      }),
   },
   {
     name: 'set-ticket-checklist-item',

@@ -1,8 +1,10 @@
-import { getBindingsStore } from '../src/archive/bindings.js';
-import type { CompanyArchiveBinding } from '../src/provisioning/contracts.js';
+import { getBindingsStore } from '../archive/bindings.js';
+import { getRequirementsStore, type ChecklistTaskRequirement } from '../provisioning/requirements.js';
+import type { CompanyArchiveBinding } from '../provisioning/contracts.js';
 
 /**
- * Privileged administration utility for customer archive destination bindings.
+ * Privileged administration command for customer archive destination bindings
+ * and server-owned checklist requirements.
  * Excluded from ordinary MCP capabilities.
  */
 export async function setCompanyArchiveBinding(params: {
@@ -62,10 +64,7 @@ export async function setCompanyArchiveBinding(params: {
   return binding;
 }
 
-export async function getCompanyArchiveBinding(
-  accountKey: string,
-  companyId: string,
-): Promise<CompanyArchiveBinding | null> {
-  const store = getBindingsStore();
-  return store.get(accountKey, companyId);
+export async function setChecklistRequirement(params: ChecklistTaskRequirement): Promise<void> {
+  const store = getRequirementsStore();
+  await store.set(params);
 }
