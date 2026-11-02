@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { Firestore } from '@google-cloud/firestore';
+import { Firestore, type DocumentSnapshot } from '@google-cloud/firestore';
 import type {
   Actor,
   Claim,
@@ -8,11 +8,13 @@ import type {
   OperationReceipt,
   TicketCoordinator,
   CompanyArchiveBinding,
+  PreparedRequest,
+  DispatchIdentity,
 } from './contracts.js';
 import { deriveCanonicalAccountKey, assertAccountWriteAdmitted } from './account.js';
 import { sanitizeErrorMessage } from '../safe-errors.js';
 import { BINDINGS_COLLECTION } from '../archive/bindings.js';
-
+import { REQUIREMENTS_COLLECTION, type ChecklistTaskRequirement } from './requirements.js';
 export const OPERATIONS_COLLECTION = 'provisioning_operations';
 export const COORDINATORS_COLLECTION = 'provisioning_coordinators';
 
@@ -27,6 +29,11 @@ export function canonicalizeNumericId(raw: string | number, label = 'id'): strin
   const str = String(raw).trim();
   if (!/^\d+$/.test(str)) {
     throw new Error(`${label} must be a positive numeric integer (got: ${JSON.stringify(raw)})`);
+  }
+  if (str.length > 1 && str.startsWith('0')) {
+    throw new Error(
+      `${label} must be a canonical numeric integer without leading zeros (got: ${JSON.stringify(raw)})`,
+    );
   }
   const n = parseInt(str, 10);
   if (!Number.isSafeInteger(n) || n <= 0) {
@@ -58,9 +65,16 @@ export function computeIntentSha256(
   ticketId: string,
   kind: string,
   payload: Record<string, unknown>,
+  actor?: Actor,
+  targetId?: string,
 ): string {
   const canonicalJson = canonicalJsonStringify(payload);
-  return crypto.createHash('sha256').update(`${ticketId}:${kind}:${canonicalJson}`).digest('hex');
+  const actorStr = actor ? `${actor.email.toLowerCase()}:${actor.resourceId}:` : '';
+  const targetStr = targetId ? `${targetId}:` : '';
+  return crypto
+    .createHash('sha256')
+    .update(`${ticketId}:${targetStr}${kind}:${actorStr}${canonicalJson}`)
+    .digest('hex');
 }
 
 /**
@@ -91,6 +105,14 @@ export interface ArmDispatchOptions {
   policyFingerprint?: string;
   requiredBindingId?: string;
   expectedPolicyRevision?: number;
+  requiredRequirementId?: string;
+  expectedRequirementRevision?: number;
+  requiredEvidenceOpKey?: string;
+}
+
+export interface ObservationOnlyOptions {
+  requiredRequirementId?: string;
+  expectedRequirementRevision?: number;
 }
 
 export interface OperationStore {
@@ -111,6 +133,7 @@ export interface OperationStore {
     operationId: string;
     claim: Claim;
     preparedState: Record<string, unknown>;
+    preparedRequest?: PreparedRequest;
   }): Promise<void>;
 
   getOperation(accountKey: string, operationId: string): Promise<OperationIntent | null>;
@@ -138,7 +161,7 @@ export interface OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: OperationReceipt | Record<string, unknown>,
+    receipt: OperationReceipt,
     dispatchId?: string,
   ): Promise<void>;
 
@@ -147,9 +170,9 @@ export interface OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: OperationReceipt | Record<string, unknown>,
+    receipt: OperationReceipt,
+    options?: ObservationOnlyOptions,
   ): Promise<void>;
-
   markUncertain(
     accountKey: string,
     ticketId: string,
@@ -192,10 +215,13 @@ export class MemoryOperationStore implements OperationStore {
       if (
         existing.intentSha256 !== params.intentSha256 ||
         existing.ticketId !== params.ticketId ||
-        existing.kind !== params.kind
+        existing.kind !== params.kind ||
+        (params.targetId && existing.targetId !== params.targetId) ||
+        existing.actor?.email?.toLowerCase() !== params.actor.email.toLowerCase() ||
+        existing.actor?.resourceId !== params.actor.resourceId
       ) {
         throw new Error(
-          `Conflict: operationId "${params.operationId}" was already prepared with different immutable intent`,
+          `Conflict: operationId "${params.operationId}" was already prepared with different immutable intent, target, or actor`,
         );
       }
       return { ...existing };
@@ -203,7 +229,7 @@ export class MemoryOperationStore implements OperationStore {
 
     const now = Date.now();
     const op: OperationIntent = {
-      version: 2,
+      version: 3,
       accountKey: params.accountKey,
       operationId: params.operationId,
       operationKey: key,
@@ -228,6 +254,7 @@ export class MemoryOperationStore implements OperationStore {
     operationId: string;
     claim: Claim;
     preparedState: Record<string, unknown>;
+    preparedRequest?: PreparedRequest;
   }): Promise<void> {
     const now = Date.now();
     const coordKey = coordinatorDocId(params.accountKey, params.ticketId);
@@ -271,7 +298,20 @@ export class MemoryOperationStore implements OperationStore {
       }
     }
 
+    if (op.preparedRequest && params.preparedRequest) {
+      const existingReq = canonicalJsonStringify(op.preparedRequest);
+      const incomingReq = canonicalJsonStringify(params.preparedRequest);
+      if (existingReq !== incomingReq) {
+        throw new Error(
+          `Conflict: operation "${params.operationId}" already has immutable preparedRequest committed; replacement refused`,
+        );
+      }
+    }
+
     op.preparedState = { ...params.preparedState };
+    if (params.preparedRequest) {
+      op.preparedRequest = params.preparedRequest;
+    }
     op.phase = 'prepared';
     op.updatedAt = now;
   }
@@ -398,19 +438,26 @@ export class MemoryOperationStore implements OperationStore {
     }
 
     const dispatchId = crypto.randomUUID();
-    coord.activeDispatch = {
+    const dispatchIdentity: DispatchIdentity = {
       dispatchId,
       operationKey: opKey,
-      attemptId,
-      operationId,
       intentSha256,
-      preparedSha256: options?.preparedSha256,
-      requestSha256: options?.requestSha256,
+      preparedSha256: options?.preparedSha256 ?? op.preparedRequest?.preparedSha256 ?? '',
+      requestSha256: options?.requestSha256 ?? '',
       policyFingerprint: options?.policyFingerprint,
+      originalAttemptId: attemptId,
+      originalFence: coord.fence,
+      armedAt: now,
+    };
+
+    coord.activeDispatch = {
+      ...dispatchIdentity,
+      operationId,
       dispatchedAt: now,
     };
 
     op.phase = 'dispatching';
+    op.dispatch = dispatchIdentity;
     op.dispatchedAt = now;
     op.updatedAt = now;
 
@@ -422,7 +469,7 @@ export class MemoryOperationStore implements OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: OperationReceipt | Record<string, unknown>,
+    receipt: OperationReceipt,
     dispatchId?: string,
   ): Promise<void> {
     const now = Date.now();
@@ -462,6 +509,14 @@ export class MemoryOperationStore implements OperationStore {
       throw new Error(`Conflict: cannot finalize operation in phase "${op.phase}"`);
     }
 
+    if (dispatchId && op.dispatch && op.dispatch.dispatchId !== dispatchId) {
+      throw new Error('Conflict: operation dispatchId mismatch during finalization');
+    }
+
+    if (receipt.kind && receipt.kind !== op.kind) {
+      throw new Error(`Conflict: receipt kind "${receipt.kind}" does not match operation kind "${op.kind}"`);
+    }
+
     op.phase = 'verified';
     op.completedAt = now;
     op.updatedAt = now;
@@ -473,7 +528,8 @@ export class MemoryOperationStore implements OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: OperationReceipt | Record<string, unknown>,
+    receipt: OperationReceipt,
+    _options?: ObservationOnlyOptions,
   ): Promise<void> {
     const now = Date.now();
     const coordKey = coordinatorDocId(accountKey, ticketId);
@@ -496,12 +552,22 @@ export class MemoryOperationStore implements OperationStore {
 
     const opKey = operationKey(accountKey, operationId);
     const op = this.operations.get(opKey);
-    if (op) {
-      op.phase = 'verified';
-      op.completedAt = now;
-      op.updatedAt = now;
-      op.receipt = receipt;
+    if (!op) {
+      throw new Error(`Operation "${operationId}" not found`);
     }
+
+    if (op.phase !== 'preparing' && op.phase !== 'prepared') {
+      throw new Error(`Conflict: cannot record observation-only for operation in phase "${op.phase}"`);
+    }
+
+    if (op.dispatch) {
+      throw new Error('Conflict: operation already has a dispatch record; observation-only refused');
+    }
+
+    op.phase = 'verified';
+    op.completedAt = now;
+    op.updatedAt = now;
+    op.receipt = receipt;
   }
 
   async markUncertain(
@@ -510,16 +576,49 @@ export class MemoryOperationStore implements OperationStore {
     attemptId: string,
     operationId: string,
     error: string,
-    _dispatchId?: string,
+    dispatchId?: string,
   ): Promise<void> {
+    const now = Date.now();
+    const coordKey = coordinatorDocId(accountKey, ticketId);
+    const coord = this.coordinators.get(coordKey);
+
+    if (
+      !coord ||
+      !coord.lease ||
+      coord.lease.attemptId !== attemptId ||
+      coord.lease.expiresAt <= now
+    ) {
+      throw new Error(`Conflict: lease expired or not owned by attempt ${attemptId}`);
+    }
+
+    if (coord.activeDispatch) {
+      if (coord.activeDispatch.operationId !== operationId) {
+        throw new Error(
+          `Conflict: active dispatch barrier belongs to operation "${coord.activeDispatch.operationId}", not "${operationId}"`,
+        );
+      }
+      if (dispatchId && coord.activeDispatch.dispatchId && coord.activeDispatch.dispatchId !== dispatchId) {
+        throw new Error('Conflict: dispatchId mismatch when marking uncertain');
+      }
+    }
+
     const opKey = operationKey(accountKey, operationId);
     const op = this.operations.get(opKey);
-    if (op && op.phase !== 'verified') {
-      op.phase = 'uncertain';
-      op.updatedAt = Date.now();
-      op.error = sanitizeErrorMessage(error);
+    if (!op) {
+      throw new Error(`Operation "${operationId}" not found`);
     }
-    // Note: coord.activeDispatch barrier remains intact!
+
+    if (op.ticketId !== ticketId) {
+      throw new Error(`Conflict: operation ticketId mismatch (${op.ticketId} vs ${ticketId})`);
+    }
+
+    if (op.phase !== 'dispatching' && op.phase !== 'uncertain') {
+      throw new Error(`Conflict: cannot mark operation uncertain from phase "${op.phase}"`);
+    }
+
+    op.phase = 'uncertain';
+    op.updatedAt = now;
+    op.error = sanitizeErrorMessage(error);
   }
 
   async renewLease(
@@ -588,10 +687,13 @@ export class FirestoreOperationStore implements OperationStore {
         if (
           existing.intentSha256 !== params.intentSha256 ||
           existing.ticketId !== params.ticketId ||
-          existing.kind !== params.kind
+          existing.kind !== params.kind ||
+          (params.targetId && existing.targetId !== params.targetId) ||
+          existing.actor?.email?.toLowerCase() !== params.actor.email.toLowerCase() ||
+          existing.actor?.resourceId !== params.actor.resourceId
         ) {
           throw new Error(
-            `Conflict: operationId "${params.operationId}" was already prepared with different immutable intent`,
+            `Conflict: operationId "${params.operationId}" was already prepared with different immutable intent, target, or actor`,
           );
         }
         return existing;
@@ -599,7 +701,7 @@ export class FirestoreOperationStore implements OperationStore {
 
       const now = Date.now();
       const op: OperationIntent = {
-        version: 2,
+        version: 3,
         accountKey: params.accountKey,
         operationId: params.operationId,
         operationKey: key,
@@ -625,6 +727,7 @@ export class FirestoreOperationStore implements OperationStore {
     operationId: string;
     claim: Claim;
     preparedState: Record<string, unknown>;
+    preparedRequest?: PreparedRequest;
   }): Promise<void> {
     if (params.claim.mode === 'reconciling') {
       throw new Error(
@@ -639,6 +742,7 @@ export class FirestoreOperationStore implements OperationStore {
 
     await this.firestore.runTransaction(async (txn) => {
       const coordSnap = await txn.get(coordRef);
+      const opSnap = await txn.get(opRef);
       const now = Date.now();
       const coord = coordSnap.data() as TicketCoordinator | undefined;
 
@@ -654,14 +758,15 @@ export class FirestoreOperationStore implements OperationStore {
         );
       }
 
-      const opSnap = await txn.get(opRef);
       const op = opSnap.data() as OperationIntent | undefined;
       if (!op) {
         throw new Error(`Operation "${params.operationId}" not found`);
       }
 
       if (op.phase !== 'preparing' && op.phase !== 'prepared') {
-        throw new Error(`Conflict: operation "${params.operationId}" is already ${op.phase}; preparation refused`);
+        throw new Error(
+          `Conflict: operation "${params.operationId}" is already ${op.phase}; preparation refused`,
+        );
       }
 
       if (op.preparedState) {
@@ -674,11 +779,25 @@ export class FirestoreOperationStore implements OperationStore {
         }
       }
 
-      txn.update(opRef, {
+      if (op.preparedRequest && params.preparedRequest) {
+        const existingReq = canonicalJsonStringify(op.preparedRequest);
+        const incomingReq = canonicalJsonStringify(params.preparedRequest);
+        if (existingReq !== incomingReq) {
+          throw new Error(
+            `Conflict: operation "${params.operationId}" already has immutable preparedRequest committed; replacement refused`,
+          );
+        }
+      }
+
+      const updates: Record<string, unknown> = {
         preparedState: { ...params.preparedState },
         phase: 'prepared',
         updatedAt: now,
-      });
+      };
+      if (params.preparedRequest) {
+        updates.preparedRequest = params.preparedRequest;
+      }
+      txn.update(opRef, updates);
     });
   }
 
@@ -796,7 +915,26 @@ export class FirestoreOperationStore implements OperationStore {
     const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
 
     return this.firestore.runTransaction(async (txn) => {
+      // ALL READS FIRST
       const coordSnap = await txn.get(coordRef);
+      const opSnap = await txn.get(opRef);
+      let bindingSnap: DocumentSnapshot | null = null;
+      let reqSnap: DocumentSnapshot | null = null;
+      let evOpSnap: DocumentSnapshot | null = null;
+
+      if (options?.requiredBindingId) {
+        const bindingRef = this.firestore.collection(BINDINGS_COLLECTION).doc(options.requiredBindingId);
+        bindingSnap = await txn.get(bindingRef);
+      }
+      if (options?.requiredRequirementId) {
+        const reqRef = this.firestore.collection(REQUIREMENTS_COLLECTION).doc(options.requiredRequirementId);
+        reqSnap = await txn.get(reqRef);
+      }
+      if (options?.requiredEvidenceOpKey) {
+        const evRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(options.requiredEvidenceOpKey);
+        evOpSnap = await txn.get(evRef);
+      }
+
       const now = Date.now();
       const data = coordSnap.data() as TicketCoordinator | undefined;
 
@@ -810,7 +948,6 @@ export class FirestoreOperationStore implements OperationStore {
         );
       }
 
-      const opSnap = await txn.get(opRef);
       const opData = opSnap.data() as OperationIntent | undefined;
       if (!opData || opData.phase !== 'prepared') {
         throw new Error(
@@ -826,58 +963,83 @@ export class FirestoreOperationStore implements OperationStore {
         );
       }
 
-      // Re-verify authoritative policy in the arming transaction if required
-      if (options?.requiredBindingId) {
-        const bindingRef = this.firestore.collection(BINDINGS_COLLECTION).doc(options.requiredBindingId);
-        const bindingSnap = await txn.get(bindingRef);
+      if (bindingSnap) {
         if (!bindingSnap.exists) {
-          throw new Error(`Conflict: required binding "${options.requiredBindingId}" not found during arming`);
+          throw new Error(`Conflict: required binding "${options!.requiredBindingId}" not found during arming`);
         }
         const binding = bindingSnap.data() as CompanyArchiveBinding;
         if (binding.disabled) {
-          throw new Error(`Conflict: required binding "${options.requiredBindingId}" is disabled`);
+          throw new Error(`Conflict: required binding "${options!.requiredBindingId}" is disabled`);
         }
-        if (
-          options.expectedPolicyRevision !== undefined &&
-          binding.version !== options.expectedPolicyRevision
-        ) {
+        if (options!.expectedPolicyRevision !== undefined && binding.version !== options!.expectedPolicyRevision) {
           throw new Error(
-            `Conflict: binding revision changed during arming (expected: ${options.expectedPolicyRevision}, current: ${binding.version})`,
+            `Conflict: binding revision changed during arming (expected: ${options!.expectedPolicyRevision}, current: ${binding.version})`,
           );
         }
       }
 
+      if (reqSnap) {
+        if (!reqSnap.exists) {
+          throw new Error(`Conflict: required requirement "${options!.requiredRequirementId}" not found during arming`);
+        }
+        const req = reqSnap.data() as ChecklistTaskRequirement;
+        if (req.disabled) {
+          throw new Error(`Conflict: required requirement "${options!.requiredRequirementId}" is disabled`);
+        }
+        if (options!.expectedRequirementRevision !== undefined && req.version !== options!.expectedRequirementRevision) {
+          throw new Error(
+            `Conflict: requirement revision changed during arming (expected: ${options!.expectedRequirementRevision}, current: ${req.version})`,
+          );
+        }
+      }
+
+      if (evOpSnap) {
+        if (!evOpSnap.exists) {
+          throw new Error(`Conflict: required evidence operation "${options!.requiredEvidenceOpKey}" not found during arming`);
+        }
+        const ev = evOpSnap.data() as OperationIntent;
+        if (ev.phase !== 'verified') {
+          throw new Error(`Conflict: required evidence operation "${options!.requiredEvidenceOpKey}" is not verified`);
+        }
+      }
+
       const dispatchId = crypto.randomUUID();
+      const dispatchIdentity: DispatchIdentity = {
+        dispatchId,
+        operationKey: opKey,
+        intentSha256,
+        preparedSha256: options?.preparedSha256 ?? opData.preparedRequest?.preparedSha256 ?? '',
+        requestSha256: options?.requestSha256 ?? '',
+        policyFingerprint: options?.policyFingerprint,
+        originalAttemptId: attemptId,
+        originalFence: data.fence,
+        armedAt: now,
+      };
+
       txn.update(coordRef, {
         activeDispatch: {
-          dispatchId,
-          operationKey: opKey,
-          attemptId,
+          ...dispatchIdentity,
           operationId,
-          intentSha256,
-          preparedSha256: options?.preparedSha256,
-          requestSha256: options?.requestSha256,
-          policyFingerprint: options?.policyFingerprint,
           dispatchedAt: now,
         },
       });
 
       txn.update(opRef, {
         phase: 'dispatching',
+        dispatch: dispatchIdentity,
         dispatchedAt: now,
         updatedAt: now,
       });
 
       return { armed: true, dispatchId, expiresAt: data.lease.expiresAt };
     });
-  }
 
   async markVerified(
     accountKey: string,
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: OperationReceipt | Record<string, unknown>,
+    receipt: OperationReceipt,
     dispatchId?: string,
   ): Promise<void> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
@@ -886,7 +1048,10 @@ export class FirestoreOperationStore implements OperationStore {
     const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
 
     await this.firestore.runTransaction(async (txn) => {
+      // ALL READS FIRST
       const coordSnap = await txn.get(coordRef);
+      const opSnap = await txn.get(opRef);
+
       const data = coordSnap.data() as TicketCoordinator | undefined;
       const now = Date.now();
 
@@ -910,10 +1075,8 @@ export class FirestoreOperationStore implements OperationStore {
         if (dispatchId && data.activeDispatch.dispatchId && data.activeDispatch.dispatchId !== dispatchId) {
           throw new Error('Conflict: dispatchId mismatch during finalization');
         }
-        txn.update(coordRef, { activeDispatch: null });
       }
 
-      const opSnap = await txn.get(opRef);
       const op = opSnap.data() as OperationIntent | undefined;
       if (!op) {
         throw new Error(`Operation "${operationId}" not found`);
@@ -921,6 +1084,19 @@ export class FirestoreOperationStore implements OperationStore {
 
       if (op.phase !== 'dispatching' && op.phase !== 'uncertain') {
         throw new Error(`Conflict: cannot finalize operation in phase "${op.phase}"`);
+      }
+
+      if (dispatchId && op.dispatch && op.dispatch.dispatchId !== dispatchId) {
+        throw new Error('Conflict: operation dispatchId mismatch during finalization');
+      }
+
+      if (receipt.kind && receipt.kind !== op.kind) {
+        throw new Error(`Conflict: receipt kind "${receipt.kind}" does not match operation kind "${op.kind}"`);
+      }
+
+      // NOW ALL WRITES QUEUED
+      if (coordSnap.exists && data?.activeDispatch) {
+        txn.update(coordRef, { activeDispatch: null });
       }
 
       const updates: Record<string, unknown> = {
@@ -938,7 +1114,8 @@ export class FirestoreOperationStore implements OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: OperationReceipt | Record<string, unknown>,
+    receipt: OperationReceipt,
+    options?: ObservationOnlyOptions,
   ): Promise<void> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
@@ -946,7 +1123,15 @@ export class FirestoreOperationStore implements OperationStore {
     const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
 
     await this.firestore.runTransaction(async (txn) => {
+      // ALL READS FIRST
       const coordSnap = await txn.get(coordRef);
+      const opSnap = await txn.get(opRef);
+      let reqSnap: DocumentSnapshot | null = null;
+      if (options?.requiredRequirementId) {
+        const reqRef = this.firestore.collection(REQUIREMENTS_COLLECTION).doc(options.requiredRequirementId);
+        reqSnap = await txn.get(reqRef);
+      }
+
       const now = Date.now();
       const coord = coordSnap.data() as TicketCoordinator | undefined;
 
@@ -965,6 +1150,33 @@ export class FirestoreOperationStore implements OperationStore {
         );
       }
 
+      const op = opSnap.data() as OperationIntent | undefined;
+      if (!op) {
+        throw new Error(`Operation "${operationId}" not found`);
+      }
+
+      if (op.phase !== 'preparing' && op.phase !== 'prepared') {
+        throw new Error(`Conflict: cannot record observation-only for operation in phase "${op.phase}"`);
+      }
+
+      if (op.dispatch) {
+        throw new Error('Conflict: operation already has a dispatch record; observation-only refused');
+      }
+
+      if (reqSnap) {
+        if (!reqSnap.exists) {
+          throw new Error('Conflict: required requirement not found during observation-only finalization');
+        }
+        const req = reqSnap.data() as ChecklistTaskRequirement;
+        if (req.disabled) {
+          throw new Error('Conflict: required requirement is disabled');
+        }
+        if (options!.expectedRequirementRevision !== undefined && req.version !== options!.expectedRequirementRevision) {
+          throw new Error('Conflict: requirement revision changed during observation-only finalization');
+        }
+      }
+
+      // NOW QUEUE WRITES
       txn.update(opRef, {
         phase: 'verified',
         completedAt: now,
@@ -980,20 +1192,60 @@ export class FirestoreOperationStore implements OperationStore {
     attemptId: string,
     operationId: string,
     error: string,
-    _dispatchId?: string,
+    dispatchId?: string,
   ): Promise<void> {
+    const coordKey = coordinatorDocId(accountKey, ticketId);
+    const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
     const opKey = operationKey(accountKey, operationId);
     const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
+
     await this.firestore.runTransaction(async (txn) => {
-      const snap = await txn.get(opRef);
-      const data = snap.data() as OperationIntent | undefined;
-      if (data && data.phase !== 'verified') {
-        txn.update(opRef, {
-          phase: 'uncertain',
-          updatedAt: Date.now(),
-          error: sanitizeErrorMessage(error),
-        });
+      // ALL READS FIRST
+      const coordSnap = await txn.get(coordRef);
+      const opSnap = await txn.get(opRef);
+
+      const coord = coordSnap.data() as TicketCoordinator | undefined;
+      const now = Date.now();
+
+      if (
+        !coord ||
+        !coord.lease ||
+        coord.lease.attemptId !== attemptId ||
+        coord.lease.expiresAt <= now
+      ) {
+        throw new Error(`Conflict: lease expired or not owned by attempt ${attemptId}`);
       }
+
+      if (coord.activeDispatch) {
+        if (coord.activeDispatch.operationId !== operationId) {
+          throw new Error(
+            `Conflict: active dispatch barrier belongs to "${coord.activeDispatch.operationId}", not "${operationId}"`,
+          );
+        }
+        if (dispatchId && coord.activeDispatch.dispatchId && coord.activeDispatch.dispatchId !== dispatchId) {
+          throw new Error('Conflict: dispatchId mismatch when marking uncertain');
+        }
+      }
+
+      const op = opSnap.data() as OperationIntent | undefined;
+      if (!op) {
+        throw new Error(`Operation "${operationId}" not found`);
+      }
+
+      if (op.ticketId !== ticketId) {
+        throw new Error(`Conflict: operation ticketId mismatch (${op.ticketId} vs ${ticketId})`);
+      }
+
+      if (op.phase !== 'dispatching' && op.phase !== 'uncertain') {
+        throw new Error(`Conflict: cannot mark operation uncertain from phase "${op.phase}"`);
+      }
+
+      // NOW QUEUE WRITE (coord.activeDispatch barrier remains intact!)
+      txn.update(opRef, {
+        phase: 'uncertain',
+        updatedAt: now,
+        error: sanitizeErrorMessage(error),
+      });
     });
   }
 

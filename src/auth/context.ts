@@ -54,16 +54,6 @@ export function resolveActorOrThrow(): { email: string; resourceId: number } {
     }
   }
 
-  // Check stdio / environment actor if running outside authenticated HTTP session
-  const envEmail = (process.env.AUTOTASK_ACTOR_EMAIL || process.env.STDIO_ACTOR_EMAIL || '').trim().toLowerCase();
-  const envResId = parseInt(
-    process.env.AUTOTASK_ACTOR_RESOURCE_ID || process.env.STDIO_ACTOR_RESOURCE_ID || '',
-    10,
-  );
-  if (envEmail && Number.isSafeInteger(envResId) && envResId > 0) {
-    return { email: envEmail, resourceId: envResId };
-  }
-
   throw new Error(
     'Refused: provisioning operations require an authenticated caller with a verified email and positive resourceId. Fallback or anonymous actors are forbidden.',
   );

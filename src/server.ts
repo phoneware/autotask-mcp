@@ -17,7 +17,8 @@ import {
   isReadonly,
 } from './security.js';
 import { permits, type Capability } from './auth/capabilities.js';
-import { currentCaller } from './auth/context.js';
+import { currentCaller, withCaller, type CallerIdentity } from './auth/context.js';
+import { lookupResourceByEmail, isResolved } from './auth/resource-lookup.js';
 import {
   setActiveServer,
   elicitConfirmation,
@@ -44,6 +45,7 @@ const pkg = JSON.parse(
 export function buildServer(
   capabilities?: readonly Capability[],
   promotedTools?: readonly string[],
+  defaultCaller?: CallerIdentity,
 ): {
   server: McpServer;
   registeredCount: number;
@@ -95,48 +97,50 @@ export function buildServer(
         annotations: tool.annotations,
       },
       async (args) => {
-        try {
-          const stringArgs: Record<string, string> = {};
-          for (const [k, v] of Object.entries(args)) {
-            if (v !== undefined) stringArgs[k] = String(v);
-          }
+        const effectiveCaller = currentCaller() ?? defaultCaller;
+        return withCaller(effectiveCaller, async () => {
+          try {
+            const stringArgs: Record<string, string> = {};
+            for (const [k, v] of Object.entries(args)) {
+              if (v !== undefined) stringArgs[k] = String(v);
+            }
 
-          const caller = currentCaller();
-          if (caller) {
-            assertCapability(tool.name, caller.capabilities, caller.email);
-          }
+            if (effectiveCaller) {
+              assertCapability(tool.name, effectiveCaller.capabilities, effectiveCaller.email);
+            }
 
-          if (confirmToken) {
-            assertConfirmToken(tool.name, confirmToken, stringArgs.confirm);
-            delete stringArgs.confirm;
-          }
+            if (confirmToken) {
+              assertConfirmToken(tool.name, confirmToken, stringArgs.confirm);
+              delete stringArgs.confirm;
+            }
 
-          if (isDestructive && confirmDestructiveEnabled()) {
-            await elicitConfirmation(tool.name, stringArgs, server.server);
-          }
+            if (isDestructive && confirmDestructiveEnabled()) {
+              await elicitConfirmation(tool.name, stringArgs, server.server);
+            }
 
-          const result = await tool.handler(stringArgs, { server: server.server });
-          return {
-            ...result,
-            structuredContent: result.structuredContent,
-          } as {
-            content: ToolContentBlock[];
-            structuredContent?: Record<string, unknown>;
-            isError?: boolean;
-            [key: string]: unknown;
-          };
-        } catch (err: unknown) {
-          const rawMsg = err instanceof Error ? err.message : String(err);
-          const message = sanitizeErrorMessage(rawMsg);
-          return {
-            content: [{ type: 'text' as const, text: `Error: ${message}` }],
-            isError: true,
-          } as {
-            content: ToolContentBlock[];
-            isError: boolean;
-            [key: string]: unknown;
-          };
-        }
+            const result = await tool.handler(stringArgs, { server: server.server });
+            return {
+              ...result,
+              structuredContent: result.structuredContent,
+            } as {
+              content: ToolContentBlock[];
+              structuredContent?: Record<string, unknown>;
+              isError?: boolean;
+              [key: string]: unknown;
+            };
+          } catch (err: unknown) {
+            const rawMsg = err instanceof Error ? err.message : String(err);
+            const message = sanitizeErrorMessage(rawMsg);
+            return {
+              content: [{ type: 'text' as const, text: `Error: ${message}` }],
+              isError: true,
+            } as {
+              content: ToolContentBlock[];
+              isError: boolean;
+              [key: string]: unknown;
+            };
+          }
+        });
       },
     );
     registeredCount++;
@@ -244,8 +248,41 @@ export function buildServer(
 }
 
 export async function runStdio(): Promise<void> {
+  const envEmail = (process.env.AUTOTASK_ACTOR_EMAIL || process.env.STDIO_ACTOR_EMAIL || '')
+    .trim()
+    .toLowerCase();
+  let stdioCaller: CallerIdentity | undefined;
+
+  if (envEmail) {
+    const resolution = await lookupResourceByEmail(envEmail);
+    if (!isResolved(resolution)) {
+      throw new Error(`Failed to resolve stdio actor email "${envEmail}": ${resolution.reason}`);
+    }
+
+    const envResId = parseInt(
+      process.env.AUTOTASK_ACTOR_RESOURCE_ID || process.env.STDIO_ACTOR_RESOURCE_ID || '',
+      10,
+    );
+    if (Number.isSafeInteger(envResId) && envResId > 0 && envResId !== resolution.resourceId) {
+      throw new Error(
+        `Stdio actor resourceId mismatch: environment=${envResId}, authoritative=${resolution.resourceId}`,
+      );
+    }
+
+    stdioCaller = {
+      email: envEmail,
+      resourceId: resolution.resourceId,
+      userType: resolution.userType,
+      capabilities: resolution.capabilities,
+    };
+  }
+
   const promoted = await getPromotedToolNames('stdio');
-  const { server, registeredCount, skipped } = buildServer(undefined, promoted);
+  const { server, registeredCount, skipped } = buildServer(
+    stdioCaller?.capabilities,
+    promoted,
+    stdioCaller,
+  );
   const transport = new StdioServerTransport();
   await server.connect(transport);
   const mode = isReadonly() ? 'READONLY' : 'full';

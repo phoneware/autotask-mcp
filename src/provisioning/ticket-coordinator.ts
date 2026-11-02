@@ -14,6 +14,7 @@ import {
   computeIntentSha256,
   type OperationStore,
   type ArmDispatchOptions,
+  type ObservationOnlyOptions,
 } from './operation-store.js';
 import {
   issueDispatchPermit,
@@ -26,6 +27,7 @@ export interface TicketOperationInput {
   operationId: string;
   kind: OperationKind;
   payload: Record<string, unknown>;
+  targetId?: string;
   effectiveZoneUrl?: string;
   store?: OperationStore;
   ttlMs?: number;
@@ -34,13 +36,13 @@ export interface TicketOperationInput {
 export class TicketCoordinatorSession {
   readonly accountKey: string;
   readonly ticketId: string;
+  readonly targetId?: string;
   readonly actor: Actor;
   readonly operationId: string;
   readonly kind: OperationKind;
   readonly payload: Record<string, unknown>;
   readonly intentSha256: string;
   readonly attemptId: string;
-
   private readonly store: OperationStore;
   private readonly ttlMs: number;
   private claim: Claim | null = null;
@@ -65,8 +67,8 @@ export class TicketCoordinatorSession {
       email: rawEmail,
       resourceId: rawResourceId,
     };
-
     this.ticketId = canonicalizeNumericId(params.ticketId, 'ticketId');
+    this.targetId = params.targetId;
     this.accountKey = deriveAccountKey(params.effectiveZoneUrl);
     this.operationId = params.operationId;
     this.kind = params.kind;
@@ -75,9 +77,14 @@ export class TicketCoordinatorSession {
     this.ttlMs = params.ttlMs ?? 15000;
     this.attemptId = crypto.randomUUID();
 
-    this.intentSha256 = computeIntentSha256(this.ticketId, this.kind, this.payload);
+    this.intentSha256 = computeIntentSha256(
+      this.ticketId,
+      this.kind,
+      this.payload,
+      this.actor,
+      this.targetId,
+    );
   }
-
   getOperation(): OperationIntent | null {
     return this.operation;
   }
@@ -108,6 +115,7 @@ export class TicketCoordinatorSession {
       actor: this.actor,
       kind: this.kind,
       ticketId: this.ticketId,
+      targetId: this.targetId,
       intentSha256: this.intentSha256,
       payload: this.payload,
     });
@@ -160,7 +168,7 @@ export class TicketCoordinatorSession {
 
   async commitPreparation(
     preparedState: Record<string, unknown>,
-    _preparedRequest?: PreparedRequest,
+    preparedRequest?: PreparedRequest,
   ): Promise<void> {
     if (!this.claim || !this.isFencedAndValid()) {
       throw new Error(
@@ -173,9 +181,13 @@ export class TicketCoordinatorSession {
       operationId: this.operationId,
       claim: this.claim,
       preparedState,
+      preparedRequest,
     });
     if (this.operation) {
       this.operation.preparedState = { ...(this.operation.preparedState ?? {}), ...preparedState };
+      if (preparedRequest) {
+        this.operation.preparedRequest = preparedRequest;
+      }
       this.operation.phase = 'prepared';
     }
   }
@@ -230,7 +242,7 @@ export class TicketCoordinatorSession {
     return { armed: true, dispatchId: this.dispatchId, permitToken: this.currentPermitToken };
   }
 
-  async markVerified(receipt: OperationReceipt | Record<string, unknown>): Promise<void> {
+  async markVerified(receipt: OperationReceipt): Promise<void> {
     await this.store.markVerified(
       this.accountKey,
       this.ticketId,
@@ -242,13 +254,17 @@ export class TicketCoordinatorSession {
     this.armed = false;
   }
 
-  async markObservationOnly(receipt: OperationReceipt | Record<string, unknown>): Promise<void> {
+  async markObservationOnly(
+    receipt: OperationReceipt,
+    options?: ObservationOnlyOptions,
+  ): Promise<void> {
     await this.store.markObservationOnly(
       this.accountKey,
       this.ticketId,
       this.attemptId,
       this.operationId,
       receipt,
+      options,
     );
     this.armed = false;
   }

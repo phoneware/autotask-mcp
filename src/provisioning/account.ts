@@ -100,27 +100,49 @@ export async function assertAccountWriteAdmitted(
       `Account writes refused: migration for account ${accountKey} is in status "${data.status}"`,
     );
   }
+  throw new AccountMigrationError(
+    `Account writes refused: unmigrated historical records or missing certification detected. Run administrative account migration for account "${accountKey}" with established quiescence before admitting new writes.`,
+  );
+}
 
-  // Check if store has existing operations or coordinators under legacy namespaces
-  const opsSnap = await firestore.collection('provisioning_operations').limit(1).get();
-  const coordsSnap = await firestore.collection('provisioning_coordinators').limit(1).get();
-
-  if (opsSnap.empty && coordsSnap.empty) {
-    // Certified fresh empty store: automatically record completed migration for this canonical account
-    const record: AccountMigrationRecord = {
-      accountKey,
-      status: 'completed',
-      migratedAt: Date.now(),
-      inventoriedCount: 0,
-      quarantinedCount: 0,
-      legacyNamespaces: [],
-      notes: 'Certified empty store on first canonical initialization',
-    };
-    await docRef.set(record);
-    return;
+/**
+ * Administrative migration certification requiring established old-writer quiescence.
+ */
+export async function certifyAccountMigration(params: {
+  firestore: Firestore;
+  accountKey: string;
+  quiescenceEstablished: boolean;
+  notes?: string;
+}): Promise<AccountMigrationRecord> {
+  if (!params.quiescenceEstablished) {
+    throw new Error(
+      'Refused: old-writer quiescence must be established before certifying account migration',
+    );
+  }
+  const docRef = params.firestore.collection(ACCOUNT_MIGRATIONS_COLLECTION).doc(params.accountKey);
+  const snap = await docRef.get();
+  if (snap.exists) {
+    const existing = snap.data() as AccountMigrationRecord;
+    if (existing.status === 'completed') {
+      return existing;
+    }
   }
 
-  throw new AccountMigrationError(
-    `Account writes refused: unmigrated historical records detected. Run administrative account migration for account "${accountKey}" before admitting new writes.`,
-  );
+  const legacyOps = await params.firestore.collection('provisioning_operations').get();
+  const legacyCoords = await params.firestore.collection('provisioning_coordinators').get();
+
+  const record: AccountMigrationRecord = {
+    accountKey: params.accountKey,
+    status: 'completed',
+    migratedAt: Date.now(),
+    inventoriedCount: legacyOps.size + legacyCoords.size,
+    quarantinedCount: 0,
+    legacyNamespaces: ['provisioning_operations', 'provisioning_coordinators'],
+    notes:
+      params.notes ??
+      'Certified via administrative migration command with established quiescence',
+  };
+
+  await docRef.set(record);
+  return record;
 }

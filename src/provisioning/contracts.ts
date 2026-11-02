@@ -38,9 +38,12 @@ export interface PreparedRequest {
   provider: 'autotask' | 'google-drive';
   canonicalRoute: string;
   method: 'POST' | 'PATCH' | 'PUT';
+  dispatchNonce: string;
+  target: string;
   exactBodyDigest: string;
   requiredAttribution?: string;
   policyFingerprint?: string;
+  policyReferences?: string[];
   preparedSha256: string;
   frozenParameters: Record<string, unknown>;
 }
@@ -87,7 +90,7 @@ export interface CompanyArchiveBinding {
 export interface ArchiveReceipt {
   operationId: string;
   status: 'verified';
-  kind?: 'attachment_archive';
+  kind: 'attachment_archive';
   source: AttachmentMetadata;
   destination: {
     provider: 'google-drive';
@@ -106,7 +109,7 @@ export interface ResolutionAppendReceipt {
   ticketID: number;
   operationId: string;
   status: 'verified';
-  kind?: 'resolution_append';
+  kind: 'resolution_append';
   written: boolean;
   already_present: boolean;
   originalPrefixSha256?: string;
@@ -123,7 +126,7 @@ export interface EvidenceNoteReceipt {
   title: string;
   operationId: string;
   status: 'verified';
-  kind?: 'evidence_note';
+  kind: 'evidence_note';
   created: boolean;
   already_present: boolean;
   contentHash?: string;
@@ -139,7 +142,7 @@ export interface ChecklistSetReceipt {
   checklistItemID: number;
   operationId: string;
   status: 'verified';
-  kind?: 'checklist_set';
+  kind: 'checklist_set';
   isCompleted: boolean;
   semanticFingerprint?: string;
   requirementVersion?: number;
@@ -168,10 +171,10 @@ export type OperationReceipt =
  * MUST NOT contain generated timestamps or allocated resource IDs.
  */
 export interface OperationIntent {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   accountKey: string;
   operationId: string;
-  operationKey?: string;
+  operationKey: string;
   actor: Actor;
   kind: OperationKind;
   ticketId: string; // canonical numeric string without leading zeros
@@ -186,7 +189,7 @@ export interface OperationIntent {
   updatedAt: number;
   dispatchedAt?: number;
   completedAt?: number;
-  receipt?: OperationReceipt | Record<string, unknown>;
+  receipt?: OperationReceipt;
   error?: string;
 }
 
