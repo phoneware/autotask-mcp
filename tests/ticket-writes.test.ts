@@ -21,38 +21,43 @@ import {
   computeItemSemanticFingerprint,
 } from '../src/provisioning/requirements.js';
 
-const { getById, update, request, entityFields, create, query, singleDispatchMutation } =
-  vi.hoisted(() => ({
-    getById: vi.fn(),
-    update: vi.fn(),
-    request: vi.fn(),
-    entityFields: vi.fn(),
-    create: vi.fn(),
-    query: vi.fn(),
-    singleDispatchMutation: vi.fn(
-      async (
-        method: string,
-        path: string,
-        body: unknown,
-        opts?: { armBeforeFetch?: () => Promise<void> },
-      ) => {
-        if (opts?.armBeforeFetch) {
-          await opts.armBeforeFetch();
-        }
-        if (method === 'PATCH' && path === 'V1.0/Tickets') {
-          return update('Tickets', body);
-        }
-        if (method === 'PATCH' && path.includes('ChecklistItems')) {
-          const match = path.match(/Tickets\/(\d+)\/ChecklistItems/);
-          return update('TicketChecklistItems', body, 'Tickets', match ? match[1] : undefined);
-        }
-        if (method === 'POST') {
-          return create(path.replace(/^V1\.0\//, ''), body);
-        }
-        return { success: true };
-      },
-    ),
-  }));
+const {
+  getById,
+  update,
+  request,
+  entityFields,
+  create,
+  query,
+  getPage,
+  singleDispatchMutation,
+  getEffectiveZoneUrl,
+  preflightMutationPrerequisites,
+} = vi.hoisted(() => ({
+  getById: vi.fn(),
+  update: vi.fn(),
+  request: vi.fn(),
+  entityFields: vi.fn(),
+  create: vi.fn(),
+  query: vi.fn(),
+  getPage: vi.fn(),
+  getEffectiveZoneUrl: vi.fn().mockResolvedValue('https://webservices2.autotask.net/atservicesrest/'),
+  preflightMutationPrerequisites: vi.fn().mockResolvedValue(undefined),
+  singleDispatchMutation: vi.fn(async (method: string, path: string, body: unknown) => {
+    if (method === 'PATCH' && path === 'V1.0/Tickets') {
+      return update('Tickets', body);
+    }
+    if (method === 'PATCH' && path.includes('ChecklistItems')) {
+      const match = path.match(/Tickets\/(\d+)\/ChecklistItems/);
+      await update('TicketChecklistItems', body, 'Tickets', match ? match[1] : undefined);
+      const b = body as { id?: number };
+      return { itemId: Number(b?.id ?? 501) };
+    }
+    if (method === 'POST') {
+      return create(path.replace(/^V1\.0\//, ''), body);
+    }
+    return { success: true };
+  }),
+}));
 
 vi.mock('../src/autotask-api.js', () => ({
   api: {
@@ -62,6 +67,9 @@ vi.mock('../src/autotask-api.js', () => ({
     entityFields,
     create,
     query,
+    getPage,
+    getEffectiveZoneUrl,
+    preflightMutationPrerequisites,
     singleDispatchMutation,
   },
 }));
@@ -140,6 +148,7 @@ describe('append-ticket-resolution tool', () => {
       appendTool.handler({
         ticketID: '12345',
         text: 'Installed Frontier eSIM into slot A.',
+        operationId: 'esim-slot-a',
       }),
     );
 
@@ -148,7 +157,7 @@ describe('append-ticket-resolution tool', () => {
     expect(update).toHaveBeenCalledWith('Tickets', {
       id: 12345,
       resolution: expect.stringMatching(
-        /^Initial provisioning completed\.\nInstalled Frontier eSIM into slot A\. \[\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC, tech@phoneware\.us\]$/,
+        /^Initial provisioning completed\.\nInstalled Frontier eSIM into slot A\. \[\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC, tech@phoneware\.us, op:esim-slot-a\]$/,
       ),
     });
 
@@ -158,35 +167,18 @@ describe('append-ticket-resolution tool', () => {
     expect(parsed.verified).toBe(true);
     expect(parsed.ticketID).toBe(12345);
     expect(parsed.appended_line).toMatch(
-      /^Installed Frontier eSIM into slot A\. \[\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC, tech@phoneware\.us\]$/,
+      /^Installed Frontier eSIM into slot A\. \[\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC, tech@phoneware\.us, op:esim-slot-a\]$/,
     );
   });
 
-  it('defaults to autotask-mcp when caller has no email', async () => {
-    getById
-      .mockResolvedValueOnce({ item: { id: 10, resolution: '' } }) // read 1
-      .mockResolvedValueOnce({ item: { id: 10, resolution: '' } }) // read 2
-      .mockImplementationOnce(async () => ({
-        item: { id: 10, resolution: update.mock.calls[0][1].resolution },
-      })); // read 3
-
-    update.mockResolvedValue({ id: 10 });
-    entityFields.mockResolvedValue({ fields: [] });
-
-    const res = await appendTool.handler({
-      ticketID: '10',
-      text: 'First line on clean ticket.',
-    });
-
-    expect(update).toHaveBeenCalledWith('Tickets', {
-      id: 10,
-      resolution: expect.stringMatching(
-        /^First line on clean ticket\. \[\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC, autotask-mcp\]$/,
-      ),
-    });
-    const parsed = JSON.parse(res.content[0].text);
-    expect(parsed.written).toBe(true);
-    expect(parsed.resolution_length_before).toBe(0);
+  it('refuses when caller has no verified actor', async () => {
+    await expect(
+      appendTool.handler({
+        ticketID: '10',
+        text: 'First line on clean ticket.',
+        operationId: 'op-anon-1',
+      }),
+    ).rejects.toThrow(/authenticated caller with a verified email/);
   });
 
   it('no-ops when exact line is already present', async () => {

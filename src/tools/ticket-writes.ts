@@ -8,10 +8,11 @@ import {
   TicketCoordinatorSession,
   withTicketOperation,
 } from '../provisioning/ticket-coordinator.js';
-import { getOperationStore } from '../provisioning/operation-store.js';
+import { getOperationStore, operationKey } from '../provisioning/operation-store.js';
 import {
   getRequirementsStore,
   computeItemSemanticFingerprint,
+  requirementDocId,
   type ChecklistTaskRequirement,
 } from '../provisioning/requirements.js';
 import { computeBodyDigest } from '../provisioning/dispatch.js';
@@ -22,7 +23,7 @@ import type {
   ArchiveReceipt,
 } from '../provisioning/contracts.js';
 import { DriveArchiveProvider } from '../archive/drive.js';
-import { assertAuthorizedArchiveBinding } from '../archive/bindings.js';
+import { assertAuthorizedArchiveBinding, bindingDocId } from '../archive/bindings.js';
 
 interface TicketModel {
   id?: number | string;
@@ -77,6 +78,20 @@ export function maskSecretTokens(text: string): string {
     (_match, prefix, sep, _val) => `${prefix}${sep}[REDACTED]`,
   );
 }
+/**
+ * Count occurrences of an operationId marker in resolution text.
+ * Matches unified format [op:id], composite [..., op:id], or (op:id).
+ */
+export function countResolutionMarkers(resolution: string, operationId: string): number {
+  if (!resolution) return 0;
+  const cleanOpId = operationId.trim();
+  const escaped = cleanOpId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(
+    `(?:\\[op:${escaped}\\]|\\[[^\\]]*?[,\\s]op:${escaped}[^\\]]*?\\]|\\(op:${escaped}\\))`,
+    'g',
+  );
+  return (resolution.match(regex) || []).length;
+}
 
 /**
  * Find if a resolution line already records this logical operation.
@@ -88,28 +103,20 @@ export function findMatchingResolutionLine(
   ticketId?: string,
 ): string | null {
   if (!currentResolution) return null;
-  const lines = currentResolution.split(/\r?\n/);
-  const cleanTarget = targetText.trim();
   const cleanOpId = operationId.trim();
+  const cleanTarget = targetText.trim();
+  const lines = currentResolution.split(/\r?\n/);
 
   for (const line of lines) {
     const trimmedLine = line.trim();
     if (!trimmedLine) continue;
 
-    const opMatch = trimmedLine.match(/\[.*?,\s*op:([^\s,\]]+).*?\]$/);
-    const lineOpId = opMatch ? opMatch[1] : null;
-
-    const textMatch = trimmedLine.match(
-      /^(.*?)\s*\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+UTC[^\]]*\]$/,
-    );
-    const lineLogicalText = textMatch ? textMatch[1].trim() : trimmedLine;
-
-    if (lineOpId === cleanOpId) {
-      if (lineLogicalText !== cleanTarget) {
+    if (countResolutionMarkers(trimmedLine, cleanOpId) > 0) {
+      if (!trimmedLine.startsWith(cleanTarget)) {
         throw new Error(
           `Conflict: operationId "${cleanOpId}" was previously recorded with different text on ticket ${
             ticketId ?? ''
-          }: "${lineLogicalText}" vs requested "${cleanTarget}"`,
+          }: "${trimmedLine}" vs requested "${cleanTarget}"`,
         );
       }
       return trimmedLine;
@@ -148,6 +155,7 @@ export async function recordTicketEvidenceHandler(args: {
   const actor = resolveActorOrThrow();
   const noteType = args.noteType !== undefined && args.noteType !== '' ? Number(args.noteType) : 1;
   const publish = args.publish !== undefined && args.publish !== '' ? Number(args.publish) : 1;
+  const effectiveZoneUrl = await api.getEffectiveZoneUrl();
 
   return withTicketOperation(
     {
@@ -155,6 +163,7 @@ export async function recordTicketEvidenceHandler(args: {
       actor,
       operationId: opId,
       kind: 'evidence_note',
+      effectiveZoneUrl,
       payload: {
         ticketID: ticketId,
         title: args.title.trim(),
@@ -167,9 +176,23 @@ export async function recordTicketEvidenceHandler(args: {
       const op = session.getOperation();
       if (op?.phase === 'verified') {
         return jsonResponse(
-          op.receipt ?? { ticketID: Number(ticketId), status: 'verified', operationId: opId },
+          op.receipt ?? {
+            ticketID: Number(ticketId),
+            noteID: 0,
+            title: args.title.trim(),
+            status: 'verified',
+            kind: 'evidence_note',
+            operationId: opId,
+            created: false,
+            already_present: true,
+            attribution: actor.email,
+            observedAt: new Date().toISOString(),
+          },
         );
       }
+
+      const noteRoute = `V1.0/Tickets/${ticketId}/Notes`;
+      await api.preflightMutationPrerequisites(noteRoute);
 
       // Verify parent ticket exists
       const ticketRes = await api.getById('Tickets', ticketId);
@@ -177,6 +200,11 @@ export async function recordTicketEvidenceHandler(args: {
       if (!ticket || Object.keys(ticket).length === 0) {
         throw new Error(`Ticket ${ticketId} not found`);
       }
+
+      // Unique server-generated frozen dispatch nonce
+      const existingPrepared = op?.preparedState;
+      const dispatchNonce = (existingPrepared?.dispatchNonce as string) || crypto.randomUUID();
+      const expectedMarker = `[op:${opId}:d:${dispatchNonce}]`;
 
       // Follow complete pagination chain with envelope validation
       const matchingNotes: Array<Record<string, unknown>> = [];
@@ -189,7 +217,9 @@ export async function recordTicketEvidenceHandler(args: {
       try {
         pageResult = await api.query('TicketNotes', originalQuery);
       } catch (err) {
-        throw new Error(`Incomplete note scan on ticket ${ticketId}: ${err instanceof Error ? err.message : String(err)}`);
+        throw new Error(
+          `Incomplete note scan on ticket ${ticketId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
 
       const visitedUrls = new Set<string>();
@@ -209,9 +239,7 @@ export async function recordTicketEvidenceHandler(args: {
           const note = rawNote as Record<string, unknown>;
           const noteDesc = typeof note.description === 'string' ? note.description : '';
           const noteTitle = typeof note.title === 'string' ? note.title : '';
-          const match =
-            noteDesc.match(/\[op:([^\s,\]]+)\]/) || noteTitle.match(/\[op:([^\s,\]]+)\]/);
-          if (match && match[1] === opId) {
+          if (noteDesc.includes(expectedMarker) || noteTitle.includes(expectedMarker)) {
             matchingNotes.push(note);
           }
         }
@@ -223,9 +251,11 @@ export async function recordTicketEvidenceHandler(args: {
           }
           visitedUrls.add(nextUrl);
           try {
-            pageResult = await api.getPage(nextUrl, originalQuery);
+            pageResult = await api.getPage(nextUrl, originalQuery, 'TicketNotes');
           } catch (err) {
-            throw new Error(`Incomplete note scan on continuation page: ${err instanceof Error ? err.message : String(err)}`);
+            throw new Error(
+              `Incomplete note scan on continuation page: ${err instanceof Error ? err.message : String(err)}`,
+            );
           }
         } else {
           break;
@@ -241,22 +271,43 @@ export async function recordTicketEvidenceHandler(args: {
       if (matchingNotes.length === 1) {
         const note = matchingNotes[0];
         const noteDesc = typeof note.description === 'string' ? note.description : '';
-        const logicalDesc = noteDesc.replace(/\n?\[op:[^\]]+\]/, '').trim();
-        if (logicalDesc !== args.description.trim()) {
+        const markerCount = noteDesc.split(expectedMarker).length - 1;
+        if (markerCount !== 1) {
+          throw new Error(`Conflict: note contains multiple marker occurrences for operation "${opId}"`);
+        }
+
+        if (String(note.ticketID) !== ticketId) {
+          throw new Error(`Conflict: note ticketID mismatch (${note.ticketID} vs ${ticketId})`);
+        }
+
+        const expectedTitle = args.title.trim();
+        if (typeof note.title === 'string' && note.title.trim() !== expectedTitle) {
+          throw new Error(`Conflict: operationId "${opId}" was previously recorded with different title`);
+        }
+
+        const expectedDesc = `${args.description.trim()}\n${expectedMarker}`;
+        if (noteDesc.trim() !== expectedDesc.trim()) {
           throw new Error(
             `Conflict: operationId "${opId}" was previously recorded with different description on ticket ${ticketId}`,
           );
         }
 
-        const markerCount = (noteDesc.match(new RegExp(`\\[op:${opId}\\]`, 'g')) || []).length;
-        if (markerCount !== 1) {
-          throw new Error(`Conflict: note contains multiple marker occurrences for operation "${opId}"`);
+        if (note.noteType !== undefined && Number(note.noteType) !== noteType) {
+          throw new Error(`Conflict: operationId "${opId}" was previously recorded with different noteType`);
         }
+
+        if (note.publish !== undefined && Number(note.publish) !== publish) {
+          throw new Error(`Conflict: operationId "${opId}" was previously recorded with different publish setting`);
+        }
+
+        const observedAttribution = String(
+          note.creatorResourceID ?? note.createdByResourceID ?? note.createdBy ?? actor.email,
+        );
 
         const receipt: EvidenceNoteReceipt = {
           ticketID: Number(ticketId),
           noteID: Number(note.id),
-          title: typeof note.title === 'string' ? note.title : args.title,
+          title: expectedTitle,
           operationId: opId,
           status: 'verified',
           kind: 'evidence_note',
@@ -265,8 +316,8 @@ export async function recordTicketEvidenceHandler(args: {
           contentHash: crypto.createHash('sha256').update(noteDesc).digest('hex'),
           noteType: Number(note.noteType ?? noteType),
           publish: Number(note.publish ?? publish),
-          markerCount,
-          attribution: actor.email,
+          markerCount: 1,
+          attribution: observedAttribution,
           observedAt: new Date().toISOString(),
         };
         await session.markVerified(receipt);
@@ -281,40 +332,55 @@ export async function recordTicketEvidenceHandler(args: {
         );
       }
 
-      const finalDescription = `${args.description}\n[op:${opId}]`;
+      const finalDescription = `${args.description.trim()}\n${expectedMarker}`;
+      const expectedTitle = args.title.trim();
       const body: Record<string, unknown> = {
         ticketID: Number(ticketId),
-        title: args.title,
+        title: expectedTitle,
         description: finalDescription,
         noteType,
         publish,
       };
+      const exactBodyDigest = computeBodyDigest(body);
 
       // Commit preparation before arming
-      await session.commitPreparation({
-        frozenDescription: finalDescription,
-        title: args.title.trim(),
-        noteType,
-        publish,
-        expectedAttribution: actor.email,
-      });
+      await session.commitPreparation(
+        {
+          frozenDescription: finalDescription,
+          title: expectedTitle,
+          noteType,
+          publish,
+          dispatchNonce,
+          expectedAttribution: actor.email,
+        },
+        {
+          provider: 'autotask',
+          canonicalRoute: noteRoute,
+          method: 'POST',
+          dispatchNonce,
+          target: ticketId,
+          exactBodyDigest,
+          preparedSha256: exactBodyDigest,
+          frozenParameters: { ...body },
+        },
+      );
 
-      const noteRoute = `V1.0/Tickets/${ticketId}/Notes`;
       const armRes = await session.armDispatch({
         provider: 'autotask',
         canonicalRoute: noteRoute,
         method: 'POST',
-        exactBodyDigest: computeBodyDigest(body),
+        exactBodyDigest,
       });
+
+      if (!armRes.permitToken) {
+        throw new Error('Refused: failed to acquire dispatch permit token for note creation');
+      }
 
       let createdRes: unknown;
       try {
-        createdRes = await api.singleDispatchMutation(
-          'POST',
-          noteRoute,
-          body,
-          { permitToken: armRes.permitToken },
-        );
+        createdRes = await api.singleDispatchMutation('POST', noteRoute, body, {
+          permitToken: armRes.permitToken,
+        });
       } catch (err: unknown) {
         if (session.isArmed()) {
           const errMsg = err instanceof Error ? err.message : String(err);
@@ -324,9 +390,10 @@ export async function recordTicketEvidenceHandler(args: {
       }
 
       const createdRec = (createdRes as Record<string, unknown>) || {};
-      const itemSub = createdRec.item && typeof createdRec.item === 'object'
-        ? (createdRec.item as Record<string, unknown>)
-        : undefined;
+      const itemSub =
+        createdRec.item && typeof createdRec.item === 'object'
+          ? (createdRec.item as Record<string, unknown>)
+          : undefined;
       const createdId = createdRec.itemId ?? createdRec.id ?? itemSub?.id;
 
       if (!createdId) {
@@ -340,7 +407,9 @@ export async function recordTicketEvidenceHandler(args: {
       );
       const verifiedNote = unwrapRecord<Record<string, unknown>>(verifyRes);
       if (!verifiedNote || Object.keys(verifiedNote).length === 0) {
-        throw new Error(`Verification failed: created note ${createdId} not found on ticket ${ticketId}`);
+        throw new Error(
+          `Verification failed: created note ${createdId} not found on ticket ${ticketId}`,
+        );
       }
 
       if (
@@ -352,21 +421,46 @@ export async function recordTicketEvidenceHandler(args: {
         );
       }
 
-      const verifiedDesc =
-        typeof verifiedNote.description === 'string' ? verifiedNote.description : '';
-      if (!verifiedDesc.includes(`[op:${opId}]`)) {
-        throw new Error(`Verification failed: readback note missing operation marker [op:${opId}]`);
+      const verifiedTitle =
+        typeof verifiedNote.title === 'string' ? verifiedNote.title.trim() : '';
+      if (verifiedTitle !== expectedTitle) {
+        throw new Error(
+          `Verification failed: readback note title mismatch ("${verifiedTitle}" vs "${expectedTitle}")`,
+        );
       }
 
-      const markerCount = (verifiedDesc.match(new RegExp(`\\[op:${opId}\\]`, 'g')) || []).length;
+      const verifiedDesc =
+        typeof verifiedNote.description === 'string' ? verifiedNote.description : '';
+      if (!verifiedDesc.includes(expectedMarker)) {
+        throw new Error(
+          `Verification failed: readback note missing operation marker ${expectedMarker}`,
+        );
+      }
+
+      const markerCount = verifiedDesc.split(expectedMarker).length - 1;
       if (markerCount !== 1) {
         throw new Error(`Verification failed: note has invalid marker multiplicity (${markerCount})`);
       }
 
+      if (verifiedNote.noteType !== undefined && Number(verifiedNote.noteType) !== noteType) {
+        throw new Error('Verification failed: readback note noteType mismatch');
+      }
+
+      if (verifiedNote.publish !== undefined && Number(verifiedNote.publish) !== publish) {
+        throw new Error('Verification failed: readback note publish mismatch');
+      }
+
+      const observedAttribution = String(
+        verifiedNote.creatorResourceID ??
+          verifiedNote.createdByResourceID ??
+          verifiedNote.createdBy ??
+          actor.email,
+      );
+
       const receipt: EvidenceNoteReceipt = {
         ticketID: Number(ticketId),
         noteID: Number(createdId),
-        title: args.title,
+        title: expectedTitle,
         operationId: opId,
         status: 'verified',
         kind: 'evidence_note',
@@ -375,8 +469,8 @@ export async function recordTicketEvidenceHandler(args: {
         contentHash: crypto.createHash('sha256').update(verifiedDesc).digest('hex'),
         noteType,
         publish,
-        markerCount,
-        attribution: actor.email,
+        markerCount: 1,
+        attribution: observedAttribution,
         observedAt: new Date().toISOString(),
       };
 
@@ -433,8 +527,8 @@ export const ticketWriteTools: ToolDefinition[] = [
       if (SECRET_PATTERN.test(args.text)) {
         throw new Error('Refused: resolution text contains sensitive credential pattern');
       }
-
       const actor = resolveActorOrThrow();
+      const effectiveZoneUrl = await api.getEffectiveZoneUrl();
 
       return withTicketOperation(
         {
@@ -442,6 +536,7 @@ export const ticketWriteTools: ToolDefinition[] = [
           actor,
           operationId: opId,
           kind: 'resolution_append',
+          effectiveZoneUrl,
           payload: {
             ticketID: ticketId,
             text: args.text.trim(),
@@ -456,6 +551,7 @@ export const ticketWriteTools: ToolDefinition[] = [
               ticketID: Number(ticketId),
               operationId: opId,
               status: 'verified',
+              kind: 'resolution_append',
               written: false,
               already_present: true,
               reconciled_from_prior_evidence: true,
@@ -464,6 +560,9 @@ export const ticketWriteTools: ToolDefinition[] = [
               verified: true,
             });
           }
+
+          const patchRoute = 'V1.0/Tickets';
+          await api.preflightMutationPrerequisites(patchRoute);
 
           // Read 1: check ticket and expectedResolutionSha256
           const ticketRes1 = await api.getById('Tickets', ticketId);
@@ -474,6 +573,7 @@ export const ticketWriteTools: ToolDefinition[] = [
 
           const currentResolution = typeof ticket1.resolution === 'string' ? ticket1.resolution : '';
           const currentSha = crypto.createHash('sha256').update(currentResolution).digest('hex');
+          const marker = `[op:${opId}]`;
 
           // Check if exact line or logical operation is already present
           const priorLine = findMatchingResolutionLine(
@@ -494,7 +594,7 @@ export const ticketWriteTools: ToolDefinition[] = [
               }
             }
 
-            const markerCount = (currentResolution.match(new RegExp(`\\[op:${opId}\\]`, 'g')) || []).length;
+            const markerCount = countResolutionMarkers(currentResolution, opId);
             if (markerCount !== 1) {
               throw new Error(`Conflict: resolution contains multiple markers for operation "${opId}"`);
             }
@@ -539,24 +639,44 @@ export const ticketWriteTools: ToolDefinition[] = [
             }
           }
 
-          const timestamp = formatUtcTimestamp();
-          const appendedLine = `${args.text} [${timestamp}, ${actor.email}, op:${opId}]`;
+          const existingPrepared = op?.preparedState;
+          const timestamp =
+            (existingPrepared?.frozenTimestamp as string) || formatUtcTimestamp();
+          const appendedLine =
+            (existingPrepared?.appendedLine as string) ||
+            `${args.text.trim()} [${timestamp}, ${actor.email}, op:${opId}]`;
 
           const newResolution =
-            currentResolution.length === 0
+            (existingPrepared?.composedResolution as string) ||
+            (currentResolution.length === 0
               ? appendedLine
               : currentResolution.endsWith('\n')
                 ? `${currentResolution}${appendedLine}`
-                : `${currentResolution}\n${appendedLine}`;
+                : `${currentResolution}\n${appendedLine}`);
+
+          const patchBody = { id: Number(ticketId), resolution: newResolution };
+          const exactBodyDigest = computeBodyDigest(patchBody);
 
           // Save prepared state transactionally before arming
-          await session.commitPreparation({
-            observedResolutionBefore: currentResolution,
-            originalPrefixSha256: currentSha,
-            frozenTimestamp: timestamp,
-            appendedLine,
-            composedResolution: newResolution,
-          });
+          await session.commitPreparation(
+            {
+              observedResolutionBefore: currentResolution,
+              originalPrefixSha256: currentSha,
+              frozenTimestamp: timestamp,
+              appendedLine,
+              composedResolution: newResolution,
+            },
+            {
+              provider: 'autotask',
+              canonicalRoute: patchRoute,
+              method: 'PATCH',
+              dispatchNonce: opId,
+              target: ticketId,
+              exactBodyDigest,
+              preparedSha256: exactBodyDigest,
+              frozenParameters: patchBody,
+            },
+          );
 
           // Pre-write concurrency read
           const ticketRes2 = await api.getById('Tickets', ticketId);
@@ -568,22 +688,21 @@ export const ticketWriteTools: ToolDefinition[] = [
             );
           }
 
-          const patchRoute = 'V1.0/Tickets';
-          const patchBody = { id: Number(ticketId), resolution: newResolution };
           const armRes = await session.armDispatch({
             provider: 'autotask',
             canonicalRoute: patchRoute,
             method: 'PATCH',
-            exactBodyDigest: computeBodyDigest(patchBody),
+            exactBodyDigest,
           });
 
+          if (!armRes.permitToken) {
+            throw new Error('Refused: failed to acquire dispatch permit token for resolution append');
+          }
+
           try {
-            await api.singleDispatchMutation(
-              'PATCH',
-              patchRoute,
-              patchBody,
-              { permitToken: armRes.permitToken },
-            );
+            await api.singleDispatchMutation('PATCH', patchRoute, patchBody, {
+              permitToken: armRes.permitToken,
+            });
           } catch (err: unknown) {
             if (session.isArmed()) {
               const errMsg = err instanceof Error ? err.message : String(err);
@@ -596,8 +715,11 @@ export const ticketWriteTools: ToolDefinition[] = [
           const verifyTicketRes = await api.getById('Tickets', ticketId);
           const verifyTicket = unwrapRecord<TicketModel>(verifyTicketRes);
           const finalRes = typeof verifyTicket.resolution === 'string' ? verifyTicket.resolution : '';
-          if (!finalRes.includes(`[op:${opId}]`)) {
-            throw new Error(`Verification failed: resolution missing operation marker [op:${opId}]`);
+          const finalMarkerCount = countResolutionMarkers(finalRes, opId);
+          if (finalMarkerCount !== 1) {
+            throw new Error(
+              `Verification failed: resolution missing or has invalid marker count for operation "${opId}" (${finalMarkerCount})`,
+            );
           }
 
           const receipt: ResolutionAppendReceipt = {
@@ -722,6 +844,7 @@ export const ticketWriteTools: ToolDefinition[] = [
 
       const actor = resolveActorOrThrow();
       let evidenceOpId = '';
+      const effectiveZoneUrl = await api.getEffectiveZoneUrl();
 
       return withTicketOperation(
         {
@@ -729,17 +852,29 @@ export const ticketWriteTools: ToolDefinition[] = [
           actor,
           operationId: opId,
           kind: 'checklist_set',
+          effectiveZoneUrl,
           payload: {
             ticketID: ticketId,
             checklistItemID: itemId,
             completed: targetCompleted,
-            evidenceOperationId: args.evidenceOperationId ? String(args.evidenceOperationId).trim() : null,
+            evidenceOperationId: args.evidenceOperationId
+              ? String(args.evidenceOperationId).trim()
+              : null,
           },
         },
         async (session) => {
           const op = session.getOperation();
           if (op?.phase === 'verified') {
-            return jsonResponse(op.receipt ?? { ticketID: Number(ticketId), checklistItemID: Number(itemId), status: 'verified', isCompleted: targetCompleted });
+            return jsonResponse(
+              op.receipt ?? {
+                ticketID: Number(ticketId),
+                checklistItemID: Number(itemId),
+                status: 'verified',
+                kind: 'checklist_set',
+                isCompleted: targetCompleted,
+                observedAt: new Date().toISOString(),
+              },
+            );
           }
 
           let req: ChecklistTaskRequirement | null = null;
@@ -781,7 +916,7 @@ export const ticketWriteTools: ToolDefinition[] = [
               );
             }
 
-            // 3. Kind-specific evidence verification
+            // 3. Complete kind-specific evidence verification
             if (req.requiredKind === 'attachment_archive') {
               const archiveReceipt = evidenceOp.receipt as ArchiveReceipt | undefined;
               if (!archiveReceipt || archiveReceipt.status !== 'verified') {
@@ -794,10 +929,31 @@ export const ticketWriteTools: ToolDefinition[] = [
                 );
               }
 
+              if (
+                req.expectedAttachmentId &&
+                archiveReceipt.source.attachmentId !== req.expectedAttachmentId
+              ) {
+                throw new Error(
+                  `Requirement mismatch: expected attachment ${req.expectedAttachmentId}, got ${archiveReceipt.source.attachmentId}`,
+                );
+              }
+
               if (req.expectedSourceDigest) {
-                if (archiveReceipt.source.sha256.toLowerCase() !== req.expectedSourceDigest.toLowerCase()) {
+                if (
+                  archiveReceipt.source.sha256.toLowerCase() !==
+                  req.expectedSourceDigest.toLowerCase()
+                ) {
                   throw new Error(
                     `Requirement mismatch: expected digest ${req.expectedSourceDigest}, got ${archiveReceipt.source.sha256}`,
+                  );
+                }
+              }
+
+              if (req.requiredBindingId) {
+                const expectedBindingId = bindingDocId(session.accountKey, archiveReceipt.source.companyId);
+                if (req.requiredBindingId !== expectedBindingId) {
+                  throw new Error(
+                    `Requirement mismatch: expected binding ID "${req.requiredBindingId}", got "${expectedBindingId}"`,
                   );
                 }
               }
@@ -822,11 +978,40 @@ export const ticketWriteTools: ToolDefinition[] = [
                 throw new Error('Evidence operation is missing verified EvidenceNoteReceipt');
               }
 
+              if (req.requiredNoteType !== undefined && noteReceipt.noteType !== req.requiredNoteType) {
+                throw new Error(
+                  `Requirement mismatch: expected noteType ${req.requiredNoteType}, got ${noteReceipt.noteType}`,
+                );
+              }
+
+              if (req.requiredPublish !== undefined && noteReceipt.publish !== req.requiredPublish) {
+                throw new Error(
+                  `Requirement mismatch: expected publish ${req.requiredPublish}, got ${noteReceipt.publish}`,
+                );
+              }
+
+              if (req.requiredTitle && noteReceipt.title !== req.requiredTitle) {
+                throw new Error(
+                  `Requirement mismatch: expected title "${req.requiredTitle}", got "${noteReceipt.title}"`,
+                );
+              }
+
+              if (
+                req.requiredContentDigest &&
+                noteReceipt.contentHash?.toLowerCase() !== req.requiredContentDigest.toLowerCase()
+              ) {
+                throw new Error(
+                  `Requirement mismatch: expected content digest ${req.requiredContentDigest}, got ${noteReceipt.contentHash}`,
+                );
+              }
+
               // Re-read note to verify it still exists on ticket
               const noteRes = await api.getById('TicketNotes', String(noteReceipt.noteID));
               const noteData = unwrapRecord<Record<string, unknown>>(noteRes);
               if (!noteData || Object.keys(noteData).length === 0 || String(noteData.ticketID) !== ticketId) {
-                throw new Error(`Evidence note ${noteReceipt.noteID} is no longer present on ticket ${ticketId}`);
+                throw new Error(
+                  `Evidence note ${noteReceipt.noteID} is no longer present on ticket ${ticketId}`,
+                );
               }
             }
           }
@@ -852,9 +1037,15 @@ export const ticketWriteTools: ToolDefinition[] = [
             );
           }
 
-          const currentCompleted = Boolean(item.isCompleted);
-          const safeItemName = maskSecretTokens(String(item.itemName ?? '')).slice(0, 120);
-          const semanticFingerprint = computeItemSemanticFingerprint(ticketId, itemId, safeItemName);
+          const currentCompleted = item.isCompleted === true;
+          const fullItemName = String(item.itemName ?? '').trim();
+          const semanticFingerprint = computeItemSemanticFingerprint(
+            ticketId,
+            itemId,
+            fullItemName,
+            req?.sourceReference,
+            req?.sourceVersion,
+          );
 
           if (req && req.semanticFingerprint && req.semanticFingerprint !== semanticFingerprint) {
             throw new Error(
@@ -880,41 +1071,80 @@ export const ticketWriteTools: ToolDefinition[] = [
               position: item.position ?? null,
               completedDateTime: item.completedDateTime ?? null,
               completedByResourceID: item.completedByResourceID ?? null,
-              itemName: safeItemName,
+              itemName: fullItemName,
               already_in_state: true,
               updated: false,
               observedAt: new Date().toISOString(),
             };
-            await session.markObservationOnly(receipt);
+            await session.markObservationOnly(receipt, {
+              requiredRequirementId: req
+                ? requirementDocId(session.accountKey, ticketId, itemId)
+                : undefined,
+              expectedRequirementRevision: req?.version,
+            });
             return jsonResponse(receipt);
           }
 
-          // Commit preparation before arming dispatch (Fixes finding A1.4 / R.1)
-          await session.commitPreparation({
-            ticketId,
-            checklistItemId: itemId,
-            targetCompleted,
-            semanticFingerprint,
-            requirementVersion: req?.version,
-            evidenceOperationId: evidenceOpId || null,
-          });
-
           const patchRoute = `V1.0/Tickets/${ticketId}/ChecklistItems`;
+          await api.preflightMutationPrerequisites(patchRoute);
+
           const patchBody = { id: Number(itemId), isCompleted: targetCompleted };
+          const exactBodyDigest = computeBodyDigest(patchBody);
+
+          // Commit preparation before arming dispatch
+          await session.commitPreparation(
+            {
+              ticketId,
+              checklistItemId: itemId,
+              targetCompleted,
+              semanticFingerprint,
+              requirementVersion: req?.version,
+              evidenceOperationId: evidenceOpId || null,
+            },
+            {
+              provider: 'autotask',
+              canonicalRoute: patchRoute,
+              method: 'PATCH',
+              dispatchNonce: opId,
+              target: ticketId,
+              exactBodyDigest,
+              preparedSha256: exactBodyDigest,
+              policyFingerprint: semanticFingerprint,
+              policyReferences: req
+                ? [requirementDocId(session.accountKey, ticketId, itemId)]
+                : [],
+              frozenParameters: patchBody,
+            },
+          );
+
           const armRes = await session.armDispatch({
             provider: 'autotask',
             canonicalRoute: patchRoute,
             method: 'PATCH',
-            exactBodyDigest: computeBodyDigest(patchBody),
+            exactBodyDigest,
+            policyFingerprint: semanticFingerprint,
+            requiredRequirementId: req
+              ? requirementDocId(session.accountKey, ticketId, itemId)
+              : undefined,
+            expectedRequirementRevision: req?.version,
+            requiredEvidenceOpKey: evidenceOpId
+              ? operationKey(session.accountKey, evidenceOpId)
+              : undefined,
+            requiredBindingId:
+              req?.requiredKind === 'attachment_archive' && req.requiredBindingId
+                ? req.requiredBindingId
+                : undefined,
           });
 
+          if (!armRes.permitToken) {
+            throw new Error('Refused: failed to acquire dispatch permit token for checklist update');
+          }
+
+          let patchResRaw: unknown;
           try {
-            await api.singleDispatchMutation(
-              'PATCH',
-              patchRoute,
-              patchBody,
-              { permitToken: armRes.permitToken },
-            );
+            patchResRaw = await api.singleDispatchMutation('PATCH', patchRoute, patchBody, {
+              permitToken: armRes.permitToken,
+            });
           } catch (err: unknown) {
             if (session.isArmed()) {
               const errMsg = err instanceof Error ? err.message : String(err);
@@ -923,14 +1153,43 @@ export const ticketWriteTools: ToolDefinition[] = [
             throw err;
           }
 
+          const patchRes = (patchResRaw as { itemId?: number } | undefined) ?? {};
+          if (typeof patchRes.itemId !== 'number' || patchRes.itemId !== Number(itemId)) {
+            throw new Error(
+              `Verification failed: Autotask mutation response did not return documented OperationResultModel with itemId ${itemId}`,
+            );
+          }
+
           // Authoritative readback verification
           const readbackRes = await api.request(
             'GET',
             `V1.0/Tickets/${encodeURIComponent(ticketId)}/ChecklistItems/${encodeURIComponent(itemId)}`,
           );
           const readbackItem = unwrapRecord<TicketChecklistItemModel>(readbackRes);
-          if (Boolean(readbackItem.isCompleted) !== targetCompleted) {
-            throw new Error(`Verification failed: checklist item ${itemId} isCompleted is not ${targetCompleted}`);
+          if (readbackItem.isCompleted !== targetCompleted) {
+            throw new Error(
+              `Verification failed: checklist item ${itemId} isCompleted (${readbackItem.isCompleted}) is not ${targetCompleted}`,
+            );
+          }
+
+          if (
+            String(readbackItem.id) !== itemId ||
+            String(readbackItem.ticketID) !== ticketId
+          ) {
+            throw new Error(
+              `Verification failed: readback checklist item ID/ticketID mismatch (${readbackItem.id}/${readbackItem.ticketID})`,
+            );
+          }
+
+          const readbackFingerprint = computeItemSemanticFingerprint(
+            ticketId,
+            itemId,
+            String(readbackItem.itemName ?? '').trim(),
+            req?.sourceReference,
+            req?.sourceVersion,
+          );
+          if (readbackFingerprint !== semanticFingerprint) {
+            throw new Error('Verification failed: readback item semantic fingerprint mismatch');
           }
 
           const receipt: ChecklistSetReceipt = {
@@ -949,7 +1208,7 @@ export const ticketWriteTools: ToolDefinition[] = [
             position: readbackItem.position ?? null,
             completedDateTime: readbackItem.completedDateTime ?? null,
             completedByResourceID: readbackItem.completedByResourceID ?? null,
-            itemName: safeItemName,
+            itemName: fullItemName,
             already_in_state: false,
             updated: true,
             observedAt: new Date().toISOString(),
