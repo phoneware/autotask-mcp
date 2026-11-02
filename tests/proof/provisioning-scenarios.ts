@@ -7,13 +7,15 @@ import { BINDINGS_COLLECTION } from '../../src/archive/bindings.js';
 import {
   REQUIREMENTS_COLLECTION,
   computeItemSemanticFingerprint,
+  getRequirementsStore,
 } from '../../src/provisioning/requirements.js';
 import {
   OPERATIONS_COLLECTION,
   COORDINATORS_COLLECTION,
   deriveAccountKey,
+  operationKey,
 } from '../../src/provisioning/operation-store.js';
-
+import { CONFIRM_REQUIRED_TOOLS, confirmTokenFor } from '../../src/security.js';
 export interface HttpClient {
   callTool(
     toolName: string,
@@ -36,16 +38,20 @@ export async function sendJsonRpc(
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }> {
+  const callArgs = { ...params };
+  if (CONFIRM_REQUIRED_TOOLS.has(method) && !callArgs.confirm) {
+    callArgs.confirm = confirmTokenFor(method);
+  }
+
   const payload = {
     jsonrpc: '2.0',
     id: crypto.randomUUID(),
     method: 'tools/call',
     params: {
       name: method,
-      arguments: params,
+      arguments: callArgs,
     },
   };
-
   const res = await fetch(endpointUrl, {
     method: 'POST',
     headers: {
@@ -258,12 +264,24 @@ export async function runProvisioningScenarios(params: {
   }
 
   console.log('--- Scenario 3: Contended lease / verified waiter releases lease immediately ---');
+  const sharedOpId = `op-contended-${Date.now()}`;
+  await Promise.allSettled([
+    client1.callTool(
+      'append-ticket-resolution',
+      { ticketID: ticketId, text: 'Contender 1 line', operationId: sharedOpId },
+      seededToken,
+    ),
+    client2.callTool(
+      'append-ticket-resolution',
+      { ticketID: ticketId, text: 'Contender 2 line', operationId: sharedOpId },
+      seededToken,
+    ),
+  ]);
   const coordDoc = await firestore.collection(COORDINATORS_COLLECTION).doc(`${accountKey}_${ticketId}`).get();
   const coordData = coordDoc.data();
   if (coordData?.lease !== null && coordData?.lease?.owner) {
     throw new Error(`Coordinator lease was not released after operation: ${JSON.stringify(coordData?.lease)}`);
   }
-
   console.log('--- Scenario 4: Applied-but-response-lost recovery reconciles without re-upload ---');
   driveMirror.simulateNetworkDropOnUpload = true;
   const crashOpId = `op-crash-${Date.now()}`;
@@ -341,10 +359,17 @@ export async function runProvisioningScenarios(params: {
   }
 
   console.log('--- Scenario 7: Requirement CAS assigns incremented revision ---');
-  const opDoc = await firestore.collection(OPERATIONS_COLLECTION).doc(`${accountKey}_${checklistOpId}`).get();
-  if (!opDoc.exists) {
-    throw new Error('Checklist operation was not persisted in Firestore');
+  const reqStore = getRequirementsStore();
+  const existingReq = await reqStore.get(accountKey, ticketId, checklistItemId);
+  if (!existingReq) throw new Error('Expected existing requirement');
+  const updatedReq = await reqStore.setWithCas(existingReq, existingReq.version);
+  if (updatedReq.version !== existingReq.version + 1) {
+    throw new Error(`Expected incremented version ${existingReq.version + 1}, got ${updatedReq.version}`);
   }
 
-  console.log('All 7 provisioning verification scenarios passed successfully!');
+  const opKey = operationKey(accountKey, checklistOpId);
+  const opDoc = await firestore.collection(OPERATIONS_COLLECTION).doc(opKey).get();
+  if (!opDoc.exists) {
+    throw new Error(`Checklist operation ${opKey} was not persisted in Firestore`);
+  }
 }

@@ -148,6 +148,11 @@ export class DriveMirror {
       res.end(JSON.stringify(data));
     };
 
+    const auth = req.headers['authorization'] || '';
+    if (!auth.startsWith('Bearer ')) {
+      sendJson(401, { error: { message: 'Missing or invalid Authorization header' } });
+      return;
+    }
     // 0. ID generation
     if (url.includes('/drive/v3/files/generateIds') && method === 'GET') {
       const allocatedId = `drive-id-${crypto.randomUUID()}`;
@@ -162,17 +167,11 @@ export class DriveMirror {
 
     // 1. Multipart upload
     if (url.includes('/upload/drive/v3/files') && method === 'POST') {
-      if (this.simulateNetworkDropOnUpload) {
-        req.socket.destroy();
-        return;
-      }
-
       if (this.simulate409OnNextUpload) {
         this.simulate409OnNextUpload = false;
         sendJson(409, { error: { message: 'Conflict: file ID already exists' } });
         return;
       }
-
       const contentType = req.headers['content-type'] || '';
       const boundaryMatch = contentType.match(/boundary=([^;]+)/);
       if (!boundaryMatch) {
@@ -196,9 +195,17 @@ export class DriveMirror {
 
       const fileBytes = parts[1].data;
       const fileId = meta.id || `drive-file-${crypto.randomUUID()}`;
-      const sha256Checksum = crypto.createHash('sha256').update(fileBytes).digest('hex');
+      if (this.files.has(fileId)) {
+        sendJson(409, { error: { message: `Conflict: file ID "${fileId}" already exists` } });
+        return;
+      }
 
-      const parentFolderId = meta.parents?.[0] || 'folder-hazelbrook-approved';
+      const sha256Checksum = crypto.createHash('sha256').update(fileBytes).digest('hex');
+      const parentFolderId = meta.parents?.[0];
+      if (!parentFolderId || !this.folders.has(parentFolderId)) {
+        sendJson(404, { error: { message: `Parent folder "${parentFolderId}" not found` } });
+        return;
+      }
       const folder = this.folders.get(parentFolderId);
 
       const stored: StoredDriveFile = {
@@ -206,7 +213,7 @@ export class DriveMirror {
         name: meta.name || 'document.pdf',
         mimeType: meta.mimeType || 'application/pdf',
         size: fileBytes.byteLength,
-        parents: meta.parents || [parentFolderId],
+        parents: [parentFolderId],
         sha256Checksum,
         bytes: fileBytes,
         driveId: folder?.driveId || 'shared-drive-hazelbrook',
@@ -220,6 +227,11 @@ export class DriveMirror {
         appliedAt: Date.now(),
       });
 
+      if (this.simulateNetworkDropOnUpload) {
+        req.socket.destroy();
+        return;
+      }
+
       sendJson(200, {
         id: fileId,
         name: stored.name,
@@ -232,23 +244,14 @@ export class DriveMirror {
       });
       return;
     }
-
     // 2. File and Folder readback
     const fileGetMatch = url.match(/\/drive\/v3\/files\/([^?]+)/);
     if (fileGetMatch && method === 'GET') {
       const targetId = decodeURIComponent(fileGetMatch[1]);
 
       // Check folder store
-      if (this.folders.has(targetId) || targetId.includes('folder')) {
-        const folder = this.folders.get(targetId) || {
-          id: targetId,
-          name: 'Customer Archive Folder',
-          mimeType: 'application/vnd.google-apps.folder',
-          driveId: 'shared-drive-hazelbrook',
-          trashed: false,
-          capabilities: { canAddChildren: true },
-        };
-        sendJson(200, folder);
+      if (this.folders.has(targetId)) {
+        sendJson(200, this.folders.get(targetId));
         return;
       }
 

@@ -55,8 +55,19 @@ export class GoogleCredentialsMirror {
             return;
           }
 
+          let scopes: unknown;
+          if (bodyJson && typeof bodyJson === 'object' && 'scope' in bodyJson) {
+            scopes = (bodyJson as Record<string, unknown>).scope;
+          }
+          if (!Array.isArray(scopes) || !scopes.includes('https://www.googleapis.com/auth/drive')) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing required Drive scope' }));
+            return;
+          }
+
           const match = url.match(/serviceAccounts\/([^:]+):generateAccessToken/);
           const principal = match ? decodeURIComponent(match[1]) : 'default-sa';
+
           const token = `synthetic-drive-token-${principal}-${Date.now()}`;
           const expireTime = new Date(Date.now() + 3600 * 1000).toISOString();
 
@@ -70,7 +81,6 @@ export class GoogleCredentialsMirror {
           res.end(JSON.stringify({ accessToken: token, expireTime }));
           return;
         }
-
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not found' }));
       });

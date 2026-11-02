@@ -66,8 +66,7 @@ async function run(): Promise<void> {
     scopes: ['https://www.googleapis.com/auth/userinfo.email'],
   };
 
-  await firestore.collection('autotask_mcp_tokens').doc(seededToken).set(tokenRecord);
-
+  await firestore.collection('autotask_mcp_oauth_tokens').doc(seededToken).set(tokenRecord);
   // 3. Spawn Two Independent HTTP Processes
   const port1 = 9811;
   const port2 = 9812;
@@ -81,8 +80,8 @@ async function run(): Promise<void> {
     AUTOTASK_USERNAME: 'tech@phoneware.us',
     AUTOTASK_SECRET: 'test-secret',
     AUTOTASK_INTEGRATION_CODE: 'TESTCODE',
+    AUTOTASK_BASE_URL: atStarted.url,
     AUTOTASK_API_URL: atStarted.url,
-    DRIVE_API_BASE_URL: driveStarted.baseUrl,
     DRIVE_UPLOAD_BASE_URL: driveStarted.uploadBaseUrl,
     IAM_API_BASE_URL: credsStarted.baseUrl,
     AUTOTASK_HTTP_HOST: '127.0.0.1',
@@ -91,12 +90,12 @@ async function run(): Promise<void> {
     AUTOTASK_OAUTH_ALLOWED_DOMAINS: 'phoneware.us',
   };
 
-  const p1: ChildProcess = spawn('tsx', ['src/index.ts'], {
+  const p1: ChildProcess = spawn('node', ['dist/index.js'], {
     env: { ...baseEnv, PORT: String(port1), AUTOTASK_HTTP_PORT: String(port1) },
     stdio: 'inherit',
   });
 
-  const p2: ChildProcess = spawn('tsx', ['src/index.ts'], {
+  const p2: ChildProcess = spawn('node', ['dist/index.js'], {
     env: { ...baseEnv, PORT: String(port2), AUTOTASK_HTTP_PORT: String(port2) },
     stdio: 'inherit',
   });

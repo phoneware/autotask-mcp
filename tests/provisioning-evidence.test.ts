@@ -25,7 +25,7 @@ import {
   computeItemSemanticFingerprint,
 } from '../src/provisioning/requirements.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
   let autotaskMirror: AutotaskMirror;
   let driveMirror: DriveMirror;
@@ -314,6 +314,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       ).rejects.toThrow(/Parent mismatch: checklist item 501 belongs to ticketID 9999, not 1001/);
 
       expect(autotaskMirror.checklistItems.get(501)?.isCompleted).toBe(false);
+    });
 
     it('refuses checklist item completion when evidence is missing', async () => {
       autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
@@ -336,6 +337,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       ).rejects.toThrow(/checklist item completion requires observed evidence/);
 
       expect(autotaskMirror.checklistItems.get(502)?.isCompleted).toBe(false);
+    });
 
     it('refuses obsolete evidenceNoteID argument', async () => {
       autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
@@ -523,7 +525,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(uploadedFile?.bytes.equals(pdfPayload)).toBe(true);
 
       // 3. Retry with same operationId returns existing verified receipt without second upload
-      const initialUploadCount = driveMirror.requestLog.filter(
+      const initialUploadCount = driveMirror.arrivalJournal.filter(
         (r) => r.method === 'POST' && r.url.includes('/upload/drive/v3/files'),
       ).length;
 
@@ -541,7 +543,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(receipt2.status).toBe('verified');
       expect(receipt2.destination.fileId).toBe(receipt.destination.fileId);
 
-      const finalUploadCount = driveMirror.requestLog.filter(
+      const finalUploadCount = driveMirror.arrivalJournal.filter(
         (r) => r.method === 'POST' && r.url.includes('/upload/drive/v3/files'),
       ).length;
       expect(finalUploadCount).toBe(initialUploadCount);
