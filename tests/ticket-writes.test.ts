@@ -330,7 +330,7 @@ describe('set-ticket-checklist-item tool', () => {
     expect(confirmTokenFor('set-ticket-checklist-item')).toBe('SET_TICKET_CHECKLIST_ITEM');
   });
 
-  it('sends PATCH with body {id, isCompleted} only and masks sensitive token in itemName', async () => {
+  it('updates item from isCompleted false to true when native parent and item match strictly', async () => {
     const existingItem = {
       id: 501,
       ticketID: 1001,
@@ -386,7 +386,59 @@ describe('set-ticket-checklist-item tool', () => {
     expect(parsed.itemName).toBe('Set AP mesh passphrase: [REDACTED] on all APs');
   });
 
-  it('no-ops when item is already in requested state', async () => {
+  it('updates item from isCompleted true to false (properly false value)', async () => {
+    const existingItem = {
+      id: 501,
+      ticketID: 1001,
+      isCompleted: true,
+      itemName: 'Verify B One WAN 1 DHCP lease',
+      position: 3,
+      completedDateTime: '2026-10-31T12:00:00Z',
+      completedByResourceID: 42,
+    };
+
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) return { item: existingItem };
+        return {
+          item: {
+            ...existingItem,
+            isCompleted: false,
+            completedDateTime: null,
+            completedByResourceID: null,
+          },
+        };
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+
+    const res = await setChecklistTool.handler({
+      ticketID: '1001',
+      checklistItemID: '501',
+      completed: 'false',
+    });
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      'TicketChecklistItems',
+      { id: 501, isCompleted: false },
+      'Tickets',
+      '1001',
+    );
+
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.updated).toBe(true);
+    expect(parsed.already_in_state).toBe(false);
+    expect(parsed.isCompleted).toBe(false);
+    expect(parsed.ticketID).toBe(1001);
+    expect(parsed.checklistItemID).toBe(501);
+  });
+
+  it('no-ops idempotently when item is already true and completed: "true" requested', async () => {
     request.mockResolvedValue({
       item: {
         id: 502,
@@ -413,11 +465,75 @@ describe('set-ticket-checklist-item tool', () => {
     expect(parsed.itemName).toBe('Verify DHCP pool');
   });
 
-  it('refuses when checklist item belongs to a different ticket (parent mismatch)', async () => {
+  it('no-ops idempotently when item is already false and completed: "false" requested', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 502,
+        ticketID: 1001,
+        isCompleted: false,
+        itemName: 'Verify DHCP pool',
+        position: 5,
+        completedDateTime: null,
+        completedByResourceID: null,
+      },
+    });
+
+    const res = await setChecklistTool.handler({
+      ticketID: '1001',
+      checklistItemID: '502',
+      completed: 'false',
+    });
+
+    expect(update).not.toHaveBeenCalled();
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.already_in_state).toBe(true);
+    expect(parsed.updated).toBe(false);
+    expect(parsed.isCompleted).toBe(false);
+    expect(parsed.itemName).toBe('Verify DHCP pool');
+  });
+
+  it('refuses pre-write when item is not found (missing item)', async () => {
+    request.mockResolvedValue({});
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+      }),
+    ).rejects.toThrow(/Checklist item 501 not found on ticket 1001/);
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses pre-write when returned item id does not match requested checklistItemID (mismatched item)', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 999,
+        ticketID: 1001,
+        isCompleted: false,
+        itemName: 'Mismatched item record',
+      },
+    });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+      }),
+    ).rejects.toThrow(
+      /Item mismatch: requested checklist item 501 but record returned id 999; write refused/,
+    );
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses pre-write when checklist item belongs to a different ticket (foreign parent)', async () => {
     request.mockResolvedValue({
       item: {
         id: 503,
-        ticketID: 9999, // Belongs to ticket 9999
+        ticketID: 9999,
         isCompleted: false,
         itemName: 'Some other ticket item',
       },
@@ -425,13 +541,290 @@ describe('set-ticket-checklist-item tool', () => {
 
     await expect(
       setChecklistTool.handler({
-        ticketID: '1001', // Request specifies ticket 1001
+        ticketID: '1001',
         checklistItemID: '503',
         completed: 'true',
       }),
     ).rejects.toThrow(/Parent mismatch: checklist item 503 belongs to ticketID 9999, not 1001/);
 
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses pre-write when item isCompleted is string "false" rather than strict boolean', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 501,
+        ticketID: 1001,
+        isCompleted: 'false' as unknown as boolean,
+        itemName: 'Item with string isCompleted',
+      },
+    });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+      }),
+    ).rejects.toThrow(
+      /Invalid record state: checklist item 501 isCompleted is not a boolean \("false"\); write refused/,
+    );
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses pre-write when item isCompleted is absent/undefined (not boolean)', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 501,
+        ticketID: 1001,
+        itemName: 'Item lacking isCompleted',
+      },
+    });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'false',
+      }),
+    ).rejects.toThrow(
+      /Invalid record state: checklist item 501 isCompleted is not a boolean \(undefined\); write refused/,
+    );
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('fails verification when post-write readback returns empty / missing record', async () => {
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) {
+          return {
+            item: {
+              id: 501,
+              ticketID: 1001,
+              isCompleted: false,
+              itemName: 'Verify LAN port mapping',
+            },
+          };
+        }
+        return {};
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+      }),
+    ).rejects.toThrow(
+      /Verification failed: checklist item 501 not found on ticket 1001 after update/,
+    );
+  });
+
+  it('fails verification when post-write readback returns mismatched item id', async () => {
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) {
+          return {
+            item: {
+              id: 501,
+              ticketID: 1001,
+              isCompleted: false,
+              itemName: 'Verify LAN port mapping',
+            },
+          };
+        }
+        return {
+          item: {
+            id: 888,
+            ticketID: 1001,
+            isCompleted: true,
+            itemName: 'Wrong item record',
+          },
+        };
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+      }),
+    ).rejects.toThrow(
+      /Verification failed: read-back checklist item id 888 did not match requested 501/,
+    );
+  });
+
+  it('fails verification when post-write readback returns foreign parent ticketID', async () => {
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) {
+          return {
+            item: {
+              id: 501,
+              ticketID: 1001,
+              isCompleted: false,
+              itemName: 'Verify LAN port mapping',
+            },
+          };
+        }
+        return {
+          item: {
+            id: 501,
+            ticketID: 9999,
+            isCompleted: true,
+            itemName: 'Verify LAN port mapping',
+          },
+        };
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+      }),
+    ).rejects.toThrow(
+      /Verification failed: read-back checklist item 501 belongs to ticketID 9999, not 1001/,
+    );
+  });
+
+  it('fails verification when post-write readback isCompleted is string "false" rather than strict boolean', async () => {
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) {
+          return {
+            item: {
+              id: 501,
+              ticketID: 1001,
+              isCompleted: false,
+              itemName: 'Configure VLAN 10',
+            },
+          };
+        }
+        return {
+          item: {
+            id: 501,
+            ticketID: 1001,
+            isCompleted: 'false' as unknown as boolean,
+            itemName: 'Configure VLAN 10',
+          },
+        };
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+      }),
+    ).rejects.toThrow(
+      /Verification failed: checklist item 501 read-back isCompleted is not a boolean \("false"\)/,
+    );
+  });
+
+  it('fails verification when post-write readback isCompleted is absent/undefined', async () => {
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) {
+          return {
+            item: {
+              id: 501,
+              ticketID: 1001,
+              isCompleted: true,
+              itemName: 'Configure VLAN 10',
+            },
+          };
+        }
+        return {
+          item: {
+            id: 501,
+            ticketID: 1001,
+            itemName: 'Configure VLAN 10',
+          },
+        };
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'false',
+      }),
+    ).rejects.toThrow(
+      /Verification failed: checklist item 501 read-back isCompleted is not a boolean \(undefined\)/,
+    );
+  });
+
+  it('fails verification when post-write readback shows isCompleted unchanged (status did not change)', async () => {
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) {
+          return {
+            item: {
+              id: 501,
+              ticketID: 1001,
+              isCompleted: false,
+              itemName: 'Verify cellular signal strength',
+            },
+          };
+        }
+        return {
+          item: {
+            id: 501,
+            ticketID: 1001,
+            isCompleted: false,
+            itemName: 'Verify cellular signal strength',
+          },
+        };
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+      }),
+    ).rejects.toThrow(
+      /Verification failed: checklist item 501 isCompleted did not match requested state true \(actual: false\)/,
+    );
   });
 
   it('refuses invalid completed argument', async () => {

@@ -239,6 +239,11 @@ export const ticketWriteTools: ToolDefinition[] = [
       if (!item || Object.keys(item).length === 0) {
         throw new Error(`Checklist item ${itemId} not found on ticket ${ticketId}`);
       }
+      if (item.id === undefined || item.id === null || String(item.id) !== itemId) {
+        throw new Error(
+          `Item mismatch: requested checklist item ${itemId} but record returned id ${item.id ?? 'undefined'}; write refused`,
+        );
+      }
 
       if (
         item.ticketID === undefined ||
@@ -246,11 +251,17 @@ export const ticketWriteTools: ToolDefinition[] = [
         String(item.ticketID) !== ticketId
       ) {
         throw new Error(
-          `Parent mismatch: checklist item ${itemId} belongs to ticketID ${item.ticketID}, not ${ticketId}; write refused`,
+          `Parent mismatch: checklist item ${itemId} belongs to ticketID ${item.ticketID ?? 'undefined'}, not ${ticketId}; write refused`,
         );
       }
 
-      const currentCompleted = Boolean(item.isCompleted);
+      if (typeof item.isCompleted !== 'boolean') {
+        throw new Error(
+          `Invalid record state: checklist item ${itemId} isCompleted is not a boolean (${typeof item.isCompleted === 'string' ? `"${item.isCompleted}"` : typeof item.isCompleted}); write refused`,
+        );
+      }
+
+      const currentCompleted = item.isCompleted;
       const safeItemName = maskSecretTokens(String(item.itemName ?? '')).slice(0, 120);
 
       // No-op if already in requested state
@@ -258,7 +269,7 @@ export const ticketWriteTools: ToolDefinition[] = [
         return jsonResponse({
           ticketID: Number(ticketId),
           checklistItemID: Number(itemId),
-          isCompleted: targetCompleted,
+          isCompleted: currentCompleted,
           position: item.position ?? null,
           completedDateTime: item.completedDateTime ?? null,
           completedByResourceID: item.completedByResourceID ?? null,
@@ -283,9 +294,41 @@ export const ticketWriteTools: ToolDefinition[] = [
       );
       const verifyItem = unwrapRecord<TicketChecklistItemModel>(verifyRes);
 
-      if (!verifyItem || Boolean(verifyItem.isCompleted) !== targetCompleted) {
+      if (!verifyItem || Object.keys(verifyItem).length === 0) {
         throw new Error(
-          `Verification failed: checklist item ${itemId} isCompleted did not match requested state ${targetCompleted}`,
+          `Verification failed: checklist item ${itemId} not found on ticket ${ticketId} after update`,
+        );
+      }
+
+      if (
+        verifyItem.id === undefined ||
+        verifyItem.id === null ||
+        String(verifyItem.id) !== itemId
+      ) {
+        throw new Error(
+          `Verification failed: read-back checklist item id ${verifyItem.id ?? 'undefined'} did not match requested ${itemId}`,
+        );
+      }
+
+      if (
+        verifyItem.ticketID === undefined ||
+        verifyItem.ticketID === null ||
+        String(verifyItem.ticketID) !== ticketId
+      ) {
+        throw new Error(
+          `Verification failed: read-back checklist item ${itemId} belongs to ticketID ${verifyItem.ticketID ?? 'undefined'}, not ${ticketId}`,
+        );
+      }
+
+      if (typeof verifyItem.isCompleted !== 'boolean') {
+        throw new Error(
+          `Verification failed: checklist item ${itemId} read-back isCompleted is not a boolean (${typeof verifyItem.isCompleted === 'string' ? `"${verifyItem.isCompleted}"` : typeof verifyItem.isCompleted})`,
+        );
+      }
+
+      if (verifyItem.isCompleted !== targetCompleted) {
+        throw new Error(
+          `Verification failed: checklist item ${itemId} isCompleted did not match requested state ${targetCompleted} (actual: ${verifyItem.isCompleted})`,
         );
       }
 
@@ -296,7 +339,7 @@ export const ticketWriteTools: ToolDefinition[] = [
       return jsonResponse({
         ticketID: Number(ticketId),
         checklistItemID: Number(itemId),
-        isCompleted: targetCompleted,
+        isCompleted: verifyItem.isCompleted,
         position: verifyItem.position ?? item.position ?? null,
         completedDateTime: verifyItem.completedDateTime ?? null,
         completedByResourceID: verifyItem.completedByResourceID ?? null,
