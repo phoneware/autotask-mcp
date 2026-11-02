@@ -1,33 +1,34 @@
-import crypto from 'node:crypto';
 import type { ToolDefinition, ToolResponse } from '../types.js';
 import { api } from '../autotask-api.js';
 import { assertSafeNumericId } from '../security.js';
 import { currentCaller } from '../auth/context.js';
-import { fetchPrivatePdfAttachment } from '../archive/source.js';
+import {
+  fetchPrivatePdfAttachment,
+  unwrapSingleAttachment,
+  type TicketAttachmentModel,
+} from '../archive/source.js';
 import { assertAuthorizedArchiveBinding } from '../archive/bindings.js';
 import { DriveArchiveProvider } from '../archive/drive.js';
 import { TicketCoordinatorSession } from '../provisioning/ticket-coordinator.js';
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB decoded
 
-interface TicketAttachmentModel {
-  id?: number | string;
-  ticketID?: number | string;
-  title?: string;
-  contentType?: string;
-  fileSize?: number;
-  data?: string;
-  [key: string]: unknown;
-}
-
-function unwrapAttachment(raw: unknown): TicketAttachmentModel {
-  if (raw && typeof raw === 'object') {
-    if ('item' in raw && raw.item && typeof raw.item === 'object') {
-      return raw.item as TicketAttachmentModel;
-    }
-    return raw as TicketAttachmentModel;
+function isVerifiedImageBytes(buffer: Buffer, mimeType: string): boolean {
+  if (buffer.length < 4) return false;
+  if (mimeType === 'image/png' && buffer.subarray(0, 4).toString('hex') === '89504e47') {
+    return true;
   }
-  return {};
+  if (mimeType === 'image/jpeg' && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    return true;
+  }
+  if (mimeType === 'image/gif' && buffer.subarray(0, 3).toString('ascii') === 'GIF') {
+    return true;
+  }
+  if (mimeType === 'image/webp' && buffer.subarray(0, 4).toString('ascii') === 'RIFF') {
+    return true;
+  }
+  // Generic image fallback if starting with non-PDF bytes
+  return buffer.subarray(0, 5).toString('ascii') !== '%PDF-';
 }
 
 export const attachmentTools: ToolDefinition[] = [
@@ -61,7 +62,7 @@ export const attachmentTools: ToolDefinition[] = [
         `V1.0/Tickets/${encodeURIComponent(ticketId)}/Attachments/${encodeURIComponent(attachmentId)}`,
       );
 
-      const att = unwrapAttachment(rawRes);
+      const att = unwrapSingleAttachment(rawRes, attachmentId);
       if (!att || Object.keys(att).length === 0) {
         throw new Error(`Attachment ${attachmentId} not found on ticket ${ticketId}`);
       }
@@ -86,33 +87,24 @@ export const attachmentTools: ToolDefinition[] = [
       const isImage = mimeType.startsWith('image/');
 
       let decodedBytes = 0;
+      let decodedBuffer: Buffer | null = null;
       if (base64Data.length > 0) {
-        decodedBytes = Buffer.byteLength(base64Data, 'base64');
+        decodedBuffer = Buffer.from(base64Data, 'base64');
+        decodedBytes = decodedBuffer.byteLength;
       } else if (typeof att.fileSize === 'number') {
         decodedBytes = att.fileSize;
       }
 
       if (!isImage) {
+        // Use shared strict PDF validator if application/pdf to ensure exact inspection/archive parity
         let sha256: string | undefined = undefined;
-        if (base64Data.length > 0) {
-          const maxAllowedBytes = 5_000_000;
-          if (decodedBytes > maxAllowedBytes) {
-            const metadata = {
-              id: att.id !== undefined ? Number(att.id) : Number(attachmentId),
-              ticketID: Number(ticketId),
-              title,
-              contentType: rawContentType || 'application/octet-stream',
-              fileSize: decodedBytes,
-              attached_as_image: false,
-              reason: `Attachment size (${decodedBytes} bytes) exceeds maximum limit of ${maxAllowedBytes} bytes.`,
-            };
-            return {
-              content: [{ type: 'text', text: JSON.stringify(metadata, null, 2) }],
-              structuredContent: metadata,
-            };
+        if (mimeType === 'application/pdf') {
+          try {
+            const validated = await fetchPrivatePdfAttachment({ ticketId, attachmentId });
+            sha256 = validated.metadata.sha256;
+          } catch {
+            // If strict validation fails (malformed/oversized), omit sha256
           }
-          const buffer = Buffer.from(base64Data, 'base64');
-          sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
         }
 
         const metadata = {
@@ -131,10 +123,27 @@ export const attachmentTools: ToolDefinition[] = [
         };
       }
 
+      // MIME-spoofing check on explicit image branch
+      if (decodedBuffer && !isVerifiedImageBytes(decodedBuffer, mimeType)) {
+        const metadata = {
+          id: att.id !== undefined ? Number(att.id) : Number(attachmentId),
+          ticketID: Number(ticketId),
+          title,
+          contentType: rawContentType,
+          fileSize: decodedBytes,
+          attached_as_image: false,
+          reason: 'Attachment bytes do not match expected image magic signature; inline image content omitted.',
+        };
+        return {
+          content: [{ type: 'text', text: JSON.stringify(metadata, null, 2) }],
+          structuredContent: metadata,
+        };
+      }
+
       if (decodedBytes > MAX_IMAGE_BYTES) {
         const metadata = {
           id: att.id !== undefined ? Number(att.id) : Number(attachmentId),
-          ticketID: att.ticketID !== undefined ? Number(att.ticketID) : Number(ticketId),
+          ticketID: Number(ticketId),
           title,
           contentType: rawContentType,
           fileSize: typeof att.fileSize === 'number' ? att.fileSize : decodedBytes,
@@ -150,7 +159,7 @@ export const attachmentTools: ToolDefinition[] = [
       if (!base64Data) {
         const metadata = {
           id: att.id !== undefined ? Number(att.id) : Number(attachmentId),
-          ticketID: att.ticketID !== undefined ? Number(att.ticketID) : Number(ticketId),
+          ticketID: Number(ticketId),
           title,
           contentType: rawContentType,
           fileSize: typeof att.fileSize === 'number' ? att.fileSize : 0,
@@ -165,7 +174,7 @@ export const attachmentTools: ToolDefinition[] = [
 
       const metadata = {
         id: att.id !== undefined ? Number(att.id) : Number(attachmentId),
-        ticketID: att.ticketID !== undefined ? Number(att.ticketID) : Number(ticketId),
+        ticketID: Number(ticketId),
         title,
         contentType: rawContentType,
         fileSize: typeof att.fileSize === 'number' ? att.fileSize : decodedBytes,
@@ -259,14 +268,39 @@ export const attachmentTools: ToolDefinition[] = [
         };
       }
 
-      try {
-        // 2. Destination binding authorization check
-        const binding = await assertAuthorizedArchiveBinding({
-          accountKey: session.accountKey,
-          companyId: expectedCompanyId,
-          actorResourceId,
-        });
+      const provider = new DriveArchiveProvider();
+      const existingPrepared = session.getOperation()?.preparedState;
+      let fileId = (existingPrepared?.driveFileId as string) || '';
 
+      // Destination binding authorization check
+      const binding = await assertAuthorizedArchiveBinding({
+        accountKey: session.accountKey,
+        companyId: expectedCompanyId,
+        actorResourceId,
+      });
+
+      // 2. Read-only recovery reconciliation: if in recovery and fileId exists, reconcile WITHOUT upload!
+      if (isRecovery && fileId && existingPrepared?.sourceMetadata) {
+        try {
+          const receipt = await provider.reconcileStoredArchive({
+            operationId,
+            sourceMetadata: existingPrepared.sourceMetadata as any,
+            binding,
+            fileId,
+          });
+          await session.markVerified(receipt as unknown as Record<string, unknown>);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
+            structuredContent: receipt,
+          };
+        } catch {
+          throw new Error(
+            `Conflict: operation "${operationId}" has an uncertain dispatch and file was not verified in Drive; read-only reconciliation required`,
+          );
+        }
+      }
+
+      try {
         // 3. Private attachment fetch and validation
         const privateAtt = await fetchPrivatePdfAttachment({
           ticketId,
@@ -275,38 +309,22 @@ export const attachmentTools: ToolDefinition[] = [
           expectedSha256,
         });
 
-        const provider = new DriveArchiveProvider();
-        const existingPrepared = session.getOperation()?.preparedState;
-        let fileId = (existingPrepared?.driveFileId as string) || '';
+        // 4. Autonomous credential minting BEFORE arming dispatch
+        await provider.resolveAccessToken(binding.archivePrincipal);
 
-        // If in recovery, attempt read-only reconciliation before arming dispatch
-        if (isRecovery && fileId) {
-          try {
-            const receipt = await provider.uploadAndVerify({
-              operationId,
-              attachment: privateAtt,
-              binding,
-              fileId,
-            });
-            await session.markVerified(receipt as unknown as Record<string, unknown>);
-            return {
-              content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
-              structuredContent: receipt,
-            };
-          } catch {
-            throw new Error(
-              `Conflict: operation "${operationId}" has an uncertain dispatch and file was not verified in Drive; read-only reconciliation required`,
-            );
-          }
-        }
-
+        // 5. Pre-allocate Drive file ID
         if (!fileId) {
-          fileId = await provider.generateFileId();
-          await session.savePreparedState({
-            driveFileId: fileId,
-            bindingFingerprint: `${binding.driveId}:${binding.folderId}:${binding.version}`,
-          });
+          fileId = await provider.generateFileId(binding.archivePrincipal);
         }
+
+        const policyFingerprint = `${session.accountKey}:${binding.companyId}:${binding.driveId}:${binding.folderId}:${binding.archivePrincipal}:${binding.allowedActorResourceIds.sort().join(',')}:${binding.version}:${binding.disabled}`;
+
+        // 6. Fenced preparation commit (write-once)
+        await session.commitPreparation({
+          sourceMetadata: privateAtt.metadata,
+          driveFileId: fileId,
+          policyFingerprint,
+        });
 
         // Re-check binding version right before dispatch
         await assertAuthorizedArchiveBinding({
@@ -316,18 +334,18 @@ export const attachmentTools: ToolDefinition[] = [
           expectedVersion: binding.version,
         });
 
-        // 4. Arm sticky dispatch barrier before external Drive upload
+        // 7. Arm sticky dispatch barrier before external upload
         await session.armDispatch();
 
-        // 5. Upload to Drive and verify readback
-        const receipt = await provider.uploadAndVerify({
+        // 8. Upload once and verify readback
+        const receipt = await provider.uploadPreparedOnce({
           operationId,
           attachment: privateAtt,
           binding,
           fileId,
         });
 
-        // 6. Mark verified and clear dispatch barrier
+        // 9. Mark verified and clear dispatch barrier
         await session.markVerified(receipt as unknown as Record<string, unknown>);
 
         return {

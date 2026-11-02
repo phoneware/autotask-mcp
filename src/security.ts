@@ -88,10 +88,15 @@ export function assertSafeEntityName(value: string, label: string): string {
 
 /** Validate a value that must be a bare numeric id before it enters a path. */
 export function assertSafeNumericId(value: string, label: string): string {
-  if (!/^\d+$/.test(value)) {
+  const str = String(value).trim();
+  if (!/^\d+$/.test(str)) {
     throw new Error(`${label} must be a numeric id (got: ${JSON.stringify(value)})`);
   }
-  return value;
+  const n = parseInt(str, 10);
+  if (!Number.isSafeInteger(n) || n <= 0) {
+    throw new Error(`${label} must be a positive safe integer (got: ${JSON.stringify(value)})`);
+  }
+  return str;
 }
 
 /**

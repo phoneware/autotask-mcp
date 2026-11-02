@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { Firestore } from '@google-cloud/firestore';
 import type {
   Actor,
+  Claim,
   OperationIntent,
   OperationKind,
   TicketCoordinator,
@@ -15,17 +16,33 @@ export class StoreUnavailableError extends Error {
 }
 
 export function canonicalizeNumericId(raw: string | number, label = 'id'): string {
-  const n = typeof raw === 'number' ? raw : parseInt(String(raw).trim(), 10);
+  const str = String(raw).trim();
+  if (!/^\d+$/.test(str)) {
+    throw new Error(`${label} must be a positive numeric integer (got: ${JSON.stringify(raw)})`);
+  }
+  const n = parseInt(str, 10);
   if (!Number.isSafeInteger(n) || n <= 0) {
     throw new Error(`${label} must be a positive safe integer (got: ${JSON.stringify(raw)})`);
   }
   return String(n);
 }
 
-export function deriveAccountKey(): string {
+export function deriveAccountKey(effectiveZoneUrl?: string): string {
   const username = (process.env.AUTOTASK_USERNAME || '').toLowerCase().trim();
-  const url = (process.env.AUTOTASK_API_URL || '').toLowerCase().trim();
-  return crypto.createHash('sha256').update(`${username}\0${url}`).digest('hex').slice(0, 16);
+  const rawUrl =
+    effectiveZoneUrl ||
+    process.env.AUTOTASK_API_URL ||
+    'https://webservices.autotask.net/atservicesrest/';
+
+  let normalizedUrl: string;
+  try {
+    const parsed = new URL(rawUrl);
+    normalizedUrl = `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    normalizedUrl = rawUrl.toLowerCase().trim().replace(/\/+$/, '');
+  }
+
+  return crypto.createHash('sha256').update(`${username}\0${normalizedUrl}`).digest('hex').slice(0, 16);
 }
 
 export function operationKey(accountKey: string, operationId: string): string {
@@ -34,6 +51,12 @@ export function operationKey(accountKey: string, operationId: string): string {
 
 export function coordinatorDocId(accountKey: string, canonicalTicketId: string): string {
   return `${accountKey}_${canonicalTicketId}`;
+}
+
+export interface AcquireResult {
+  acquired: boolean;
+  claim: Claim;
+  operation: OperationIntent;
 }
 
 export interface OperationStore {
@@ -48,11 +71,13 @@ export interface OperationStore {
     payload: Record<string, unknown>;
   }): Promise<OperationIntent>;
 
-  savePreparedState(
-    accountKey: string,
-    operationId: string,
-    preparedState: Record<string, unknown>,
-  ): Promise<void>;
+  savePreparedState(params: {
+    accountKey: string;
+    ticketId: string;
+    operationId: string;
+    claim: Claim;
+    preparedState: Record<string, unknown>;
+  }): Promise<void>;
 
   getOperation(accountKey: string, operationId: string): Promise<OperationIntent | null>;
 
@@ -63,7 +88,7 @@ export interface OperationStore {
     owner: string,
     ttlMs: number,
     operationId: string,
-  ): Promise<{ acquired: boolean; fence: number; expiresAt: number }>;
+  ): Promise<AcquireResult>;
 
   armDispatch(
     accountKey: string,
@@ -78,7 +103,7 @@ export interface OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt?: Record<string, unknown>,
+    receipt: Record<string, unknown>,
   ): Promise<void>;
 
   markUncertain(
@@ -150,7 +175,7 @@ export class MemoryOperationStore implements OperationStore {
       targetId: params.targetId,
       intentSha256: params.intentSha256,
       payload: params.payload,
-      phase: 'prepared',
+      phase: 'preparing',
       createdAt: now,
       updatedAt: now,
     };
@@ -159,17 +184,42 @@ export class MemoryOperationStore implements OperationStore {
     return { ...intent };
   }
 
-  async savePreparedState(
-    accountKey: string,
-    operationId: string,
-    preparedState: Record<string, unknown>,
-  ): Promise<void> {
-    const key = operationKey(accountKey, operationId);
-    const op = this.operations.get(key);
-    if (op) {
-      op.preparedState = { ...(op.preparedState ?? {}), ...preparedState };
-      op.updatedAt = Date.now();
+  async savePreparedState(params: {
+    accountKey: string;
+    ticketId: string;
+    operationId: string;
+    claim: Claim;
+    preparedState: Record<string, unknown>;
+  }): Promise<void> {
+    const coordKey = coordinatorDocId(params.accountKey, params.ticketId);
+    const coord = this.coordinators.get(coordKey);
+    const now = Date.now();
+
+    if (
+      !coord ||
+      !coord.lease ||
+      coord.lease.attemptId !== params.claim.attemptId ||
+      coord.fence !== params.claim.fence ||
+      coord.lease.expiresAt <= now
+    ) {
+      throw new Error(
+        `Conflict: cannot commit preparation for ticket ${params.ticketId}; claim expired or superseded`,
+      );
     }
+
+    const key = operationKey(params.accountKey, params.operationId);
+    const op = this.operations.get(key);
+    if (!op) {
+      throw new Error(`Operation "${params.operationId}" not found`);
+    }
+
+    if (op.phase === 'dispatching' || op.phase === 'verified') {
+      throw new Error(`Conflict: operation "${params.operationId}" is already ${op.phase}`);
+    }
+
+    op.preparedState = { ...(op.preparedState ?? {}), ...params.preparedState };
+    op.phase = 'prepared';
+    op.updatedAt = now;
   }
 
   async getOperation(accountKey: string, operationId: string): Promise<OperationIntent | null> {
@@ -185,7 +235,7 @@ export class MemoryOperationStore implements OperationStore {
     owner: string,
     ttlMs: number,
     operationId: string,
-  ): Promise<{ acquired: boolean; fence: number; expiresAt: number }> {
+  ): Promise<AcquireResult> {
     const now = Date.now();
     const coordKey = coordinatorDocId(accountKey, ticketId);
     let coord = this.coordinators.get(coordKey);
@@ -194,16 +244,27 @@ export class MemoryOperationStore implements OperationStore {
       this.coordinators.set(coordKey, coord);
     }
 
-    if (coord.activeDispatch) {
-      if (coord.activeDispatch.operationId !== operationId) {
-        throw new Error(
-          `Conflict: ticket ${ticketId} has an unresolved dispatch barrier for operation "${coord.activeDispatch.operationId}"; cannot acquire for operation "${operationId}" until reconciled`,
-        );
-      }
+    const opKey = operationKey(accountKey, operationId);
+    const op = this.operations.get(opKey);
+    if (!op) {
+      throw new Error(`Operation "${operationId}" must be prepared before acquiring coordinator lease`);
+    }
+
+    const mode =
+      op.phase === 'dispatching' || op.phase === 'uncertain' ? 'reconciling' : 'preparing';
+
+    if (coord.activeDispatch && coord.activeDispatch.operationId !== operationId) {
+      throw new Error(
+        `Conflict: ticket ${ticketId} has an unresolved dispatch barrier for operation "${coord.activeDispatch.operationId}"; cannot acquire for operation "${operationId}" until reconciled`,
+      );
     }
 
     if (coord.lease && coord.lease.expiresAt > now && coord.lease.attemptId !== attemptId) {
-      return { acquired: false, fence: coord.fence, expiresAt: coord.lease.expiresAt };
+      return {
+        acquired: false,
+        claim: { attemptId, fence: coord.fence, expiresAt: coord.lease.expiresAt, mode },
+        operation: { ...op },
+      };
     }
 
     const fence = coord.fence + 1;
@@ -215,7 +276,11 @@ export class MemoryOperationStore implements OperationStore {
       expiresAt,
     };
 
-    return { acquired: true, fence, expiresAt };
+    return {
+      acquired: true,
+      claim: { attemptId, fence, expiresAt, mode },
+      operation: { ...op },
+    };
   }
 
   async armDispatch(
@@ -234,9 +299,11 @@ export class MemoryOperationStore implements OperationStore {
 
     const opKey = operationKey(accountKey, operationId);
     const op = this.operations.get(opKey);
-    if (op?.phase === 'dispatching' || op?.phase === 'uncertain') {
+    if (!op || op.phase !== 'prepared') {
       throw new Error(
-        `Conflict: operation "${operationId}" is already in phase "${op.phase}"; cannot redispatch mutation without read-only reconciliation`,
+        `Conflict: operation "${operationId}" must be in exact "prepared" phase to arm dispatch (current: ${
+          op?.phase ?? 'missing'
+        })`,
       );
     }
 
@@ -248,11 +315,9 @@ export class MemoryOperationStore implements OperationStore {
       dispatchedAt: now,
     };
 
-    if (op) {
-      op.phase = 'dispatching';
-      op.dispatchedAt = now;
-      op.updatedAt = now;
-    }
+    op.phase = 'dispatching';
+    op.dispatchedAt = now;
+    op.updatedAt = now;
 
     return { armed: true, expiresAt: coord.lease.expiresAt };
   }
@@ -262,7 +327,7 @@ export class MemoryOperationStore implements OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt?: Record<string, unknown>,
+    receipt: Record<string, unknown>,
   ): Promise<void> {
     const now = Date.now();
     const coordKey = coordinatorDocId(accountKey, ticketId);
@@ -277,7 +342,7 @@ export class MemoryOperationStore implements OperationStore {
       op.phase = 'verified';
       op.completedAt = now;
       op.updatedAt = now;
-      if (receipt) op.receipt = receipt;
+      op.receipt = receipt;
     }
   }
 
@@ -390,7 +455,7 @@ export class FirestoreOperationStore implements OperationStore {
         targetId: params.targetId,
         intentSha256: params.intentSha256,
         payload: params.payload,
-        phase: 'prepared',
+        phase: 'preparing',
         createdAt: now,
         updatedAt: now,
       };
@@ -400,15 +465,50 @@ export class FirestoreOperationStore implements OperationStore {
     });
   }
 
-  async savePreparedState(
-    accountKey: string,
-    operationId: string,
-    preparedState: Record<string, unknown>,
-  ): Promise<void> {
-    const key = operationKey(accountKey, operationId);
-    const docRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(key);
+  async savePreparedState(params: {
+    accountKey: string;
+    ticketId: string;
+    operationId: string;
+    claim: Claim;
+    preparedState: Record<string, unknown>;
+  }): Promise<void> {
+    const coordKey = coordinatorDocId(params.accountKey, params.ticketId);
+    const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
+    const opKey = operationKey(params.accountKey, params.operationId);
+    const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
+
     await this.firestore.runTransaction(async (txn) => {
-      txn.set(docRef, { preparedState, updatedAt: Date.now() }, { merge: true });
+      const coordSnap = await txn.get(coordRef);
+      const now = Date.now();
+      const coord = coordSnap.data() as TicketCoordinator | undefined;
+
+      if (
+        !coord ||
+        !coord.lease ||
+        coord.lease.attemptId !== params.claim.attemptId ||
+        coord.fence !== params.claim.fence ||
+        coord.lease.expiresAt <= now
+      ) {
+        throw new Error(
+          `Conflict: cannot commit preparation for ticket ${params.ticketId}; claim expired or superseded`,
+        );
+      }
+
+      const opSnap = await txn.get(opRef);
+      const op = opSnap.data() as OperationIntent | undefined;
+      if (!op) {
+        throw new Error(`Operation "${params.operationId}" not found`);
+      }
+
+      if (op.phase === 'dispatching' || op.phase === 'verified') {
+        throw new Error(`Conflict: operation "${params.operationId}" is already ${op.phase}`);
+      }
+
+      txn.update(opRef, {
+        preparedState: { ...(op.preparedState ?? {}), ...params.preparedState },
+        phase: 'prepared',
+        updatedAt: now,
+      });
     });
   }
 
@@ -426,32 +526,47 @@ export class FirestoreOperationStore implements OperationStore {
     owner: string,
     ttlMs: number,
     operationId: string,
-  ): Promise<{ acquired: boolean; fence: number; expiresAt: number }> {
+  ): Promise<AcquireResult> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
-    const docRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
+    const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
+    const opKey = operationKey(accountKey, operationId);
+    const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
 
     return this.firestore.runTransaction(async (txn) => {
-      const snap = await txn.get(docRef);
+      const snap = await txn.get(coordRef);
       const now = Date.now();
       const data = snap.exists ? (snap.data() as TicketCoordinator | undefined) : undefined;
 
-      if (data?.activeDispatch) {
-        if (data.activeDispatch.operationId !== operationId) {
-          throw new Error(
-            `Conflict: ticket ${ticketId} has an unresolved dispatch barrier for operation "${data.activeDispatch.operationId}"; cannot acquire for operation "${operationId}" until reconciled`,
-          );
-        }
+      const opSnap = await txn.get(opRef);
+      const op = opSnap.data() as OperationIntent | undefined;
+      if (!op) {
+        throw new Error(
+          `Operation "${operationId}" must be prepared before acquiring coordinator lease`,
+        );
+      }
+
+      const mode =
+        op.phase === 'dispatching' || op.phase === 'uncertain' ? 'reconciling' : 'preparing';
+
+      if (data?.activeDispatch && data.activeDispatch.operationId !== operationId) {
+        throw new Error(
+          `Conflict: ticket ${ticketId} has an unresolved dispatch barrier for operation "${data.activeDispatch.operationId}"; cannot acquire for operation "${operationId}" until reconciled`,
+        );
       }
 
       if (data?.lease && data.lease.expiresAt > now && data.lease.attemptId !== attemptId) {
-        return { acquired: false, fence: data.fence, expiresAt: data.lease.expiresAt };
+        return {
+          acquired: false,
+          claim: { attemptId, fence: data.fence, expiresAt: data.lease.expiresAt, mode },
+          operation: op,
+        };
       }
 
       const fence = (data?.fence ?? 0) + 1;
       const expiresAt = now + ttlMs;
 
       txn.set(
-        docRef,
+        coordRef,
         {
           accountKey,
           ticketId,
@@ -466,7 +581,11 @@ export class FirestoreOperationStore implements OperationStore {
         { merge: true },
       );
 
-      return { acquired: true, fence, expiresAt };
+      return {
+        acquired: true,
+        claim: { attemptId, fence, expiresAt, mode },
+        operation: op,
+      };
     });
   }
 
@@ -493,9 +612,11 @@ export class FirestoreOperationStore implements OperationStore {
 
       const opSnap = await txn.get(opRef);
       const opData = opSnap.data() as OperationIntent | undefined;
-      if (opData?.phase === 'dispatching' || opData?.phase === 'uncertain') {
+      if (!opData || opData.phase !== 'prepared') {
         throw new Error(
-          `Conflict: operation "${operationId}" is already in phase "${opData.phase}"; cannot redispatch mutation without read-only reconciliation`,
+          `Conflict: operation "${operationId}" must be in exact "prepared" phase to arm dispatch (current: ${
+            opData?.phase ?? 'missing'
+          })`,
         );
       }
 
@@ -524,7 +645,7 @@ export class FirestoreOperationStore implements OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt?: Record<string, unknown>,
+    receipt: Record<string, unknown>,
   ): Promise<void> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
@@ -542,8 +663,8 @@ export class FirestoreOperationStore implements OperationStore {
         phase: 'verified',
         completedAt: Date.now(),
         updatedAt: Date.now(),
+        receipt,
       };
-      if (receipt) updates.receipt = receipt;
       txn.update(opRef, updates);
     });
   }

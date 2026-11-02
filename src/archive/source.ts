@@ -4,8 +4,9 @@ import { assertSafeNumericId } from '../security.js';
 import type { AttachmentMetadata, PrivateAttachment } from '../provisioning/contracts.js';
 
 export const MAX_PDF_BYTES = 5_000_000; // 5 MB decoded ceiling
+export const MAX_ENVELOPE_BYTES = 7_000_000; // 7 MB response envelope ceiling
 
-interface TicketAttachmentModel {
+export interface TicketAttachmentModel {
   id?: number | string;
   ticketID?: number | string;
   title?: string;
@@ -21,14 +22,54 @@ interface TicketModel {
   [key: string]: unknown;
 }
 
-function unwrapRecord<T extends Record<string, unknown>>(raw: unknown): T {
-  if (raw && typeof raw === 'object') {
-    if ('item' in raw && raw.item && typeof raw.item === 'object') {
-      return raw.item as T;
+export function unwrapSingleAttachment(
+  raw: unknown,
+  expectedId?: string,
+): TicketAttachmentModel {
+  if (!raw || typeof raw !== 'object') return {};
+
+  if ('items' in raw && Array.isArray((raw as { items: unknown[] }).items)) {
+    const items = (raw as { items: unknown[] }).items;
+    if (items.length === 0) return {};
+    if (expectedId) {
+      const match = items.filter(
+        (it) => it && typeof it === 'object' && String((it as { id?: unknown }).id) === expectedId,
+      );
+      if (match.length === 1) return match[0] as TicketAttachmentModel;
+      if (match.length > 1) {
+        throw new Error(
+          `Ambiguous attachment envelope: multiple records match attachment ID ${expectedId}`,
+        );
+      }
+      return {};
     }
-    return raw as T;
+    if (items.length === 1) {
+      return items[0] as TicketAttachmentModel;
+    }
+    throw new Error(
+      `Ambiguous attachment envelope: expected exactly one attachment record, got ${items.length}`,
+    );
   }
-  return {} as T;
+
+  if (
+    'item' in raw &&
+    (raw as { item: unknown }).item &&
+    typeof (raw as { item: unknown }).item === 'object'
+  ) {
+    return (raw as { item: unknown }).item as TicketAttachmentModel;
+  }
+
+  return raw as TicketAttachmentModel;
+}
+
+function unwrapTicket(raw: unknown): TicketModel {
+  if (raw && typeof raw === 'object') {
+    if ('item' in raw && (raw as { item: unknown }).item && typeof (raw as { item: unknown }).item === 'object') {
+      return (raw as { item: unknown }).item as TicketModel;
+    }
+    return raw as TicketModel;
+  }
+  return {};
 }
 
 /**
@@ -48,7 +89,7 @@ export async function fetchPrivatePdfAttachment(params: {
 
   // 1. Validate parent ticket and company
   const ticketRes = await api.getById('Tickets', safeTicketId);
-  const ticket = unwrapRecord<TicketModel>(ticketRes);
+  const ticket = unwrapTicket(ticketRes);
   if (!ticket || Object.keys(ticket).length === 0) {
     throw new Error(`Ticket ${safeTicketId} not found`);
   }
@@ -73,12 +114,12 @@ export async function fetchPrivatePdfAttachment(params: {
     }
   }
 
-  // 2. Fetch parent-scoped attachment
+  // 2. Fetch parent-scoped attachment with supported envelopes normalized
   const attRes = await api.request(
     'GET',
     `V1.0/Tickets/${encodeURIComponent(safeTicketId)}/Attachments/${encodeURIComponent(safeAttachmentId)}`,
   );
-  const att = unwrapRecord<TicketAttachmentModel>(attRes);
+  const att = unwrapSingleAttachment(attRes, safeAttachmentId);
   if (!att || Object.keys(att).length === 0) {
     throw new Error(`Attachment ${safeAttachmentId} not found on ticket ${safeTicketId}`);
   }
@@ -100,7 +141,8 @@ export async function fetchPrivatePdfAttachment(params: {
       `Parent mismatch: attachment ${safeAttachmentId} belongs to ticketID ${att.ticketID ?? 'unknown'}, not ${safeTicketId}; access refused`,
     );
   }
-  // 4. Validate PDF MIME type
+
+  // 3. Validate PDF MIME type
   const rawContentType = typeof att.contentType === 'string' ? att.contentType.trim() : '';
   const mimeType = rawContentType.split(';')[0].trim().toLowerCase();
   if (mimeType !== 'application/pdf') {
@@ -109,7 +151,7 @@ export async function fetchPrivatePdfAttachment(params: {
     );
   }
 
-  // 5. Extract and validate base64
+  // 4. Extract and validate base64
   const rawData = typeof att.data === 'string' ? att.data : '';
   const base64Data = rawData.replace(/^data:[^;]+;base64,/, '').trim();
   if (!base64Data) {
@@ -118,7 +160,7 @@ export async function fetchPrivatePdfAttachment(params: {
 
   // Bounded encoded check before decoding buffer
   const maxEncodedLen = Math.ceil((MAX_PDF_BYTES * 4) / 3) + 16;
-  if (base64Data.length > maxEncodedLen) {
+  if (base64Data.length > maxEncodedLen || base64Data.length > MAX_ENVELOPE_BYTES) {
     throw new Error(
       `Attachment size exceeds maximum permitted size of ${MAX_PDF_BYTES} bytes for archival`,
     );
@@ -146,12 +188,15 @@ export async function fetchPrivatePdfAttachment(params: {
       `Integrity check failed: declared fileSize (${att.fileSize}) does not match decoded bytes (${buffer.byteLength})`,
     );
   }
-  // 6. Magic bytes check: %PDF- (0x25 0x50 0x44 0x46 0x2D)
+
+  // 5. Magic bytes check: %PDF- (0x25 0x50 0x44 0x46 0x2D)
   if (buffer.length < 5 || buffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
-    throw new Error(`Integrity check failed: attachment content does not have valid PDF magic bytes (%PDF-)`);
+    throw new Error(
+      `Integrity check failed: attachment content does not have valid PDF magic bytes (%PDF-)`,
+    );
   }
 
-  // 7. SHA-256 verification
+  // 6. SHA-256 verification
   const actualSha256 = crypto.createHash('sha256').update(buffer).digest('hex');
   if (params.expectedSha256) {
     const expected = params.expectedSha256.trim().toLowerCase();

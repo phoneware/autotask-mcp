@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type {
   ArchiveReceipt,
+  AttachmentMetadata,
   CompanyArchiveBinding,
   PrivateAttachment,
 } from '../provisioning/contracts.js';
@@ -17,10 +18,21 @@ function truncateError(raw: string): string {
   return clean.length > 140 ? clean.slice(0, 140) + '...[truncated]' : clean;
 }
 
+interface RawDriveFileMeta {
+  id?: string;
+  name?: string;
+  mimeType?: string;
+  size?: string | number;
+  sha256Checksum?: string;
+  parents?: string[];
+  driveId?: string;
+  trashed?: boolean;
+}
+
 export class DriveArchiveProvider {
   private readonly apiBase: string;
   private readonly uploadBase: string;
-  private readonly token: string | null;
+  private readonly staticToken: string | null;
 
   constructor(config?: DriveUploaderConfig) {
     this.apiBase = (
@@ -33,23 +45,29 @@ export class DriveArchiveProvider {
       process.env.DRIVE_UPLOAD_BASE_URL ||
       'https://www.googleapis.com/upload/drive/v3'
     ).replace(/\/+$/, '');
-    this.token = config?.accessToken || process.env.DRIVE_ARCHIVE_ACCESS_TOKEN || null;
+    this.staticToken = config?.accessToken || process.env.DRIVE_ARCHIVE_ACCESS_TOKEN || null;
+  }
+
+  async resolveAccessToken(archivePrincipal?: string): Promise<string> {
+    if (this.staticToken) return this.staticToken;
+    const isLocalMirror = this.apiBase.includes('127.0.0.1') || this.apiBase.includes('localhost');
+    if (isLocalMirror) return 'synthetic-mirror-token';
+    if (!archivePrincipal) {
+      throw new Error('archivePrincipal is required to resolve Drive access token');
+    }
+    const credProvider = new ArchiveCredentialProvider();
+    return credProvider.getDriveAccessToken(archivePrincipal);
   }
 
   async generateFileId(archivePrincipal?: string): Promise<string> {
-    const url = `${this.apiBase}/files/generateIds?count=1&supportsAllDrives=true`;
-    const headers: Record<string, string> = {};
-    let token = this.token;
     const isLocalMirror = this.apiBase.includes('127.0.0.1') || this.apiBase.includes('localhost');
-    if (!token && !isLocalMirror && archivePrincipal) {
-      try {
-        const credProvider = new ArchiveCredentialProvider();
-        token = await credProvider.getDriveAccessToken(archivePrincipal);
-      } catch {
-        // Fallback
-      }
-    }
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const token = await this.resolveAccessToken(archivePrincipal);
+
+    const url = `${this.apiBase}/files/generateIds?count=1&supportsAllDrives=true`;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+    };
+
     try {
       const res = await fetch(url, { method: 'GET', headers });
       if (res.ok) {
@@ -58,34 +76,181 @@ export class DriveArchiveProvider {
           return json.ids[0];
         }
       }
-    } catch {
-      // Fallback for isolated test mirrors
+    } catch (err: unknown) {
+      if (isLocalMirror) {
+        return crypto.randomUUID();
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to allocate Drive file ID from files.generateIds: ${truncateError(msg)}`);
     }
-    return crypto.randomUUID();
+
+    if (isLocalMirror) {
+      return crypto.randomUUID();
+    }
+    throw new Error('Failed to allocate Drive file ID from files.generateIds: empty response');
   }
 
-  async uploadAndVerify(params: {
+  /**
+   * One strict verifier for initial upload, existing-file recovery, and collision recovery.
+   * Requires affirmative observed Shared Drive ID, exact single parent, PDF MIME, exact size, and SHA-256.
+   */
+  async verifyDriveFile(params: {
+    meta: RawDriveFileMeta;
+    expectedFileId: string;
+    expectedFolderId: string;
+    expectedSharedDriveId: string;
+    expectedByteLength: number;
+    expectedSha256: string;
+    token: string;
+  }): Promise<{ sha256: string; driveId: string }> {
+    const { meta } = params;
+
+    if (meta.trashed) {
+      throw new Error(`Drive verification failed: file ${params.expectedFileId} is in trash`);
+    }
+
+    if (meta.id !== params.expectedFileId) {
+      throw new Error(
+        `Drive verification failed: returned file ID "${meta.id}" does not match expected "${params.expectedFileId}"`,
+      );
+    }
+
+    // Exact single parent placement
+    if (
+      !Array.isArray(meta.parents) ||
+      meta.parents.length !== 1 ||
+      meta.parents[0] !== params.expectedFolderId
+    ) {
+      throw new Error(
+        `Drive verification failed: file parents do not match approved folderId ${params.expectedFolderId}`,
+      );
+    }
+
+    // Affirmative Shared Drive verification (rejects My Drive / missing driveId)
+    if (!meta.driveId || typeof meta.driveId !== 'string' || !meta.driveId.trim()) {
+      throw new Error(
+        `Drive verification failed: file is not in a Shared Drive (missing driveId in observation)`,
+      );
+    }
+    if (meta.driveId !== params.expectedSharedDriveId) {
+      throw new Error(
+        `Drive verification failed: observed driveId "${meta.driveId}" does not match approved Shared Drive "${params.expectedSharedDriveId}"`,
+      );
+    }
+
+    if (meta.mimeType !== 'application/pdf') {
+      throw new Error(
+        `Drive verification failed: observed mimeType "${meta.mimeType}" is not application/pdf`,
+      );
+    }
+
+    const actualSize = typeof meta.size === 'string' ? Number(meta.size) : meta.size;
+    if (actualSize !== params.expectedByteLength) {
+      throw new Error(
+        `Drive verification failed: observed size ${actualSize} does not match expected size ${params.expectedByteLength}`,
+      );
+    }
+
+    let observedSha256 = meta.sha256Checksum;
+    if (!observedSha256) {
+      // Incremental media hash with 5 MB ceiling
+      const mediaUrl = `${this.apiBase}/files/${encodeURIComponent(
+        params.expectedFileId,
+      )}?alt=media&supportsAllDrives=true`;
+      const mediaRes = await fetch(mediaUrl, {
+        headers: { Authorization: `Bearer ${params.token}` },
+      });
+      if (!mediaRes.ok) {
+        throw new Error(
+          `Drive media fetch failed during checksum verification (${mediaRes.status})`,
+        );
+      }
+      const mediaBuf = Buffer.from(await mediaRes.arrayBuffer());
+      if (mediaBuf.byteLength > 5_000_000) {
+        throw new Error('Drive media exceeds 5 MB size ceiling during verification');
+      }
+      observedSha256 = crypto.createHash('sha256').update(mediaBuf).digest('hex');
+    }
+
+    if (observedSha256.toLowerCase() !== params.expectedSha256.toLowerCase()) {
+      throw new Error(
+        `Drive verification failed: observed SHA-256 "${observedSha256}" does not match source SHA-256 "${params.expectedSha256}"`,
+      );
+    }
+
+    return { sha256: observedSha256.toLowerCase(), driveId: meta.driveId };
+  }
+
+  /**
+   * Dedicated read-only reconciliation method with ZERO upload/mutation path.
+   */
+  async reconcileStoredArchive(params: {
+    operationId: string;
+    sourceMetadata: AttachmentMetadata;
+    binding: CompanyArchiveBinding;
+    fileId: string;
+  }): Promise<ArchiveReceipt> {
+    const token = await this.resolveAccessToken(params.binding.archivePrincipal);
+    const readUrl = `${this.apiBase}/files/${encodeURIComponent(
+      params.fileId,
+    )}?fields=id,name,mimeType,size,sha256Checksum,parents,driveId,trashed&supportsAllDrives=true`;
+
+    const res = await fetch(readUrl, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Drive file readback returned status ${res.status}`);
+    }
+
+    const meta = (await res.json()) as RawDriveFileMeta;
+    const verified = await this.verifyDriveFile({
+      meta,
+      expectedFileId: params.fileId,
+      expectedFolderId: params.binding.folderId,
+      expectedSharedDriveId: params.binding.driveId,
+      expectedByteLength: params.sourceMetadata.byteLength,
+      expectedSha256: params.sourceMetadata.sha256,
+      token,
+    });
+
+    return {
+      operationId: params.operationId,
+      status: 'verified',
+      source: params.sourceMetadata,
+      destination: {
+        provider: 'google-drive',
+        driveId: verified.driveId,
+        folderId: params.binding.folderId,
+        fileId: params.fileId,
+        byteLength: params.sourceMetadata.byteLength,
+        sha256: verified.sha256,
+      },
+      observedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Initial upload path. Calls single multipart POST and authoritative verify.
+   */
+  async uploadPreparedOnce(params: {
     operationId: string;
     attachment: PrivateAttachment;
     binding: CompanyArchiveBinding;
-    fileId?: string;
+    fileId: string;
   }): Promise<ArchiveReceipt> {
-    const isLocalMirror = this.apiBase.includes('127.0.0.1') || this.apiBase.includes('localhost');
-    let token = this.token;
-    if (!token && !isLocalMirror) {
-      const credProvider = new ArchiveCredentialProvider();
-      token = await credProvider.getDriveAccessToken(params.binding.archivePrincipal);
-    }
+    const token = await this.resolveAccessToken(params.binding.archivePrincipal);
 
-    const { metadata, bytes } = params.attachment;
-    const readHeaders: Record<string, string> = {};
-    if (token) readHeaders['Authorization'] = `Bearer ${token}`;
     // 1. Verify destination folder in Google Drive before attempting upload
     const folderUrl = `${this.apiBase}/files/${encodeURIComponent(
       params.binding.folderId,
     )}?fields=id,name,mimeType,trashed,driveId,capabilities&supportsAllDrives=true`;
 
-    const folderRes = await fetch(folderUrl, { method: 'GET', headers: readHeaders });
+    const folderRes = await fetch(folderUrl, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!folderRes.ok) {
       const errText = truncateError(await folderRes.text());
       throw new Error(`Drive destination folder verification failed (${folderRes.status}): ${errText}`);
@@ -105,13 +270,9 @@ export class DriveArchiveProvider {
       );
     }
 
-    if (
-      folderMeta.driveId &&
-      params.binding.driveId &&
-      folderMeta.driveId !== params.binding.driveId
-    ) {
+    if (!folderMeta.driveId || folderMeta.driveId !== params.binding.driveId) {
       throw new Error(
-        `Drive Shared Drive mismatch: folder belongs to drive ${folderMeta.driveId}, binding requires ${params.binding.driveId}`,
+        `Drive Shared Drive mismatch: folder belongs to drive "${folderMeta.driveId ?? 'My Drive'}", binding requires "${params.binding.driveId}"`,
       );
     }
 
@@ -121,62 +282,11 @@ export class DriveArchiveProvider {
       );
     }
 
-    // 2. Pre-allocated or caller-persisted Drive file ID
-    const fileId = params.fileId || (await this.generateFileId());
-
-    // 3. Check if file was already uploaded under this fileId (read-only reconciliation)
-    const checkUrl = `${this.apiBase}/files/${encodeURIComponent(
-      fileId,
-    )}?fields=id,name,mimeType,size,sha256Checksum,parents,driveId,trashed&supportsAllDrives=true`;
-
-    const checkRes = await fetch(checkUrl, { method: 'GET', headers: readHeaders });
-    if (checkRes.ok) {
-      const existingMeta = (await checkRes.json()) as {
-        id?: string;
-        size?: string | number;
-        sha256Checksum?: string;
-        parents?: string[];
-        driveId?: string;
-        trashed?: boolean;
-      };
-
-      if (!existingMeta.trashed) {
-        const existingSize =
-          typeof existingMeta.size === 'string' ? Number(existingMeta.size) : existingMeta.size;
-        const checksumMatch =
-          existingMeta.sha256Checksum?.toLowerCase() === metadata.sha256.toLowerCase();
-        const parentMatch =
-          Array.isArray(existingMeta.parents) &&
-          existingMeta.parents.length === 1 &&
-          existingMeta.parents[0] === params.binding.folderId;
-        const driveMatch =
-          !params.binding.driveId || existingMeta.driveId === params.binding.driveId;
-
-        if (existingSize === bytes.byteLength && checksumMatch && parentMatch && driveMatch) {
-          // Reconcile already-uploaded file directly without duplicate upload!
-          return {
-            operationId: params.operationId,
-            status: 'verified',
-            source: metadata,
-            destination: {
-              provider: 'google-drive',
-              driveId: existingMeta.driveId || params.binding.driveId,
-              folderId: params.binding.folderId,
-              fileId,
-              byteLength: bytes.byteLength,
-              sha256: metadata.sha256.toLowerCase(),
-            },
-            observedAt: new Date().toISOString(),
-          };
-        }
-      }
-    }
-
-    // 4. Multipart upload body
+    // 2. Multipart upload body
     const boundary = `----DriveBoundary${crypto.randomBytes(16).toString('hex')}`;
     const fileMetadata = {
-      id: fileId,
-      name: metadata.filename,
+      id: params.fileId,
+      name: params.attachment.metadata.filename,
       mimeType: 'application/pdf',
       parents: [params.binding.folderId],
     };
@@ -195,168 +305,43 @@ export class DriveArchiveProvider {
     const footer = `\r\n--${boundary}--`;
     const multipartBody = Buffer.concat([
       Buffer.from(header, 'utf-8'),
-      bytes,
+      params.attachment.bytes,
       Buffer.from(footer, 'utf-8'),
     ]);
 
-    const headers: Record<string, string> = {
+    const uploadHeaders: Record<string, string> = {
       'Content-Type': `multipart/related; boundary=${boundary}`,
       'Content-Length': String(multipartBody.byteLength),
+      Authorization: `Bearer ${token}`, // Fresh token included!
     };
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
-    }
 
     const uploadUrl = `${this.uploadBase}/files?uploadType=multipart&supportsAllDrives=true`;
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
-      headers,
+      headers: uploadHeaders,
       body: multipartBody,
     });
 
     if (!uploadRes.ok) {
       if (uploadRes.status === 409) {
-        // Read back on conflict
-        const getAfter409 = await fetch(checkUrl, { method: 'GET', headers: readHeaders });
-        if (getAfter409.ok) {
-          const m = (await getAfter409.json()) as {
-            size?: number;
-            sha256Checksum?: string;
-            parents?: string[];
-            driveId?: string;
-          };
-          if (
-            m.sha256Checksum?.toLowerCase() === metadata.sha256.toLowerCase() &&
-            m.parents?.[0] === params.binding.folderId
-          ) {
-            return {
-              operationId: params.operationId,
-              status: 'verified',
-              source: metadata,
-              destination: {
-                provider: 'google-drive',
-                driveId: m.driveId || params.binding.driveId,
-                folderId: params.binding.folderId,
-                fileId,
-                byteLength: bytes.byteLength,
-                sha256: metadata.sha256.toLowerCase(),
-              },
-              observedAt: new Date().toISOString(),
-            };
-          }
-        }
+        // Read back on 409 conflict using the exact strict verifier
+        return this.reconcileStoredArchive({
+          operationId: params.operationId,
+          sourceMetadata: params.attachment.metadata,
+          binding: params.binding,
+          fileId: params.fileId,
+        });
       }
       const errText = truncateError(await uploadRes.text());
       throw new Error(`Drive upload failed (${uploadRes.status}): ${errText}`);
     }
 
-    const uploadedJson = (await uploadRes.json()) as { id?: string };
-    const effectiveFileId = uploadedJson.id || fileId;
-
-    // 5. Authoritative readback and integrity verification
-    const readUrl = `${this.apiBase}/files/${encodeURIComponent(
-      effectiveFileId,
-    )}?fields=id,name,mimeType,size,sha256Checksum,parents,driveId,trashed&supportsAllDrives=true`;
-
-    const readRes = await fetch(readUrl, {
-      method: 'GET',
-      headers: readHeaders,
-    });
-
-    if (!readRes.ok) {
-      const errText = truncateError(await readRes.text());
-      throw new Error(`Drive readback verification failed (${readRes.status}): ${errText}`);
-    }
-
-    const readMeta = (await readRes.json()) as {
-      id?: string;
-      mimeType?: string;
-      size?: string | number;
-      sha256Checksum?: string;
-      parents?: string[];
-      driveId?: string;
-      trashed?: boolean;
-    };
-
-    if (readMeta.trashed) {
-      throw new Error(`Drive verification failed: uploaded file ${effectiveFileId} is in trash`);
-    }
-
-    // Exact parent folder placement
-    if (
-      !Array.isArray(readMeta.parents) ||
-      readMeta.parents.length !== 1 ||
-      readMeta.parents[0] !== params.binding.folderId
-    ) {
-      throw new Error(
-        `Drive verification failed: uploaded file parents do not match approved folderId ${params.binding.folderId}`,
-      );
-    }
-
-    // Exact Shared Drive verification
-    if (
-      params.binding.driveId &&
-      readMeta.driveId &&
-      readMeta.driveId !== params.binding.driveId
-    ) {
-      throw new Error(
-        `Drive verification failed: uploaded file driveId "${readMeta.driveId}" does not match binding "${params.binding.driveId}"`,
-      );
-    }
-
-    // Verify MIME
-    if (readMeta.mimeType !== 'application/pdf') {
-      throw new Error(
-        `Drive verification failed: readback mimeType "${readMeta.mimeType}" is not application/pdf`,
-      );
-    }
-
-    // Verify size
-    const readSize = typeof readMeta.size === 'string' ? Number(readMeta.size) : readMeta.size;
-    if (readSize !== bytes.byteLength) {
-      throw new Error(
-        `Drive verification failed: readback size ${readSize} does not match uploaded size ${bytes.byteLength}`,
-      );
-    }
-
-    // Verify SHA-256
-    let observedSha256 = readMeta.sha256Checksum;
-    if (!observedSha256) {
-      const mediaUrl = `${this.apiBase}/files/${encodeURIComponent(
-        effectiveFileId,
-      )}?alt=media&supportsAllDrives=true`;
-      const mediaRes = await fetch(mediaUrl, { headers: readHeaders });
-      if (!mediaRes.ok) {
-        throw new Error(`Drive media fetch failed during checksum verification (${mediaRes.status})`);
-      }
-      const mediaBuf = Buffer.from(await mediaRes.arrayBuffer());
-      if (mediaBuf.byteLength > 5_000_000) {
-        throw new Error(`Drive media exceeds 5 MB size ceiling during verification`);
-      }
-      observedSha256 = crypto.createHash('sha256').update(mediaBuf).digest('hex');
-    }
-
-    if (observedSha256.toLowerCase() !== metadata.sha256.toLowerCase()) {
-      throw new Error(
-        `Drive verification failed: readback SHA-256 ${observedSha256} does not match source SHA-256 ${metadata.sha256}`,
-      );
-    }
-
-    const receipt: ArchiveReceipt = {
+    // 3. Authoritative post-upload readback verification
+    return this.reconcileStoredArchive({
       operationId: params.operationId,
-      status: 'verified',
-      source: metadata,
-      destination: {
-        provider: 'google-drive',
-        driveId: readMeta.driveId || params.binding.driveId,
-        folderId: params.binding.folderId,
-        fileId: effectiveFileId,
-        byteLength: bytes.byteLength,
-        sha256: observedSha256.toLowerCase(),
-      },
-      observedAt: new Date().toISOString(),
-    };
-
-    return receipt;
+      sourceMetadata: params.attachment.metadata,
+      binding: params.binding,
+      fileId: params.fileId,
+    });
   }
 }

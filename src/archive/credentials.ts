@@ -1,7 +1,4 @@
-/**
- * Autonomous archive principal credential provider via Google Cloud IAM Credentials.
- * Based on planner §3.3.
- */
+import { GoogleAuth } from 'google-auth-library';
 
 export interface ArchiveCredentialProviderConfig {
   iamBaseUrl?: string;
@@ -32,7 +29,25 @@ export class ArchiveCredentialProvider {
     const isLocal =
       this.iamBaseUrl.includes('127.0.0.1') || this.iamBaseUrl.includes('localhost');
 
-    // 1. Obtain short-lived scoped token from IAM Credentials API
+    let adcToken = process.env.GOOGLE_OAUTH_ACCESS_TOKEN || null;
+    if (!adcToken) {
+      try {
+        const auth = new GoogleAuth({
+          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+        });
+        const client = await auth.getClient();
+        const tokenRes = await client.getAccessToken();
+        adcToken = tokenRes.token ?? null;
+      } catch (err: unknown) {
+        if (!isLocal) {
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(
+            `ADC credentials unavailable: Google Cloud runtime identity required for IAM token generation: ${msg}`,
+          );
+        }
+      }
+    }
+
     const url = `${this.iamBaseUrl}/projects/-/serviceAccounts/${encodeURIComponent(
       archivePrincipal,
     )}:generateAccessToken`;
@@ -40,9 +55,6 @@ export class ArchiveCredentialProvider {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-
-    // If ADC token is available in environment
-    const adcToken = process.env.GOOGLE_OAUTH_ACCESS_TOKEN;
     if (adcToken) {
       headers['Authorization'] = `Bearer ${adcToken}`;
     }
@@ -61,18 +73,21 @@ export class ArchiveCredentialProvider {
         const json = (await res.json()) as { accessToken?: string; expireTime?: string };
         if (json.accessToken) {
           this.cachedToken = json.accessToken;
-          this.tokenExpiresAt = json.expireTime ? new Date(json.expireTime).getTime() : now + 3600 * 1000;
+          this.tokenExpiresAt = json.expireTime
+            ? new Date(json.expireTime).getTime()
+            : now + 3600 * 1000;
           return this.cachedToken;
         }
       }
     } catch (err: unknown) {
       if (!isLocal) {
         const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Failed to generate Drive credentials for principal ${archivePrincipal}: ${msg}`);
+        throw new Error(
+          `Failed to generate Drive credentials for principal ${archivePrincipal}: ${msg}`,
+        );
       }
     }
 
-    // Fallback for isolated test mirrors
     if (isLocal || this.cachedToken) {
       return this.cachedToken || 'synthetic-mirror-drive-token';
     }

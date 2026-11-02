@@ -1,10 +1,12 @@
 import crypto from 'node:crypto';
 import type {
   Actor,
+  Claim,
   OperationIntent,
   OperationKind,
 } from './contracts.js';
 import {
+  canonicalizeNumericId,
   deriveAccountKey,
   getOperationStore,
   type OperationStore,
@@ -22,8 +24,7 @@ export class TicketCoordinatorSession {
 
   private readonly store: OperationStore;
   private readonly ttlMs: number;
-  private fence = 0;
-  private expiresAt = 0;
+  private claim: Claim | null = null;
   private renewalTimer: NodeJS.Timeout | null = null;
   private lost = false;
   private armed = false;
@@ -39,11 +40,7 @@ export class TicketCoordinatorSession {
     ttlMs?: number;
   }) {
     this.accountKey = deriveAccountKey();
-    const numericTicket = Number(params.ticketId);
-    if (!Number.isSafeInteger(numericTicket) || numericTicket <= 0) {
-      throw new Error(`Invalid ticket ID: "${params.ticketId}" must be a positive integer`);
-    }
-    this.ticketId = String(numericTicket);
+    this.ticketId = canonicalizeNumericId(params.ticketId, 'ticketId');
     this.actor = params.actor;
     this.operationId = params.operationId;
     this.kind = params.kind;
@@ -61,6 +58,10 @@ export class TicketCoordinatorSession {
 
   getOperation(): OperationIntent | null {
     return this.operation;
+  }
+
+  getClaim(): Claim | null {
+    return this.claim;
   }
 
   isArmed(): boolean {
@@ -83,10 +84,7 @@ export class TicketCoordinatorSession {
       return { alreadyVerified: true, isRecovery: false };
     }
 
-    const isRecovery =
-      this.operation.phase === 'dispatching' || this.operation.phase === 'uncertain';
-
-    // 2. Acquire preparation lease on ticket coordinator
+    // 2. Acquire coordinator lease and return fresh operation snapshot under the claim
     const start = Date.now();
     while (true) {
       const res = await this.store.acquireCoordinatorLease(
@@ -99,16 +97,17 @@ export class TicketCoordinatorSession {
       );
 
       if (res.acquired) {
-        this.fence = res.fence;
-        this.expiresAt = res.expiresAt;
+        this.claim = res.claim;
+        this.operation = res.operation;
         this.startHeartbeat();
-        return { alreadyVerified: false, isRecovery };
+        const isRecovery = res.claim.mode === 'reconciling';
+        return { alreadyVerified: this.operation.phase === 'verified', isRecovery };
       }
 
       if (Date.now() - start > maxWaitMs) {
         throw new Error(
           `Conflict: timeout acquiring coordinator lease for ticket ${this.ticketId}; write refused (held until ${new Date(
-            res.expiresAt,
+            res.claim.expiresAt,
           ).toISOString()})`,
         );
       }
@@ -117,15 +116,27 @@ export class TicketCoordinatorSession {
     }
   }
 
-  async savePreparedState(preparedState: Record<string, unknown>): Promise<void> {
-    await this.store.savePreparedState(this.accountKey, this.operationId, preparedState);
+  async commitPreparation(preparedState: Record<string, unknown>): Promise<void> {
+    if (!this.claim || !this.isFencedAndValid()) {
+      throw new Error(
+        `Conflict: claim expired or lost before committing preparation for ticket ${this.ticketId}`,
+      );
+    }
+    await this.store.savePreparedState({
+      accountKey: this.accountKey,
+      ticketId: this.ticketId,
+      operationId: this.operationId,
+      claim: this.claim,
+      preparedState,
+    });
     if (this.operation) {
       this.operation.preparedState = { ...(this.operation.preparedState ?? {}), ...preparedState };
+      this.operation.phase = 'prepared';
     }
   }
 
   async armDispatch(): Promise<void> {
-    if (!this.isFencedAndValid()) {
+    if (!this.claim || !this.isFencedAndValid()) {
       throw new Error(
         `Conflict: coordinator lease expired before arming dispatch on ticket ${this.ticketId}; write refused`,
       );
@@ -148,7 +159,7 @@ export class TicketCoordinatorSession {
     this.armed = true;
   }
 
-  async markVerified(receipt?: Record<string, unknown>): Promise<void> {
+  async markVerified(receipt: Record<string, unknown>): Promise<void> {
     await this.store.markVerified(
       this.accountKey,
       this.ticketId,
@@ -167,7 +178,7 @@ export class TicketCoordinatorSession {
       this.operationId,
       error,
     );
-    // Keep this.armed true so barrier remains sticky!
+    // Active dispatch remains sticky on coordinator!
   }
 
   private startHeartbeat(): void {
@@ -183,8 +194,8 @@ export class TicketCoordinatorSession {
         if (!res.renewed) {
           this.lost = true;
           this.stopHeartbeat();
-        } else {
-          this.expiresAt = res.expiresAt;
+        } else if (this.claim) {
+          this.claim.expiresAt = res.expiresAt;
         }
       } catch {
         this.lost = true;
@@ -202,14 +213,14 @@ export class TicketCoordinatorSession {
   }
 
   isFencedAndValid(): boolean {
-    if (this.lost) return false;
-    if (Date.now() >= this.expiresAt) return false;
+    if (this.lost || !this.claim) return false;
+    if (Date.now() >= this.claim.expiresAt) return false;
     return true;
   }
 
   forceExpire(): void {
     this.lost = true;
-    this.expiresAt = Date.now() - 1000;
+    if (this.claim) this.claim.expiresAt = Date.now() - 1000;
     this.stopHeartbeat();
   }
 

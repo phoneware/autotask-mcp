@@ -1,6 +1,6 @@
 /**
  * Shared provisioning evidence and operation contracts (Slice A1 redesign).
- * Based on planner spec agent://PlanAutotaskSecondRepair.
+ * Based on planner spec agent://PlanAutotaskThirdRepair.
  */
 
 export interface Actor {
@@ -15,12 +15,29 @@ export type OperationKind =
   | 'attachment_archive';
 
 export type OperationPhase =
+  | 'preparing'
   | 'prepared'
   | 'dispatching'
   | 'verified'
   | 'uncertain'
   | 'conflict'
   | 'rejected';
+
+export interface Claim {
+  attemptId: string;
+  fence: number;
+  expiresAt: number;
+  mode: 'preparing' | 'reconciling';
+}
+
+export interface DispatchIdentity {
+  dispatchId: string;
+  operationKey: string;
+  intentSha256: string;
+  originalAttemptId: string;
+  originalFence: number;
+  armedAt: number;
+}
 
 /**
  * Immutable caller intent.
@@ -36,7 +53,7 @@ export interface OperationIntent {
   targetId?: string;
   intentSha256: string;
   payload: Record<string, unknown>; // pure user-supplied parameters only
-  preparedState?: Record<string, unknown>; // generated once during preparation
+  preparedState?: Record<string, unknown>; // write-once preparation
   phase: OperationPhase;
   createdAt: number;
   updatedAt: number;

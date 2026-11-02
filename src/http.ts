@@ -583,6 +583,18 @@ function rateLimit(opts: AppOptions) {
   };
 }
 
+export function formatChallenge(
+  error?: string,
+  description?: string,
+  resourceMetadataUrl?: string,
+): string {
+  const parts = ['Bearer realm="autotask-mcp"'];
+  if (error) parts.push(`error="${error}"`);
+  if (description) parts.push(`error_description="${description}"`);
+  if (resourceMetadataUrl) parts.push(`resource_metadata="${resourceMetadataUrl}"`);
+  return parts.join(', ');
+}
+
 /**
  * Verify a Google-issued token. On failure, point the client at the
  * protected-resource metadata so it can start a sign-in.
@@ -593,13 +605,8 @@ function makeAuthMiddleware(opts: AppOptions) {
       ? getOAuthProtectedResourceMetadataUrl(new URL('/mcp', opts.baseUrl))
       : undefined;
 
-  const challenge = (error?: string, description?: string): string => {
-    const parts = ['Bearer realm="autotask-mcp"'];
-    if (error) parts.push(`error="${error}"`);
-    if (description) parts.push(`error_description="${description}"`);
-    if (resourceMetadataUrl) parts.push(`resource_metadata="${resourceMetadataUrl}"`);
-    return parts.join(', ');
-  };
+  const challenge = (error?: string, description?: string): string =>
+    formatChallenge(error, description, resourceMetadataUrl);
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const provider = opts.googleProvider;
@@ -687,7 +694,7 @@ async function handleStatelessMcpRequest(
   if (!caller) {
     res.setHeader(
       'WWW-Authenticate',
-      challenge('invalid_token', 'Invalid or incomplete caller identity in access token'),
+      formatChallenge('invalid_token', 'Invalid or incomplete caller identity in access token'),
     );
     rpcError(res, 401, -32001, 'Unauthorized: incomplete caller identity');
     return;
