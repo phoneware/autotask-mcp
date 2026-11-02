@@ -159,6 +159,11 @@ export const genericTools: ToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        entity: {
+          type: 'string',
+          description:
+            'The entity collection being queried (e.g. "Companies", "Tickets", "TicketNotes")',
+        },
         nextPageUrl: {
           type: 'string',
           description: 'pageDetails.nextPageUrl copied verbatim from a prior query response',
@@ -169,11 +174,12 @@ export const genericTools: ToolDefinition[] = [
             'The same JSON query object the previous page was fetched with, e.g. {"filter":[{"op":"contains","field":"companyName","value":"Zucker"}],"MaxRecords":50}',
         },
       },
-      required: ['nextPageUrl', 'query'],
+      required: ['entity', 'nextPageUrl', 'query'],
     },
     handler: async (args) => {
+      const entity = assertSafeEntityName(args.entity, 'entity');
       const query = parseJsonBody(args.query, querySchema, 'query');
-      return jsonResponse(await api.getPage(args.nextPageUrl, query));
+      return jsonResponse(await api.getPage(args.nextPageUrl, query, entity));
     },
   },
   {

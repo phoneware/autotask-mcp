@@ -173,7 +173,7 @@ describe('AutotaskApi', () => {
       filter: [{ op: 'contains', field: 'companyName', value: 'Zucker' }],
       MaxRecords: 1,
     };
-    await api.getPage(url, model);
+    await api.getPage(url, model, 'Companies');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [called, opts] = fetchMock.mock.calls[0];
@@ -187,9 +187,54 @@ describe('AutotaskApi', () => {
 
   it('getPage refuses a url outside the zone base', async () => {
     const api = new AutotaskApi();
-    await expect(api.getPage('https://evil.example.com/V1.0/Companies/query', {})).rejects.toThrow(
-      /must start with/,
-    );
+    await expect(
+      api.getPage(
+        'https://evil.example.com/V1.0/Companies/query/next?paging=1',
+        { filter: [{ op: 'eq', field: 'id', value: 1 }] },
+        'Companies',
+      ),
+    ).rejects.toThrow(/must start with/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('getPage refuses a create url instead of a continuation route', async () => {
+    const api = new AutotaskApi();
+    await expect(
+      api.getPage(
+        'https://webservices2.autotask.net/atservicesrest/V1.0/Companies',
+        { filter: [{ op: 'eq', field: 'id', value: 1 }] },
+        'Companies',
+      ),
+    ).rejects.toThrow(/nextPageUrl must contain a paging query parameter/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('getPage refuses a continuation route for a different collection', async () => {
+    const api = new AutotaskApi();
+    await expect(
+      api.getPage(
+        'https://webservices2.autotask.net/atservicesrest/V1.0/Tickets/query/next?paging=1',
+        { filter: [{ op: 'eq', field: 'id', value: 1 }] },
+        'Companies',
+      ),
+    ).rejects.toThrow(/valid query\/next continuation route for collection "Companies"/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('getPage refuses query body containing mutation fields', async () => {
+    const api = new AutotaskApi();
+    const url =
+      'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query/next?paging=%7B%22pageSize%22%3A1%7D';
+    await expect(
+      api.getPage(
+        url,
+        {
+          filter: [{ op: 'eq', field: 'id', value: 1 }],
+          companyName: 'Evil Corporation',
+        },
+        'Companies',
+      ),
+    ).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -203,7 +248,12 @@ describe('AutotaskApi', () => {
       'https://webservices2.autotask.net/atservicesrest/V1.0/Companies/query/next?paging=%7B%22pageSize%22%3A1%7D';
     await withCaller(
       { email: 'jason@example.com', resourceId: 29682893, capabilities: ['read'] },
-      () => api.getPage(url, { filter: [{ op: 'gte', field: 'id', value: 0 }], MaxRecords: 1 }),
+      () =>
+        api.getPage(
+          url,
+          { filter: [{ op: 'gte', field: 'id', value: 0 }], MaxRecords: 1 },
+          'Companies',
+        ),
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);

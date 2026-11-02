@@ -1,6 +1,8 @@
 import { ZoneInformation } from './types.js';
 import { governor } from './governor.js';
 import { currentCaller } from './auth/context.js';
+import { assertSafeEntityName, querySchema } from './security.js';
+import { deriveCanonicalAccountKey } from './provisioning/account.js';
 import { resolveWritePath } from './tools/entity-resolver.js';
 import {
   assertWritableFields,
@@ -165,8 +167,7 @@ export class AutotaskApi {
       signal: AbortSignal.timeout(15000),
     });
     if (!resp.ok) {
-      const text = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask zone detection');
-      throw new Error(`Zone detection failed (${resp.status}): ${redactSecrets(text)}`);
+      throw new Error(`Zone detection failed (${resp.status})`);
     }
     const zoneText = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask zone detection');
     const zone = (zoneText ? JSON.parse(zoneText) : {}) as ZoneInformation;
@@ -192,19 +193,24 @@ export class AutotaskApi {
     body?: unknown,
     opts: { internal?: boolean; maxRetries?: number } = {},
   ): Promise<unknown> {
-    if (!opts.internal) {
-      const classification = classifyRouteMutation(method, path, body);
-      if (classification.isProtected) {
-        const toolHint = classification.curatedTool
-          ? ` Use curated tool "${classification.curatedTool}".`
-          : '';
-        throw new Error(
-          `Refused: route "${path}" is a protected mutation requiring coordinated dispatch.${toolHint}`,
-        );
-      }
+    const classification = classifyRouteMutation(method, path, body);
+    if (classification.isProtected) {
+      const toolHint = classification.curatedTool
+        ? ` Use curated tool "${classification.curatedTool}".`
+        : '';
+      throw new Error(
+        `Refused: route "${path}" is a protected mutation requiring coordinated dispatch.${toolHint}`,
+      );
     }
 
-    if (opts.internal) {
+    const normMethod = method.toUpperCase().trim();
+    const cleanPath = path.replace(/^\/+/, '').toLowerCase();
+    const isThresholdProbe =
+      opts.internal === true &&
+      normMethod === 'GET' &&
+      (cleanPath === 'v1.0/thresholdinformation' || cleanPath === 'thresholdinformation');
+
+    if (isThresholdProbe) {
       return this.execute(method, path, body, opts.maxRetries);
     }
     await governor.assertBudget(() => this.fetchThresholdRaw());
@@ -222,60 +228,66 @@ export class AutotaskApi {
     body?: unknown,
     opts: {
       timeoutMs?: number;
-      permitToken?: DispatchPermitToken;
-      armBeforeFetch?: () => Promise<void>;
-    } = {},
+      permitToken: DispatchPermitToken;
+    },
   ): Promise<unknown> {
+    if (!opts.permitToken) {
+      throw new Error('Refused: singleDispatchMutation requires a valid dispatch permit token');
+    }
     const timeoutMs = opts.timeoutMs ?? 15000;
     const bodyDigest = computeBodyDigest(body);
 
-    if (opts.permitToken) {
-      consumeDispatchPermit(opts.permitToken, {
-        provider: 'autotask',
-        method,
-        route: path,
-        bodyDigest,
-      });
+    consumeDispatchPermit(opts.permitToken, {
+      provider: 'autotask',
+      method,
+      route: path,
+      bodyDigest,
+    });
+
+    const base = await this.getBaseUrl();
+    const url = `${base}${path.replace(/^\//, '')}`;
+    const headers = this.authHeaders(method, path, true);
+    const options: RequestInit = {
+      method,
+      headers,
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    };
+    if (body !== undefined) {
+      options.body = typeof body === 'string' ? body : JSON.stringify(body);
     }
 
+    let resp: Response;
+    try {
+      resp = await fetch(url, options);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw safeCoordinatorError(
+        'MUTATION_DISPATCH_UNCERTAIN',
+        `Mutation dispatch uncertain (network/timeout): ${sanitizeErrorMessage(msg)}`,
+      );
+    }
+
+    if (resp.status === 204) return { success: true };
+    const text = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask mutation response');
+    if (resp.ok) {
+      return text ? JSON.parse(text) : { success: true };
+    }
+    throw safeAutotaskError(resp.status, 'AUTOTASK_API_ERROR');
+  }
+
+  async preflightMutationPrerequisites(path: string): Promise<void> {
+    await this.getBaseUrl();
     await governor.assertBudget(() => this.fetchThresholdRaw());
-    return governor.withSlot(path, async () => {
-      const base = await this.getBaseUrl();
-      const url = `${base}${path.replace(/^\//, '')}`;
-      const headers = this.authHeaders(method, path, true);
-      const options: RequestInit = {
-        method,
-        headers,
-        redirect: 'error',
-        signal: AbortSignal.timeout(timeoutMs),
-      };
-      if (body !== undefined) {
-        options.body = typeof body === 'string' ? body : JSON.stringify(body);
-      }
+  }
 
-      // Optional armBeforeFetch for backward compatibility
-      if (opts.armBeforeFetch) {
-        await opts.armBeforeFetch();
-      }
+  async getEffectiveZoneUrl(): Promise<string> {
+    return this.getBaseUrl();
+  }
 
-      let resp: Response;
-      try {
-        resp = await fetch(url, options);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw safeCoordinatorError(
-          'MUTATION_DISPATCH_UNCERTAIN',
-          `Mutation dispatch uncertain (network/timeout): ${sanitizeErrorMessage(msg)}`,
-        );
-      }
-
-      if (resp.status === 204) return { success: true };
-      const text = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask mutation response');
-      if (resp.ok) {
-        return text ? JSON.parse(text) : { success: true };
-      }
-      throw safeAutotaskError(resp.status, 'AUTOTASK_API_ERROR');
-    });
+  async getCanonicalAccountKey(): Promise<string> {
+    const zoneUrl = await this.getBaseUrl();
+    return deriveCanonicalAccountKey(this.username, zoneUrl);
   }
   /**
    * The governor's own budget probe. Never governed (it would deadlock), and
@@ -305,7 +317,11 @@ export class AutotaskApi {
 
     while (true) {
       const headers = this.authHeaders(method, path, impersonate);
-      const options: RequestInit = { method, headers };
+      const options: RequestInit = {
+        method,
+        headers,
+        signal: AbortSignal.timeout(15000),
+      };
       if (body !== undefined) {
         options.body = JSON.stringify(body);
       }
@@ -390,12 +406,70 @@ export class AutotaskApi {
    * Autotask credentials. Re-entering `request` keeps the governor, retries and
    * auth headers in play.
    */
-  async getPage(url: string, query: unknown): Promise<unknown> {
+  async getPage(url: string, query: unknown, expectedCollection: string): Promise<unknown> {
+    if (!expectedCollection || typeof expectedCollection !== 'string') {
+      throw new Error('getPage requires an expectedCollection argument');
+    }
+    const safeCollection = assertSafeEntityName(expectedCollection, 'expectedCollection');
     const base = await this.getBaseUrl();
     if (!url.startsWith(base)) {
       throw new Error(`nextPageUrl must start with ${base}`);
     }
-    return this.request('POST', url.slice(base.length), query);
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      throw new Error(`Invalid nextPageUrl: ${JSON.stringify(url)}`);
+    }
+
+    const baseParsed = new URL(base);
+    if (parsedUrl.origin !== baseParsed.origin) {
+      throw new Error(
+        `nextPageUrl origin mismatch (expected ${baseParsed.origin}, got ${parsedUrl.origin})`,
+      );
+    }
+
+    const relativePath = url.slice(base.length);
+    const qIndex = relativePath.indexOf('?');
+    const pathname = (qIndex !== -1 ? relativePath.slice(0, qIndex) : relativePath)
+      .replace(/^\/+/, '')
+      .replace(/\/+$/, '');
+    const queryString = qIndex !== -1 ? relativePath.slice(qIndex + 1) : '';
+
+    if (!queryString || !queryString.includes('paging=')) {
+      throw new Error('nextPageUrl must contain a paging query parameter');
+    }
+
+    const segments = pathname.split('/').filter(Boolean);
+    let isContinuation = false;
+    if (
+      segments.length === 4 &&
+      segments[0].toUpperCase() === 'V1.0' &&
+      segments[1].toLowerCase() === safeCollection.toLowerCase() &&
+      segments[2].toLowerCase() === 'query' &&
+      segments[3].toLowerCase() === 'next'
+    ) {
+      isContinuation = true;
+    } else if (
+      segments.length === 6 &&
+      segments[0].toUpperCase() === 'V1.0' &&
+      /^\d+$/.test(segments[2]) &&
+      segments[3].toLowerCase() === safeCollection.toLowerCase() &&
+      segments[4].toLowerCase() === 'query' &&
+      segments[5].toLowerCase() === 'next'
+    ) {
+      isContinuation = true;
+    }
+
+    if (!isContinuation) {
+      throw new Error(
+        `Refused: nextPageUrl must be a valid query/next continuation route for collection "${safeCollection}" (got: "${pathname}")`,
+      );
+    }
+
+    const parsedQuery = querySchema.parse(query);
+    return this.request('POST', relativePath, parsedQuery);
   }
 
   /** Count records matching a query, without fetching them. */

@@ -32,7 +32,7 @@ export function sanitizeErrorMessage(raw: string): string {
 
   // Redact bearer tokens and authorization headers
   clean = clean.replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]');
-  clean = clean.replace(/(?:key|token|secret|password|auth|apiKey)=([A-Za-z0-9._~+/-]+)/gi, '$1=[REDACTED]');
+  clean = clean.replace(/((?:key|token|secret|password|auth|apiKey)=)([A-Za-z0-9._~+/-]+)/gi, '$1[REDACTED]');
 
   // Redact local absolute file paths (Unix / macOS)
   clean = clean.replace(/(?:\/[a-zA-Z0-9._-]+){2,}/g, '[REDACTED_PATH]');

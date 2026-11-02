@@ -28,6 +28,7 @@ export async function readBoundedBuffer(
   resp: Response,
   maxBytes: number,
   contextLabel = 'Response',
+  timeoutMs = 15000,
 ): Promise<Buffer> {
   const contentLength = resp.headers.get('content-length');
   if (contentLength) {
@@ -52,19 +53,34 @@ export async function readBoundedBuffer(
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
 
+  let timer: NodeJS.Timeout | undefined;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        totalBytes += value.byteLength;
-        if (totalBytes > maxBytes) {
-          await reader.cancel();
-          throw new ResponseCeilingExceededError(maxBytes, totalBytes, contextLabel);
-        }
-        chunks.push(value);
+    const { promise: streamPromise, reject: timeoutReject } = Promise.withResolvers<never>();
+    timer = setTimeout(async () => {
+      try {
+        await reader.cancel();
+      } catch {
+        // Ignore cancel error
       }
-    }
+      timeoutReject(new Error(`${contextLabel} timed out after ${timeoutMs}ms while reading stream`));
+    }, timeoutMs);
+
+    const readChunks = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          totalBytes += value.byteLength;
+          if (totalBytes > maxBytes) {
+            await reader.cancel();
+            throw new ResponseCeilingExceededError(maxBytes, totalBytes, contextLabel);
+          }
+          chunks.push(value);
+        }
+      }
+    };
+
+    await Promise.race([readChunks(), streamPromise]);
   } catch (err) {
     if (err instanceof ResponseCeilingExceededError) {
       throw err;
@@ -75,6 +91,8 @@ export async function readBoundedBuffer(
       // Ignore cancel error
     }
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
 
   return Buffer.concat(chunks);
@@ -115,6 +133,7 @@ export async function readBoundedAndHash(
   resp: Response,
   maxBytes: number,
   contextLabel = 'Media stream',
+  timeoutMs = 15000,
 ): Promise<{ sha256: string; byteLength: number }> {
   if (!resp.body) {
     return {
@@ -127,19 +146,34 @@ export async function readBoundedAndHash(
   const hash = crypto.createHash('sha256');
   let byteLength = 0;
 
+  let timer: NodeJS.Timeout | undefined;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        byteLength += value.byteLength;
-        if (byteLength > maxBytes) {
-          await reader.cancel();
-          throw new ResponseCeilingExceededError(maxBytes, byteLength, contextLabel);
-        }
-        hash.update(value);
+    const { promise: streamPromise, reject: timeoutReject } = Promise.withResolvers<never>();
+    timer = setTimeout(async () => {
+      try {
+        await reader.cancel();
+      } catch {
+        // Ignore cancel error
       }
-    }
+      timeoutReject(new Error(`${contextLabel} timed out after ${timeoutMs}ms while reading stream`));
+    }, timeoutMs);
+
+    const readAndHash = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          byteLength += value.byteLength;
+          if (byteLength > maxBytes) {
+            await reader.cancel();
+            throw new ResponseCeilingExceededError(maxBytes, byteLength, contextLabel);
+          }
+          hash.update(value);
+        }
+      }
+    };
+
+    await Promise.race([readAndHash(), streamPromise]);
   } catch (err) {
     if (err instanceof ResponseCeilingExceededError) {
       throw err;
@@ -150,6 +184,8 @@ export async function readBoundedAndHash(
       // Ignore
     }
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
 
   return {

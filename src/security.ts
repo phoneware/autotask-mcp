@@ -92,6 +92,11 @@ export function assertSafeNumericId(value: string, label: string): string {
   if (!/^\d+$/.test(str)) {
     throw new Error(`${label} must be a numeric id (got: ${JSON.stringify(value)})`);
   }
+  if (str.length > 1 && str.startsWith('0')) {
+    throw new Error(
+      `${label} must be a canonical numeric id without leading zeros (got: ${JSON.stringify(value)})`,
+    );
+  }
   const n = parseInt(str, 10);
   if (!Number.isSafeInteger(n) || n <= 0) {
     throw new Error(`${label} must be a positive safe integer (got: ${JSON.stringify(value)})`);
@@ -156,16 +161,18 @@ const filterClauseSchema: z.ZodType<unknown> = z.lazy(() =>
       items: z.array(filterClauseSchema).optional(),
       udf: z.boolean().optional(),
     })
-    .passthrough(),
+    .strict(),
 );
 
 export const querySchema = z
   .object({
     filter: z.array(filterClauseSchema).min(1),
     MaxRecords: z.number().int().min(1).max(500).optional(),
+    maxRecords: z.number().int().min(1).max(500).optional(),
     IncludeFields: z.array(z.string()).optional(),
+    includeFields: z.array(z.string()).optional(),
   })
-  .passthrough();
+  .strict();
 
 /** A free-form record body for create/update. Must be a non-empty object. */
 export const recordBodySchema = z

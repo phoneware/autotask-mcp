@@ -128,6 +128,22 @@ describe('querySchema', () => {
     });
     expect(ok.success).toBe(true);
   });
+
+  it('rejects unexpected mutation fields in query object', () => {
+    const res = querySchema.safeParse({
+      filter: [{ op: 'eq', field: 'id', value: 1 }],
+      companyName: 'Bypass Company',
+      id: 999,
+    });
+    expect(res.success).toBe(false);
+  });
+
+  it('rejects unexpected mutation fields in filter clauses', () => {
+    const res = querySchema.safeParse({
+      filter: [{ op: 'eq', field: 'id', value: 1, extraField: 'evil' }],
+    });
+    expect(res.success).toBe(false);
+  });
 });
 
 describe('recordBodySchema / updateBodySchema', () => {
@@ -137,5 +153,86 @@ describe('recordBodySchema / updateBodySchema', () => {
   it('updateBody requires id', () => {
     expect(updateBodySchema.safeParse({ status: 5 }).success).toBe(false);
     expect(updateBodySchema.safeParse({ id: 5, status: 5 }).success).toBe(true);
+  });
+});
+describe('assertSafeNumericId canonical formatting', () => {
+  it('rejects numeric strings with leading zeros', () => {
+    expect(() => assertSafeNumericId('0123', 'testId')).toThrow(/leading zeros/);
+    expect(() => assertSafeNumericId('007', 'testId')).toThrow(/leading zeros/);
+  });
+  it('accepts canonical positive numeric strings', () => {
+    expect(assertSafeNumericId('123', 'testId')).toBe('123');
+    expect(assertSafeNumericId('1', 'testId')).toBe('1');
+  });
+});
+
+describe('resolveCanonicalRoute and classifyRouteMutation', () => {
+  it('exempts documented read query endpoints from mutation protection', async () => {
+    const { resolveCanonicalRoute, classifyRouteMutation } = await import(
+      '../src/provisioning/dispatch.js'
+    );
+    expect(classifyRouteMutation('POST', 'V1.0/TicketNotes/query').isProtected).toBe(false);
+    expect(classifyRouteMutation('POST', 'V1.0/TicketNotes/query/count').isProtected).toBe(false);
+    expect(classifyRouteMutation('POST', 'V1.0/TicketChecklistItems/query').isProtected).toBe(
+      false,
+    );
+    expect(
+      classifyRouteMutation('POST', 'V1.0/Tickets/1001/Notes/query', { ticketID: 1001 })
+        .isProtected,
+    ).toBe(false);
+    expect(
+      classifyRouteMutation('POST', 'V1.0/Tickets/1001/ChecklistItems/query', { ticketID: 1001 })
+        .isProtected,
+    ).toBe(false);
+
+    const res = resolveCanonicalRoute('POST', 'V1.0/TicketNotes/query');
+    expect(res.isQuery).toBe(true);
+    expect(res.isProtected).toBe(false);
+  });
+
+  it('classifies protected mutations accurately and refuses query disguises', async () => {
+    const { classifyRouteMutation } = await import('../src/provisioning/dispatch.js');
+    // Raw note creation
+    const noteRes = classifyRouteMutation('POST', 'V1.0/TicketNotes');
+    expect(noteRes.isProtected).toBe(true);
+    expect(noteRes.curatedTool).toBe('record-ticket-evidence');
+
+    // Note creation disguised with query string
+    const disguisedNote = classifyRouteMutation('POST', 'V1.0/TicketNotes?action=create');
+    expect(disguisedNote.isProtected).toBe(true);
+    expect(disguisedNote.curatedTool).toBe('record-ticket-evidence');
+
+    // Checklist mutations
+    const checkRes = classifyRouteMutation('POST', 'V1.0/TicketChecklistItems');
+    expect(checkRes.isProtected).toBe(true);
+    expect(checkRes.curatedTool).toBe('set-ticket-checklist-item');
+
+    // Resolution mutations
+    const patchRes = classifyRouteMutation('PATCH', 'V1.0/Tickets', {
+      id: 1001,
+      resolution: 'done',
+    });
+    expect(patchRes.isProtected).toBe(true);
+    expect(patchRes.curatedTool).toBe('append-ticket-resolution');
+
+    // Ticket DELETE
+    const delRes = classifyRouteMutation('DELETE', 'V1.0/Tickets/1001');
+    expect(delRes.isProtected).toBe(true);
+  });
+
+  it('rejects path traversal, backslashes, userinfo, and encoded separators', async () => {
+    const { resolveCanonicalRoute } = await import('../src/provisioning/dispatch.js');
+    expect(() => resolveCanonicalRoute('GET', 'V1.0/Tickets/../Companies')).toThrow(/traversal/);
+    expect(() => resolveCanonicalRoute('GET', 'V1.0\\Tickets')).toThrow(/backslash/);
+    expect(() => resolveCanonicalRoute('GET', 'user@V1.0/Tickets')).toThrow(/userinfo/);
+    expect(() => resolveCanonicalRoute('GET', 'V1.0%2fTickets')).toThrow(/encoded path separator/);
+    expect(() => resolveCanonicalRoute('GET', 'V1.0/Tickets#frag')).toThrow(/fragment/);
+  });
+
+  it('rejects parent ID mismatch between route and body', async () => {
+    const { resolveCanonicalRoute } = await import('../src/provisioning/dispatch.js');
+    expect(() =>
+      resolveCanonicalRoute('POST', 'V1.0/Tickets/1001/Notes', { ticketID: 9999 }),
+    ).toThrow(/parent ID mismatch/);
   });
 });

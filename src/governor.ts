@@ -98,12 +98,25 @@ export class Semaphore {
     return this.waiters.length;
   }
 
-  async acquire(): Promise<() => void> {
+  async acquire(timeoutMs = 15000): Promise<() => void> {
     if (this.active < this.limit) {
       this.active++;
     } else {
-      // The releasing slot is handed to us, so `active` already accounts for it.
-      await new Promise<void>((resolve) => this.waiters.push(resolve));
+      const { promise, resolve, reject } = Promise.withResolvers<void>();
+      let timer: NodeJS.Timeout | undefined;
+      const waiter = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      this.waiters.push(waiter);
+      timer = setTimeout(() => {
+        const idx = this.waiters.indexOf(waiter);
+        if (idx !== -1) {
+          this.waiters.splice(idx, 1);
+          reject(new Error(`Timeout waiting for concurrency slot after ${timeoutMs}ms`));
+        }
+      }, timeoutMs);
+      await promise;
     }
 
     let released = false;
@@ -233,8 +246,8 @@ export class ApiGovernor {
   }
 
   /** Run `fn` holding a concurrency slot for the object endpoint `path` hits. */
-  async withSlot<T>(path: string, fn: () => Promise<T>): Promise<T> {
-    const release = await this.semaphoreFor(endpointKey(path)).acquire();
+  async withSlot<T>(path: string, fn: () => Promise<T>, timeoutMs = 15000): Promise<T> {
+    const release = await this.semaphoreFor(endpointKey(path)).acquire(timeoutMs);
     try {
       return await fn();
     } finally {
