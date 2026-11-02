@@ -18,31 +18,64 @@ import {
   withTicketOperation,
 } from '../provisioning/ticket-coordinator.js';
 import { computeBodyDigest } from '../provisioning/dispatch.js';
+import type { AttachmentMetadata } from '../provisioning/contracts.js';
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB decoded
 
+export function decodeAttachmentMetadata(data: unknown): AttachmentMetadata {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid attachment metadata: expected object');
+  }
+  const obj = data as Record<string, unknown>;
+  const ticketId = assertSafeNumericId(String(obj.ticketId ?? ''), 'ticketId');
+  const attachmentId = assertSafeNumericId(String(obj.attachmentId ?? ''), 'attachmentId');
+  const companyId = assertSafeNumericId(String(obj.companyId ?? ''), 'companyId');
+  if (typeof obj.filename !== 'string' || !obj.filename.trim()) {
+    throw new Error('Invalid attachment metadata: missing filename');
+  }
+  if (obj.mimeType !== 'application/pdf') {
+    throw new Error('Invalid attachment metadata: mimeType must be application/pdf');
+  }
+  if (typeof obj.byteLength !== 'number' || obj.byteLength <= 0) {
+    throw new Error('Invalid attachment metadata: byteLength must be a positive safe integer');
+  }
+  if (typeof obj.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(obj.sha256)) {
+    throw new Error('Invalid attachment metadata: sha256 must be a 64-char hex string');
+  }
+  return {
+    ticketId,
+    attachmentId,
+    companyId,
+    filename: obj.filename,
+    mimeType: 'application/pdf',
+    byteLength: obj.byteLength,
+    sha256: obj.sha256.toLowerCase(),
+  };
+}
+
 function isVerifiedImageBytes(buffer: Buffer, mimeType: string): boolean {
-  if (buffer.length < 4) return false;
-  if (mimeType === 'image/png' && buffer.subarray(0, 4).toString('hex') === '89504e47') {
-    return true;
+  if (mimeType === 'image/png') {
+    if (buffer.length < 8) return false;
+    return buffer.subarray(0, 8).toString('hex') === '89504e470d0a1a0a';
   }
-  if (mimeType === 'image/jpeg' && buffer[0] === 0xff && buffer[1] === 0xd8) {
-    return true;
+  if (mimeType === 'image/jpeg') {
+    if (buffer.length < 3) return false;
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
   }
-  if (mimeType === 'image/gif' && buffer.subarray(0, 3).toString('ascii') === 'GIF') {
-    return true;
+  if (mimeType === 'image/gif') {
+    if (buffer.length < 6) return false;
+    const sig = buffer.subarray(0, 6).toString('ascii');
+    return sig === 'GIF87a' || sig === 'GIF89a';
   }
-  if (
-    mimeType === 'image/webp' &&
-    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
-    buffer.length >= 12 &&
-    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
-  ) {
-    return true;
+  if (mimeType === 'image/webp') {
+    if (buffer.length < 12) return false;
+    return (
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+    );
   }
   return false;
 }
-
 export const attachmentTools: ToolDefinition[] = [
   {
     name: 'get-ticket-attachment',
@@ -296,9 +329,10 @@ export const attachmentTools: ToolDefinition[] = [
           const isRecovery = session.getClaim()?.mode === 'reconciling';
           if (isRecovery && fileId && existingPrepared?.sourceMetadata) {
             try {
+              const validatedMeta = decodeAttachmentMetadata(existingPrepared.sourceMetadata);
               const receipt = await provider.reconcileStoredArchive({
                 operationId,
-                sourceMetadata: existingPrepared.sourceMetadata as unknown as AttachmentMetadata,
+                sourceMetadata: validatedMeta,
                 binding,
                 fileId,
                 token: cred.accessToken,
@@ -333,12 +367,42 @@ export const attachmentTools: ToolDefinition[] = [
 
           const policyFingerprint = computeBindingFingerprint(binding);
 
+          // Build frozen multipart body before arming and bind permit to exact bytes
+          const { multipartBody, boundary, uploadUrl } = provider.buildMultipartRequestBody(
+            fileId,
+            privateAtt.metadata.filename,
+            binding.folderId,
+            privateAtt.bytes,
+            existingPrepared?.boundary as string | undefined,
+          );
+          const exactBodyDigest = computeBodyDigest(multipartBody);
+
           // 7. Fenced preparation commit (write-once)
-          await session.commitPreparation({
-            sourceMetadata: privateAtt.metadata,
-            driveFileId: fileId,
-            policyFingerprint,
-          });
+          await session.commitPreparation(
+            {
+              sourceMetadata: privateAtt.metadata,
+              driveFileId: fileId,
+              boundary,
+              policyFingerprint,
+            },
+            {
+              provider: 'google-drive',
+              canonicalRoute: uploadUrl,
+              method: 'POST',
+              dispatchNonce: fileId,
+              target: ticketId,
+              exactBodyDigest,
+              policyFingerprint,
+              policyReferences: [`${session.accountKey}_${expectedCompanyId}`],
+              preparedSha256: exactBodyDigest,
+              frozenParameters: {
+                fileId,
+                filename: privateAtt.metadata.filename,
+                folderId: binding.folderId,
+                boundary,
+              },
+            },
+          );
 
           // 8. Re-check binding version right before arming
           await assertAuthorizedArchiveBinding({
@@ -348,18 +412,20 @@ export const attachmentTools: ToolDefinition[] = [
             expectedVersion: binding.version,
           });
 
-          const uploadRoute = `${process.env.DRIVE_UPLOAD_BASE_URL || 'https://www.googleapis.com/upload/drive/v3'}/files?uploadType=multipart&supportsAllDrives=true`;
-
           // 9. Arm sticky dispatch barrier before external upload
           const armRes = await session.armDispatch({
             requiredBindingId: `${session.accountKey}_${expectedCompanyId}`,
             expectedPolicyRevision: binding.version,
             policyFingerprint,
             provider: 'google-drive',
-            canonicalRoute: uploadRoute,
+            canonicalRoute: uploadUrl,
             method: 'POST',
-            exactBodyDigest: computeBodyDigest(privateAtt.bytes),
+            exactBodyDigest,
           });
+
+          if (!armRes.permitToken) {
+            throw new Error('Refused: failed to acquire dispatch permit token for archive upload');
+          }
 
           try {
             // 10. Single upload and verify readback
@@ -370,6 +436,8 @@ export const attachmentTools: ToolDefinition[] = [
               fileId,
               token: cred.accessToken,
               permitToken: armRes.permitToken,
+              frozenMultipartBody: multipartBody,
+              boundary,
             });
 
             // 11. Mark verified and clear dispatch barrier

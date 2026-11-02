@@ -54,7 +54,9 @@ export class ArchiveCredentialProvider {
       adcToken = tokenRes.token ?? null;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`ADC credentials unavailable: Google Cloud runtime identity required: ${msg}`);
+      throw new Error(
+        `ADC credentials unavailable: Google Cloud runtime identity required: ${sanitizeErrorMessage(msg)}`,
+      );
     }
 
     if (!adcToken) {
@@ -83,7 +85,7 @@ export class ArchiveCredentialProvider {
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`IAM credentials request failed for principal ${principal}: ${msg}`);
+      throw new Error(`IAM credentials request failed: ${sanitizeErrorMessage(msg)}`);
     }
 
     if (!res.ok) {
@@ -106,11 +108,15 @@ export class ArchiveCredentialProvider {
       throw new Error('IAM credentials endpoint returned no valid expireTime');
     }
 
+    const freshNow = Date.now();
     const expiresAt = new Date(json.expireTime).getTime();
-    if (Number.isNaN(expiresAt) || expiresAt <= now) {
-      throw new Error(`IAM credentials endpoint returned invalid or expired expireTime: ${json.expireTime}`);
+    if (Number.isNaN(expiresAt) || expiresAt - freshNow <= safetyMarginMs) {
+      throw new Error(
+        `IAM credentials endpoint returned token with insufficient validity (expires in ${Math.round(
+          (expiresAt - freshNow) / 1000,
+        )}s, requires margin of ${Math.round(safetyMarginMs / 1000)}s)`,
+      );
     }
-
     const cred: EphemeralDriveCredential = {
       accessToken: json.accessToken,
       principal,

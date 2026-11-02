@@ -191,8 +191,18 @@ export async function fetchPrivatePdfAttachment(params: {
 
   // Check consistency with declared fileSize if present
   if (att.fileSize !== undefined && att.fileSize !== null) {
-    const declaredSize =
-      typeof att.fileSize === 'number' ? att.fileSize : parseInt(String(att.fileSize), 10);
+    let declaredSize: number;
+    if (typeof att.fileSize === 'number') {
+      declaredSize = att.fileSize;
+    } else {
+      const s = String(att.fileSize).trim();
+      if (!/^\d+$/.test(s)) {
+        throw new Error(
+          `Integrity check failed: declared fileSize (${JSON.stringify(att.fileSize)}) must be a valid numeric string`,
+        );
+      }
+      declaredSize = Number(s);
+    }
     if (!Number.isSafeInteger(declaredSize) || declaredSize <= 0) {
       throw new Error(
         `Integrity check failed: declared fileSize (${JSON.stringify(att.fileSize)}) must be a positive safe integer`,

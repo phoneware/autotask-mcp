@@ -338,22 +338,21 @@ export class DriveArchiveProvider {
   }
 
   /**
-   * Initial upload path. Calls single multipart POST and authoritative verify.
+   * Build frozen multipart payload, boundary, and upload URL.
    */
-  async uploadPreparedOnce(params: {
-    operationId: string;
-    attachment: PrivateAttachment;
-    binding: CompanyArchiveBinding;
-    fileId: string;
-    token: string;
-    permitToken?: DispatchPermitToken;
-  }): Promise<ArchiveReceipt> {
-    const boundary = `----DriveBoundary${crypto.randomBytes(16).toString('hex')}`;
+  buildMultipartRequestBody(
+    fileId: string,
+    filename: string,
+    folderId: string,
+    bytes: Buffer,
+    fixedBoundary?: string,
+  ): { multipartBody: Buffer; boundary: string; uploadUrl: string } {
+    const boundary = fixedBoundary || `----DriveBoundary${crypto.randomBytes(16).toString('hex')}`;
     const fileMetadata = {
-      id: params.fileId,
-      name: params.attachment.metadata.filename,
+      id: fileId,
+      name: filename,
       mimeType: 'application/pdf',
-      parents: [params.binding.folderId],
+      parents: [folderId],
     };
 
     const header = [
@@ -370,20 +369,47 @@ export class DriveArchiveProvider {
     const footer = `\r\n--${boundary}--`;
     const multipartBody = Buffer.concat([
       Buffer.from(header, 'utf-8'),
-      params.attachment.bytes,
+      bytes,
       Buffer.from(footer, 'utf-8'),
     ]);
 
     const uploadUrl = `${this.uploadBase}/files?uploadType=multipart&supportsAllDrives=true`;
+    return { multipartBody, boundary, uploadUrl };
+  }
 
-    if (params.permitToken) {
-      consumeDispatchPermit(params.permitToken, {
-        provider: 'google-drive',
-        method: 'POST',
-        route: uploadUrl,
-        bodyDigest: computeBodyDigest(multipartBody),
-      });
+  /**
+   * Initial upload path. Calls single multipart POST and authoritative verify.
+   */
+  async uploadPreparedOnce(params: {
+    operationId: string;
+    attachment: PrivateAttachment;
+    binding: CompanyArchiveBinding;
+    fileId: string;
+    token: string;
+    permitToken: DispatchPermitToken;
+    frozenMultipartBody?: Buffer;
+    boundary?: string;
+  }): Promise<ArchiveReceipt> {
+    if (!params.permitToken) {
+      throw new Error('Refused: Drive archive upload requires a valid dispatch permit token');
     }
+
+    const { multipartBody, boundary, uploadUrl } = params.frozenMultipartBody && params.boundary
+      ? { multipartBody: params.frozenMultipartBody, boundary: params.boundary, uploadUrl: `${this.uploadBase}/files?uploadType=multipart&supportsAllDrives=true` }
+      : this.buildMultipartRequestBody(
+          params.fileId,
+          params.attachment.metadata.filename,
+          params.binding.folderId,
+          params.attachment.bytes,
+          params.boundary,
+        );
+
+    consumeDispatchPermit(params.permitToken, {
+      provider: 'google-drive',
+      method: 'POST',
+      route: uploadUrl,
+      bodyDigest: computeBodyDigest(multipartBody),
+    });
 
     const uploadHeaders: Record<string, string> = {
       'Content-Type': `multipart/related; boundary=${boundary}`,
