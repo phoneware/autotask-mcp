@@ -17,11 +17,13 @@ This document records the grounded vendor contracts, wire formats, and evidence 
 - **Checklist Items:** Addressed as child resources under tickets: `GET /V1.0/Tickets/{ticketId}/ChecklistItems/{itemId}` and `PATCH /V1.0/Tickets/{ticketId}/ChecklistItems`. The server validates that returned items have matching `ticketID`.
 - **Ticket Notes:** Addressed as `POST /V1.0/Tickets/{ticketId}/Notes` and `GET /V1.0/Tickets/{ticketId}/Notes/{noteId}`. Querying uses `POST /V1.0/TicketNotes/query` with `filter: [{ op: 'eq', field: 'ticketID', value: ticketId }]`.
 - **Ticket Resolution:** Addressed as `PATCH /V1.0/Tickets` with `{ id: ticketId, resolution: string }`.
-- **Response Format:** Create and update operations return `OperationResultModel` carrying `itemId` or wrapped `{ item: { id } }`.
+- **Response Format:** Create and update operations return `OperationResultModel` carrying `itemId`. Checklist PATCH response must strictly contain `itemId` matching the updated item.
 
-### 2.2 Protected Mutation Admission
-Generic entity update/create/delete tools (`update-entity`, `create-entity`, `delete-entity`) and promoted actions cannot mutate protected entities (resolution fields on `Tickets`, any mutation on `TicketNotes`, `TicketChecklistItems`, or deletion of `Tickets`) without consuming a module-private single-use dispatch permit.
-
+### 2.2 Canonical Route Resolution & Continuation Boundary
+- **Canonical Route Resolver:** All incoming API paths are canonicalized (`resolveCanonicalRoute`). Slashes, traversals (`..`), encoded separators, backslashes, userinfo, and fragments are rejected.
+- **Query Exemption vs Mutation Classification:** Documented queries (e.g. `POST /V1.0/TicketNotes/query`, `POST /V1.0/TicketChecklistItems/query`, child queries) are registered and exempt from mutation protection. All raw mutations to `TicketNotes`, `TicketChecklistItems`, and resolution fields or DELETE on `Tickets` are strictly classified as protected regardless of query string parameters.
+- **Continuation Contract:** `getPage` requires an explicit collection context matching the original query. The continuation URL must strictly match the canonical `/query/next?paging=...` pattern for that entity. Query models are strictly validated against `querySchema` without passthrough, rejecting mutation fields.
+- **Protected Mutation Admission:** Generic entity tools cannot bypass protected routes without an armed single-use dispatch permit.
 ## 3. Google Drive API v3 Contracts
 
 ### 3.1 Destination Verification
@@ -33,14 +35,14 @@ Generic entity update/create/delete tools (`update-entity`, `create-entity`, `de
 
 ### 3.2 File Archival and Verification
 - Uploads use multipart related upload (`POST /upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`).
+- Multipart body, boundary, headers, and media are frozen before arming. The dispatch permit binds to the exact SHA-256 digest of the raw multipart body buffer.
 - Readback verification requires:
   - `parents.length === 1` and `parents[0] === folderId`
   - `driveId === binding.driveId`
   - `mimeType === 'application/pdf'`
   - `trashed === false`
   - Computed SHA-256 matches source attachment digest.
-- Verification uses streaming bounded readers (5 MB ceiling for media, 256 KB for metadata).
-
+- Verification uses streaming bounded readers with strict 15-second timeouts and technical ceilings (5 MB ceiling for media, 256 KB for metadata).
 ## 4. Google Cloud IAM Credentials Contracts
 
 - Ephemeral Drive tokens are minted via `POST https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{principal}:generateAccessToken`.

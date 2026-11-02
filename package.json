@@ -1,6 +1,6 @@
 {
   "name": "@phoneware/autotask-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Phoneware-hosted Autotask PSA MCP server. Generic entity query/get/create/update across the full REST API plus convenience tools for tickets, companies, contacts, projects, tasks and time entries. AI-safe with readonly mode, destructive-action confirmation and a tenant-wide API budget governor. stdio + multi-session HTTP transport.",
   "type": "module",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
     "build": "tsc && chmod +x dist/index.js",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build",
-    "proof:provisioning-http": "tsx tests/proof/provisioning-http.ts",
+    "proof:provisioning-http": "node dist/proof/provisioning-http.js",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",

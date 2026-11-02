@@ -1,4 +1,42 @@
 # Changelog
+## 0.5.0 (2026-11-01) - Provisioning Fifth Repair: Boundary, State Ordering, and Strict Authority
+
+Comprehensive remediation of P1 and P2 findings from `AuditAutotaskFourth` per specification `PlanAutotaskFifthRepair`.
+
+### Slice 1: Boundary and Transport
+- **Continuation Route Hardening:** Fixed read-only continuation bypass in `get-next-page` and `api.getPage` by requiring explicit collection context and strict validation against `querySchema` (no `.passthrough()`, rejecting arbitrary mutation fields).
+- **Canonical Route Resolver:** Introduced `resolveCanonicalRoute` and updated `classifyRouteMutation` in `src/provisioning/dispatch.ts`. Correctly exempts documented query routes (e.g. `POST V1.0/TicketNotes/query`) while strictly classifying mutations regardless of query strings or suffixes.
+- **Mandatory Dispatch Permits:** Required `permitToken` in `singleDispatchMutation` and `uploadPreparedOnce`, removing `armBeforeFetch`.
+- **Application Deadlines:** Added server-owned 15-second timeouts to ordinary API execution, stream readers, and `Semaphore.acquire` concurrency slot waiting.
+- **Error Sanitization:** Fixed `$1` regex value-copy bug in `sanitizeErrorMessage` in `src/safe-errors.ts`.
+
+### Slice 2: State and Identity
+- **Schema Version 3:** Upgraded records to schema version 3 in `src/provisioning/contracts.ts` with strict, non-optional receipt discriminants and full `PreparedRequest` contracts.
+- **Firestore Transaction Reordering:** Fixed read-after-write defects in `markVerified`, `markObservationOnly`, and `markUncertain` in `src/provisioning/operation-store.ts`, ensuring all reads precede any writes.
+- **Actor and Target Intent Binding:** Incorporated actor and target into `computeIntentSha256` and immutable replay checks.
+- **Quiescent Migration:** Removed automatic empty-store certification from `src/provisioning/account.ts`, requiring explicit administrative migration with established quiescence.
+- **Authoritative Stdio Identity:** Bound stdio identity to authoritative Resource lookup, passing verified actor into wire impersonation headers.
+
+### Slice 3: Policy and Administration
+- **Live Item & Company Verification:** Updated `src/admin/provisioning.ts` to verify company existence and checklist item names directly against Autotask, deriving unredacted task semantic fingerprints.
+- **Administrative Commands:** Added `get-requirement` and `migrate-account` commands to `src/admin/provisioning.ts`.
+
+### Slice 4: Archive
+- **Attachment Metadata Typing:** Imported and runtime-validated `AttachmentMetadata` via `decodeAttachmentMetadata`.
+- **Frozen Multipart Bytes:** Froze multipart body before arming in `src/tools/attachments.ts` and `src/archive/drive.ts`, binding permit digestion to exact multipart bytes buffer.
+- **Credential Margin:** Enforced safety margin on freshly minted IAM tokens in `src/archive/credentials.ts`.
+- **Strict Image Signatures:** Enforced standard magic header checks for PNG, JPEG, GIF, and WebP in `src/tools/attachments.ts`.
+
+### Slice 5: Ticket Automation
+- **Unified Resolution Markers:** Unified format `[op:<id>]` and counting logic, reusing frozen timestamp and composed line across retries.
+- **Server-Generated Note Markers:** Generated unique server nonces `[op:<id>:d:<nonce>]` for causal finality, verifying exact title, description, noteType, publish, and attribution.
+- **Discriminated Checklist Requirements:** Enforced all fields of `ArchivedPdfRequirement` and `RecordedNoteRequirement`.
+- **Strict Settlement Validation:** Validated documented `OperationResultModel.itemId` on checklist PATCH responses and enforced strict boolean readback.
+
+### Slice 6: Proof and Test Support
+- **Harness Fixes:** Closed unclosed `it` blocks in `tests/provisioning-evidence.test.ts` and replaced stale `requestLog` references.
+- **Mirror Authorization:** Added bearer and scope checks to `DriveMirror` and `GoogleCredentialsMirror`, returning 404 for unseeded folders and 409 for duplicate file IDs.
+- **HTTP Proof Configuration:** Updated `provisioning-http.ts` to seed `autotask_mcp_oauth_tokens`, set `AUTOTASK_BASE_URL`, and spawn `node dist/index.js`.
 
 ## 0.4.1 (2026-11-01) - Comprehensive Provisioning Fourth Repair
 
