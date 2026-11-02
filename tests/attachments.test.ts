@@ -32,9 +32,12 @@ describe('get-ticket-attachment tool', () => {
   });
 
   it('returns text metadata and image content block for image <= 3 MB decoded', async () => {
-    const rawImageBytes = Buffer.from('fake-png-binary-content-12345');
+    const rawImageBytes = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89,
+    ]);
     const base64Data = rawImageBytes.toString('base64');
-
     request.mockResolvedValue({
       item: {
         id: 701,
@@ -73,7 +76,7 @@ describe('get-ticket-attachment tool', () => {
   });
 
   it('handles data URI prefix in data field cleanly', async () => {
-    const base64Data = Buffer.from('simple-jpeg').toString('base64');
+    const base64Data = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]).toString('base64');
     request.mockResolvedValue({
       item: {
         id: 702,

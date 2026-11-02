@@ -28,35 +28,32 @@ export function unwrapSingleAttachment(
 ): TicketAttachmentModel {
   if (!raw || typeof raw !== 'object') return {};
 
-  if ('items' in raw && Array.isArray((raw as { items: unknown[] }).items)) {
-    const items = (raw as { items: unknown[] }).items;
+  const record = raw as Record<string, unknown>;
+  if ('items' in record && Array.isArray(record.items)) {
+    const items = record.items;
     if (items.length === 0) return {};
-    if (expectedId) {
-      const match = items.filter(
-        (it) => it && typeof it === 'object' && String((it as { id?: unknown }).id) === expectedId,
+    if (items.length > 1) {
+      throw new Error(
+        `Ambiguous attachment envelope: direct attachment query returned multiple records (${items.length}); multi-record envelopes are rejected`,
       );
-      if (match.length === 1) return match[0] as TicketAttachmentModel;
-      if (match.length > 1) {
-        throw new Error(
-          `Ambiguous attachment envelope: multiple records match attachment ID ${expectedId}`,
-        );
+    }
+    const item = items[0];
+    if (item && typeof item === 'object') {
+      const itemRec = item as TicketAttachmentModel;
+      if (expectedId && String(itemRec.id) !== expectedId) {
+        return {};
       }
-      return {};
+      return itemRec;
     }
-    if (items.length === 1) {
-      return items[0] as TicketAttachmentModel;
-    }
-    throw new Error(
-      `Ambiguous attachment envelope: expected exactly one attachment record, got ${items.length}`,
-    );
+    return {};
   }
 
-  if (
-    'item' in raw &&
-    (raw as { item: unknown }).item &&
-    typeof (raw as { item: unknown }).item === 'object'
-  ) {
-    return (raw as { item: unknown }).item as TicketAttachmentModel;
+  if ('item' in record && record.item && typeof record.item === 'object') {
+    const item = record.item as TicketAttachmentModel;
+    if (expectedId && String(item.id) !== expectedId) {
+      return {};
+    }
+    return item;
   }
 
   return raw as TicketAttachmentModel;
@@ -182,11 +179,30 @@ export async function fetchPrivatePdfAttachment(params: {
     );
   }
 
+  // Validate file attachment semantics
+  if (att.attachmentType !== undefined && att.attachmentType !== null) {
+    const attTypeStr = String(att.attachmentType).toLowerCase();
+    if (attTypeStr.includes('url') || attTypeStr.includes('link')) {
+      throw new Error(
+        `Refused: attachment ${safeAttachmentId} has attachmentType "${att.attachmentType}", which is not a binary file attachment`,
+      );
+    }
+  }
+
   // Check consistency with declared fileSize if present
-  if (typeof att.fileSize === 'number' && att.fileSize > 0 && att.fileSize !== buffer.byteLength) {
-    throw new Error(
-      `Integrity check failed: declared fileSize (${att.fileSize}) does not match decoded bytes (${buffer.byteLength})`,
-    );
+  if (att.fileSize !== undefined && att.fileSize !== null) {
+    const declaredSize =
+      typeof att.fileSize === 'number' ? att.fileSize : parseInt(String(att.fileSize), 10);
+    if (!Number.isSafeInteger(declaredSize) || declaredSize <= 0) {
+      throw new Error(
+        `Integrity check failed: declared fileSize (${JSON.stringify(att.fileSize)}) must be a positive safe integer`,
+      );
+    }
+    if (declaredSize !== buffer.byteLength) {
+      throw new Error(
+        `Integrity check failed: declared fileSize (${declaredSize}) does not match decoded bytes (${buffer.byteLength})`,
+      );
+    }
   }
 
   // 5. Magic bytes check: %PDF- (0x25 0x50 0x44 0x46 0x2D)

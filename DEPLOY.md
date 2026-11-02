@@ -222,6 +222,16 @@ attributed to a person.
   work (covered by `tests/http.test.ts`).
 - `get-threshold-information` reports the tenant's current API usage.
 
+### Provisioning pipeline verification
+
+Digital ticket evidence provisioning (attachment archival to Shared Drive, evidence note recording, and server-owned checklist item completion) is verified via contained two-process HTTP proof against local vendor mirrors and the Firestore emulator:
+
+```bash
+npm run proof:provisioning-http
+```
+
+No live vendor writes, test tickets, or real customer Shared Drive folders are touched during automated verification (mirror-universe testing).
+
 ## Local smoke test
 
 ```bash

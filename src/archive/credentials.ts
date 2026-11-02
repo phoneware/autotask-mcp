@@ -1,14 +1,21 @@
 import { GoogleAuth } from 'google-auth-library';
+import { readBoundedText, MAX_IAM_JSON_BYTES } from '../bounded-response.js';
+import { safeDriveError } from '../safe-errors.js';
 
 export interface ArchiveCredentialProviderConfig {
   iamBaseUrl?: string;
-  staticToken?: string;
+}
+
+export interface EphemeralDriveCredential {
+  accessToken: string;
+  principal: string;
+  scope: string;
+  expiresAt: number;
 }
 
 export class ArchiveCredentialProvider {
   private readonly iamBaseUrl: string;
-  private cachedToken: string | null = null;
-  private tokenExpiresAt = 0;
+  private readonly cache = new Map<string, EphemeralDriveCredential>();
 
   constructor(config?: ArchiveCredentialProviderConfig) {
     this.iamBaseUrl = (
@@ -16,85 +23,107 @@ export class ArchiveCredentialProvider {
       process.env.IAM_API_BASE_URL ||
       'https://iamcredentials.googleapis.com/v1'
     ).replace(/\/+$/, '');
-    this.cachedToken = config?.staticToken || process.env.DRIVE_ARCHIVE_ACCESS_TOKEN || null;
   }
 
-  async getDriveAccessToken(archivePrincipal: string): Promise<string> {
-    const now = Date.now();
-    // Return cached token if valid for at least 5 more minutes
-    if (this.cachedToken && this.tokenExpiresAt - now > 5 * 60 * 1000) {
-      return this.cachedToken;
+  async getDriveCredential(
+    archivePrincipal: string,
+    safetyMarginMs = 300_000,
+  ): Promise<EphemeralDriveCredential> {
+    const principal = archivePrincipal.trim();
+    if (!principal) {
+      throw new Error('archivePrincipal is required to obtain Drive credentials');
     }
 
-    const isLocal =
-      this.iamBaseUrl.includes('127.0.0.1') || this.iamBaseUrl.includes('localhost');
+    const scope = 'https://www.googleapis.com/auth/drive';
+    const cacheKey = `${principal}:${scope}`;
+    const now = Date.now();
 
-    let adcToken = process.env.GOOGLE_OAUTH_ACCESS_TOKEN || null;
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiresAt - now > safetyMarginMs) {
+      return cached;
+    }
+
+    // Acquire Google Cloud runtime Application Default Credentials
+    let adcToken: string | null = null;
+    try {
+      const auth = new GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      });
+      const client = await auth.getClient();
+      const tokenRes = await client.getAccessToken();
+      adcToken = tokenRes.token ?? null;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`ADC credentials unavailable: Google Cloud runtime identity required: ${msg}`);
+    }
+
     if (!adcToken) {
-      try {
-        const auth = new GoogleAuth({
-          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-        });
-        const client = await auth.getClient();
-        const tokenRes = await client.getAccessToken();
-        adcToken = tokenRes.token ?? null;
-      } catch (err: unknown) {
-        if (!isLocal) {
-          const msg = err instanceof Error ? err.message : String(err);
-          throw new Error(
-            `ADC credentials unavailable: Google Cloud runtime identity required for IAM token generation: ${msg}`,
-          );
-        }
-      }
+      throw new Error('ADC credentials unavailable: GoogleAuth returned no access token');
     }
 
     const url = `${this.iamBaseUrl}/projects/-/serviceAccounts/${encodeURIComponent(
-      archivePrincipal,
+      principal,
     )}:generateAccessToken`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${adcToken}`,
     };
-    if (adcToken) {
-      headers['Authorization'] = `Bearer ${adcToken}`;
-    }
 
+    let res: Response;
     try {
-      const res = await fetch(url, {
+      res = await fetch(url, {
         method: 'POST',
         headers,
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({
-          scope: ['https://www.googleapis.com/auth/drive'],
+          scope: [scope],
           lifetime: '3600s',
         }),
       });
-
-      if (res.ok) {
-        const json = (await res.json()) as { accessToken?: string; expireTime?: string };
-        if (json.accessToken) {
-          this.cachedToken = json.accessToken;
-          this.tokenExpiresAt = json.expireTime
-            ? new Date(json.expireTime).getTime()
-            : now + 3600 * 1000;
-          return this.cachedToken;
-        }
-      }
     } catch (err: unknown) {
-      if (!isLocal) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(
-          `Failed to generate Drive credentials for principal ${archivePrincipal}: ${msg}`,
-        );
-      }
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`IAM credentials request failed for principal ${principal}: ${msg}`);
     }
 
-    if (isLocal || this.cachedToken) {
-      return this.cachedToken || 'synthetic-mirror-drive-token';
+    if (!res.ok) {
+      throw safeDriveError(res.status, 'IAM_CREDENTIAL_ERROR');
     }
 
-    throw new Error(
-      `Failed to generate Drive access token for archive principal "${archivePrincipal}". ` +
-        'Ensure Cloud Run runtime service account has roles/iam.serviceAccountTokenCreator on the target principal.',
-    );
+    const text = await readBoundedText(res, MAX_IAM_JSON_BYTES, 'IAM generateAccessToken');
+    let json: { accessToken?: string; expireTime?: string } = {};
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error('IAM credentials endpoint returned malformed JSON');
+    }
+
+    if (!json.accessToken || typeof json.accessToken !== 'string') {
+      throw new Error('IAM credentials endpoint returned no accessToken');
+    }
+
+    if (!json.expireTime || typeof json.expireTime !== 'string') {
+      throw new Error('IAM credentials endpoint returned no valid expireTime');
+    }
+
+    const expiresAt = new Date(json.expireTime).getTime();
+    if (Number.isNaN(expiresAt) || expiresAt <= now) {
+      throw new Error(`IAM credentials endpoint returned invalid or expired expireTime: ${json.expireTime}`);
+    }
+
+    const cred: EphemeralDriveCredential = {
+      accessToken: json.accessToken,
+      principal,
+      scope,
+      expiresAt,
+    };
+
+    this.cache.set(cacheKey, cred);
+    return cred;
+  }
+
+  async getDriveAccessToken(archivePrincipal: string): Promise<string> {
+    const cred = await this.getDriveCredential(archivePrincipal);
+    return cred.accessToken;
   }
 }

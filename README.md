@@ -520,10 +520,10 @@ The probe costs one call per minute and its reading is surfaced on `/health`.
 npm install
 npm run build        # compile TypeScript to dist/
 npm test             # run the vitest suite
+npm run proof:provisioning-http # run two-process authenticated HTTP provisioning proof
 npm run lint         # eslint
 npm run format       # prettier --write
 npm run inspect      # launch the MCP Inspector against the built server
-```
 
 ## License
 

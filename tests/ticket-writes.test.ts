@@ -13,7 +13,14 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import {
   setOperationStore,
   MemoryOperationStore,
+  deriveAccountKey,
 } from '../src/provisioning/operation-store.js';
+import {
+  setRequirementsStore,
+  MemoryRequirementsStore,
+  computeItemSemanticFingerprint,
+} from '../src/provisioning/requirements.js';
+
 const { getById, update, request, entityFields, create, query, singleDispatchMutation } =
   vi.hoisted(() => ({
     getById: vi.fn(),
@@ -34,6 +41,10 @@ const { getById, update, request, entityFields, create, query, singleDispatchMut
         }
         if (method === 'PATCH' && path === 'V1.0/Tickets') {
           return update('Tickets', body);
+        }
+        if (method === 'PATCH' && path.includes('ChecklistItems')) {
+          const match = path.match(/Tickets\/(\d+)\/ChecklistItems/);
+          return update('TicketChecklistItems', body, 'Tickets', match ? match[1] : undefined);
         }
         if (method === 'POST') {
           return create(path.replace(/^V1\.0\//, ''), body);
@@ -367,11 +378,11 @@ describe('set-ticket-checklist-item tool', () => {
     const existingItem = {
       id: 501,
       ticketID: 1001,
-      isCompleted: false,
+      isCompleted: true,
       itemName: 'Set AP mesh passphrase: SuperSecretPassphrase123 on all APs',
       position: 12,
-      completedDateTime: null,
-      completedByResourceID: null,
+      completedDateTime: '2026-10-31T15:00:00Z',
+      completedByResourceID: 77,
     };
 
     let readCount = 0;
@@ -382,9 +393,9 @@ describe('set-ticket-checklist-item tool', () => {
         return {
           item: {
             ...existingItem,
-            isCompleted: true,
-            completedDateTime: '2026-10-31T15:00:00Z',
-            completedByResourceID: 77,
+            isCompleted: false,
+            completedDateTime: null,
+            completedByResourceID: null,
           },
         };
       }
@@ -396,13 +407,14 @@ describe('set-ticket-checklist-item tool', () => {
     const res = await setChecklistTool.handler({
       ticketID: '1001',
       checklistItemID: '501',
-      completed: 'true',
+      completed: 'false',
+      operationId: 'op-chk-501',
     });
 
     expect(update).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith(
       'TicketChecklistItems',
-      { id: 501, isCompleted: true },
+      { id: 501, isCompleted: false },
       'Tickets',
       '1001',
     );
@@ -410,12 +422,10 @@ describe('set-ticket-checklist-item tool', () => {
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.updated).toBe(true);
     expect(parsed.already_in_state).toBe(false);
-    expect(parsed.isCompleted).toBe(true);
+    expect(parsed.isCompleted).toBe(false);
     expect(parsed.ticketID).toBe(1001);
     expect(parsed.checklistItemID).toBe(501);
     expect(parsed.position).toBe(12);
-    expect(parsed.completedDateTime).toBe('2026-10-31T15:00:00Z');
-    expect(parsed.completedByResourceID).toBe(77);
     expect(parsed.itemName).toBe('Set AP mesh passphrase: [REDACTED] on all APs');
   });
 
@@ -436,6 +446,7 @@ describe('set-ticket-checklist-item tool', () => {
       ticketID: '1001',
       checklistItemID: '502',
       completed: 'true',
+      operationId: 'op-chk-502',
     });
 
     expect(update).not.toHaveBeenCalled();
@@ -460,7 +471,8 @@ describe('set-ticket-checklist-item tool', () => {
       setChecklistTool.handler({
         ticketID: '1001', // Request specifies ticket 1001
         checklistItemID: '503',
-        completed: 'true',
+        completed: 'false',
+        operationId: 'op-chk-503',
       }),
     ).rejects.toThrow(/Parent mismatch: checklist item 503 belongs to ticketID 9999, not 1001/);
 
@@ -473,6 +485,7 @@ describe('set-ticket-checklist-item tool', () => {
         ticketID: '1001',
         checklistItemID: '503',
         completed: 'yes',
+        operationId: 'op-chk-bad',
       }),
     ).rejects.toThrow(/completed must be "true" or "false"/);
   });
@@ -575,56 +588,103 @@ describe('set-ticket-checklist-item tool', () => {
         ticketID: '1001',
         checklistItemID: '501',
         completed: 'true',
+        operationId: 'op-check-evidence',
         requireEvidence: 'true',
       }),
-    ).rejects.toThrow(/checklist item completion requires observed evidence/);
+    ).rejects.toThrow(/Obsolete argument supplied: checklist completion requires server-owned requirement verification/);
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('refuses when evidence note belongs to a different ticket (parent mismatch)', async () => {
-    getById.mockResolvedValue({
-      item: {
-        id: 888,
-        ticketID: 9999, // Wrong parent
-        title: 'Evidence on another ticket',
-        description: 'Verified',
-      },
-    });
-
+  it('refuses when evidence note argument is supplied', async () => {
     await expect(
       setChecklistTool.handler({
         ticketID: '1001',
         checklistItemID: '501',
         completed: 'true',
+        operationId: 'op-check-note',
         evidenceNoteID: '888',
       }),
-    ).rejects.toThrow(/Parent mismatch: evidence note 888 belongs to ticketID 9999, not 1001/);
+    ).rejects.toThrow(/Obsolete argument: evidenceNoteID is removed/);
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('refuses when evidence attachment belongs to a different ticket (parent mismatch)', async () => {
-    request.mockResolvedValue({
-      item: {
-        id: 777,
-        ticketID: 9999, // Wrong parent
-        title: 'photo.jpg',
-      },
-    });
-
+  it('refuses when evidence attachment argument is supplied', async () => {
     await expect(
       setChecklistTool.handler({
         ticketID: '1001',
         checklistItemID: '501',
         completed: 'true',
+        operationId: 'op-check-att',
         evidenceAttachmentID: '777',
       }),
-    ).rejects.toThrow(
-      /Parent mismatch: evidence attachment 777 belongs to ticketID 9999, not 1001/,
-    );
+    ).rejects.toThrow(/Obsolete argument supplied: checklist completion requires server-owned requirement verification/);
     expect(update).not.toHaveBeenCalled();
   });
 
   it('successfully completes checklist item when valid evidence note is verified', async () => {
+    const memoryOpStore = new MemoryOperationStore();
+    setOperationStore(memoryOpStore);
+    const memoryReqStore = new MemoryRequirementsStore();
+    setRequirementsStore(memoryReqStore);
+
+    const accountKey = deriveAccountKey();
+    const itemName = 'Configure mesh backhaul';
+    const semanticFingerprint = computeItemSemanticFingerprint('1001', '501', itemName);
+
+    // Seed verified evidence operation in operation store
+    const evidenceOpId = 'op-note-888';
+    await memoryOpStore.prepareOperation({
+      accountKey,
+      operationId: evidenceOpId,
+      actor: { email: 'tech@phoneware.us', resourceId: 77 },
+      kind: 'evidence_note',
+      ticketId: '1001',
+      intentSha256: 'some-sha',
+      payload: {},
+    });
+    const claimRes = await memoryOpStore.acquireCoordinatorLease(
+      accountKey,
+      '1001',
+      'attempt-1',
+      'tech@phoneware.us',
+      15000,
+      evidenceOpId,
+    );
+    await memoryOpStore.savePreparedState({
+      accountKey,
+      ticketId: '1001',
+      operationId: evidenceOpId,
+      claim: claimRes.claim,
+      preparedState: {},
+    });
+    await memoryOpStore.armDispatch(accountKey, '1001', 'attempt-1', evidenceOpId, 'some-sha');
+    await memoryOpStore.markVerified(
+      accountKey,
+      '1001',
+      'attempt-1',
+      evidenceOpId,
+      {
+        status: 'verified',
+        kind: 'evidence_note',
+        noteID: 888,
+        ticketID: 1001,
+        observedAt: new Date().toISOString(),
+      } as unknown as Record<string, unknown>,
+    );
+    await memoryOpStore.releaseLease(accountKey, '1001', 'attempt-1');
+
+    // Seed requirement in requirements store
+    await memoryReqStore.set({
+      accountKey,
+      ticketId: '1001',
+      checklistItemId: '501',
+      requiredKind: 'evidence_note',
+      semanticFingerprint,
+      sourceReference: 'spec',
+      disabled: false,
+      version: 1,
+    });
+
     getById.mockImplementation(async (_entity: string, id: string | number) => {
       if (String(id) === '888') {
         return {
@@ -671,7 +731,8 @@ describe('set-ticket-checklist-item tool', () => {
       ticketID: '1001',
       checklistItemID: '501',
       completed: 'true',
-      evidenceNoteID: '888',
+      operationId: 'op-chk-501-done',
+      evidenceOperationId: evidenceOpId,
     });
 
     expect(update).toHaveBeenCalledTimes(1);
@@ -679,9 +740,13 @@ describe('set-ticket-checklist-item tool', () => {
     expect(parsed.updated).toBe(true);
     expect(parsed.isCompleted).toBe(true);
     expect(parsed.evidenceVerified).toBe(true);
-    expect(parsed.evidenceNoteID).toBe(888);
+    expect(parsed.evidenceOperationId).toBe(evidenceOpId);
+
+    setOperationStore(null);
+    setRequirementsStore(null);
   });
 });
+
 describe('record-ticket-evidence tool', () => {
   const recordEvidenceTool = ticketWriteTools.find((t) => t.name === 'record-ticket-evidence')!;
 

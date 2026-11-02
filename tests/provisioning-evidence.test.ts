@@ -18,15 +18,20 @@ import {
   setBindingsStore,
   MemoryBindingsStore,
 } from '../src/archive/bindings.js';
+import {
+  setRequirementsStore,
+  getRequirementsStore,
+  MemoryRequirementsStore,
+  computeItemSemanticFingerprint,
+} from '../src/provisioning/requirements.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
   let autotaskMirror: AutotaskMirror;
   let driveMirror: DriveMirror;
   let operationStore: MemoryOperationStore;
   let bindingsStore: MemoryBindingsStore;
-
+  let requirementsStore: MemoryRequirementsStore;
   let savedEnv: {
     username?: string;
     secret?: string;
@@ -83,6 +88,9 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
 
     bindingsStore = new MemoryBindingsStore();
     setBindingsStore(bindingsStore);
+
+    requirementsStore = new MemoryRequirementsStore();
+    setRequirementsStore(requirementsStore);
   });
 
   afterEach(async () => {
@@ -91,7 +99,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
     await driveMirror.stop();
     setOperationStore(null);
     setBindingsStore(null);
-
+    setRequirementsStore(null);
     if (savedEnv.username !== undefined) process.env.AUTOTASK_USERNAME = savedEnv.username;
     else delete process.env.AUTOTASK_USERNAME;
 
@@ -299,14 +307,13 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
           checklistTool.handler({
             ticketID: '1001',
             checklistItemID: '501',
-            completed: 'true',
-            evidenceNoteID: '702',
+            completed: 'false',
+            operationId: 'op-check-reopen-wrong-parent',
           }),
         ),
       ).rejects.toThrow(/Parent mismatch: checklist item 501 belongs to ticketID 9999, not 1001/);
 
       expect(autotaskMirror.checklistItems.get(501)?.isCompleted).toBe(false);
-    });
 
     it('refuses checklist item completion when evidence is missing', async () => {
       autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
@@ -323,16 +330,15 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
             ticketID: '1001',
             checklistItemID: '502',
             completed: 'true',
+            operationId: 'op-missing-evidence',
           }),
         ),
       ).rejects.toThrow(/checklist item completion requires observed evidence/);
 
       expect(autotaskMirror.checklistItems.get(502)?.isCompleted).toBe(false);
-    });
 
-    it('refuses checklist item completion when evidence note belongs to a different ticket', async () => {
+    it('refuses obsolete evidenceNoteID argument', async () => {
       autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
-      autotaskMirror.seedTicket({ id: 9999, title: 'Other Ticket' });
 
       autotaskMirror.seedChecklistItem({
         id: 503,
@@ -341,23 +347,17 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
         isCompleted: false,
       });
 
-      autotaskMirror.seedNote({
-        id: 701,
-        ticketID: 9999, // Belongs to ticket 9999
-        title: 'Mesh link verified',
-        description: 'Operational link confirmed.',
-      });
-
       await expect(
         withCaller(testCaller, () =>
           checklistTool.handler({
             ticketID: '1001',
             checklistItemID: '503',
             completed: 'true',
+            operationId: 'op-obsolete-note',
             evidenceNoteID: '701',
           }),
         ),
-      ).rejects.toThrow(/Parent mismatch: evidence note 701 belongs to ticketID 9999, not 1001/);
+      ).rejects.toThrow(/Obsolete argument: evidenceNoteID is removed/);
 
       expect(autotaskMirror.checklistItems.get(503)?.isCompleted).toBe(false);
     });
@@ -384,20 +384,41 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       ).rejects.toThrow(/Parent mismatch: attachment 601 belongs to ticketID 9999, not 1001/);
     });
 
-    it('successfully completes checklist item when valid parent evidence note is provided', async () => {
+    it('successfully completes checklist item when verified evidence operation and requirement exist', async () => {
       autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
+      const itemName = 'AP series management adoption';
       autotaskMirror.seedChecklistItem({
         id: 504,
         ticketID: 1001,
-        itemName: 'AP series management adoption',
+        itemName,
         isCompleted: false,
       });
 
-      autotaskMirror.seedNote({
-        id: 702,
-        ticketID: 1001, // Valid parent match
-        title: 'AP adoption confirmed',
-        description: 'AP One AX serial 1234 adopted by B One.',
+      // Record evidence note with operationId
+      const noteRes = await withCaller(testCaller, () =>
+        recordEvidenceTool.handler({
+          ticketID: '1001',
+          title: 'AP adoption confirmed',
+          description: 'AP One AX serial 1234 adopted by B One.',
+          operationId: 'op-note-702',
+        }),
+      );
+      const noteReceipt = JSON.parse(noteRes.content[0].text);
+      expect(noteReceipt.status).toBe('verified');
+
+      // Seed requirement for checklist item
+      const reqStore = getRequirementsStore();
+      const accountKey = deriveAccountKey();
+      const semanticFingerprint = computeItemSemanticFingerprint('1001', '504', itemName);
+      await reqStore.set({
+        accountKey,
+        ticketId: '1001',
+        checklistItemId: '504',
+        requiredKind: 'evidence_note',
+        semanticFingerprint,
+        sourceReference: 'so-spec',
+        disabled: false,
+        version: 1,
       });
 
       const res = await withCaller(testCaller, () =>
@@ -405,7 +426,8 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
           ticketID: '1001',
           checklistItemID: '504',
           completed: 'true',
-          evidenceNoteID: '702',
+          operationId: 'op-chk-504',
+          evidenceOperationId: 'op-note-702',
         }),
       );
 
@@ -413,7 +435,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       expect(parsed.updated).toBe(true);
       expect(parsed.isCompleted).toBe(true);
       expect(parsed.evidenceVerified).toBe(true);
-      expect(parsed.evidenceNoteID).toBe(702);
+      expect(parsed.evidenceOperationId).toBe('op-note-702');
 
       expect(autotaskMirror.checklistItems.get(504)?.isCompleted).toBe(true);
     });

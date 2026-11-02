@@ -1,23 +1,60 @@
+import crypto from 'node:crypto';
 import { Firestore } from '@google-cloud/firestore';
 
-export interface ChecklistTaskRequirement {
+export interface BaseRequirement {
   accountKey: string;
   ticketId: string;
   checklistItemId: string;
-  requiredKind: 'attachment_archive' | 'evidence_note';
   semanticFingerprint: string;
-  expectedSourceDigest?: string;
-  expectedDocumentName?: string;
   sourceReference: string;
   disabled: boolean;
   version: number;
 }
 
+export interface ArchivedPdfRequirement extends BaseRequirement {
+  requiredKind: 'attachment_archive';
+  expectedCompanyId: string;
+  expectedAttachmentId?: string;
+  expectedSourceDigest?: string;
+  requiredBindingId?: string;
+}
+
+export interface RecordedNoteRequirement extends BaseRequirement {
+  requiredKind: 'evidence_note';
+  requiredNoteType?: number;
+  requiredPublish?: number;
+  requiredTitle?: string;
+  requiredContentDigest?: string;
+}
+
+export type ChecklistTaskRequirement = ArchivedPdfRequirement | RecordedNoteRequirement;
+
 export const REQUIREMENTS_COLLECTION = 'autotask_mcp_checklist_requirements';
 
+export function computeItemSemanticFingerprint(
+  ticketId: string,
+  checklistItemId: string,
+  itemName: string,
+  taskSourceIdentity = '1',
+): string {
+  const normName = itemName.trim().toLowerCase();
+  return crypto
+    .createHash('sha256')
+    .update(`${ticketId}:${checklistItemId}:${normName}:${taskSourceIdentity}`)
+    .digest('hex');
+}
+
 export interface RequirementsStore {
-  get(accountKey: string, ticketId: string, checklistItemId: string): Promise<ChecklistTaskRequirement | null>;
+  get(
+    accountKey: string,
+    ticketId: string,
+    checklistItemId: string,
+  ): Promise<ChecklistTaskRequirement | null>;
   set(requirement: ChecklistTaskRequirement): Promise<void>;
+  setWithCas(
+    requirement: Omit<ChecklistTaskRequirement, 'version'>,
+    expectedVersion: number,
+  ): Promise<ChecklistTaskRequirement>;
 }
 
 export class MemoryRequirementsStore implements RequirementsStore {
@@ -30,12 +67,36 @@ export class MemoryRequirementsStore implements RequirementsStore {
   ): Promise<ChecklistTaskRequirement | null> {
     const key = `${accountKey}:${ticketId}:${checklistItemId}`;
     const r = this.requirements.get(key);
-    return r ? { ...r } : null;
+    return r ? ({ ...r } as ChecklistTaskRequirement) : null;
   }
 
   async set(requirement: ChecklistTaskRequirement): Promise<void> {
     const key = `${requirement.accountKey}:${requirement.ticketId}:${requirement.checklistItemId}`;
     this.requirements.set(key, { ...requirement });
+  }
+
+  async setWithCas(
+    params: Omit<ChecklistTaskRequirement, 'version'>,
+    expectedVersion: number,
+  ): Promise<ChecklistTaskRequirement> {
+    const key = `${params.accountKey}:${params.ticketId}:${params.checklistItemId}`;
+    const existing = this.requirements.get(key);
+    const currentVersion = existing?.version ?? 0;
+
+    if (currentVersion !== expectedVersion) {
+      throw new Error(
+        `CAS mismatch: expected requirement version ${expectedVersion}, but current version is ${currentVersion}`,
+      );
+    }
+
+    const nextVersion = currentVersion + 1;
+    const finalReq = {
+      ...params,
+      version: nextVersion,
+    } as ChecklistTaskRequirement;
+
+    this.requirements.set(key, { ...finalReq });
+    return { ...finalReq };
   }
 
   clear(): void {
@@ -60,6 +121,35 @@ export class FirestoreRequirementsStore implements RequirementsStore {
   async set(requirement: ChecklistTaskRequirement): Promise<void> {
     const docId = `${requirement.accountKey}_${requirement.ticketId}_${requirement.checklistItemId}`;
     await this.firestore.collection(REQUIREMENTS_COLLECTION).doc(docId).set(requirement);
+  }
+
+  async setWithCas(
+    params: Omit<ChecklistTaskRequirement, 'version'>,
+    expectedVersion: number,
+  ): Promise<ChecklistTaskRequirement> {
+    const docId = `${params.accountKey}_${params.ticketId}_${params.checklistItemId}`;
+    const docRef = this.firestore.collection(REQUIREMENTS_COLLECTION).doc(docId);
+
+    return this.firestore.runTransaction(async (txn) => {
+      const snap = await txn.get(docRef);
+      const existing = snap.exists ? (snap.data() as ChecklistTaskRequirement) : null;
+      const currentVersion = existing?.version ?? 0;
+
+      if (currentVersion !== expectedVersion) {
+        throw new Error(
+          `CAS mismatch: expected requirement version ${expectedVersion}, but current version is ${currentVersion}`,
+        );
+      }
+
+      const nextVersion = currentVersion + 1;
+      const finalReq = {
+        ...params,
+        version: nextVersion,
+      } as ChecklistTaskRequirement;
+
+      txn.set(docRef, finalReq);
+      return finalReq;
+    });
   }
 }
 

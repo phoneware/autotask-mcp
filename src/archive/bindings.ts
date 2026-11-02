@@ -1,11 +1,32 @@
+import crypto from 'node:crypto';
 import { Firestore } from '@google-cloud/firestore';
 import type { CompanyArchiveBinding } from '../provisioning/contracts.js';
 
 export const BINDINGS_COLLECTION = 'autotask_mcp_archive_bindings';
 
+export function computeBindingFingerprint(binding: CompanyArchiveBinding): string {
+  const sortedActors = [...binding.allowedActorResourceIds].sort((a, b) => a - b).join(',');
+  const parts = [
+    binding.accountKey,
+    binding.companyId,
+    binding.driveId,
+    binding.folderId,
+    binding.archivePrincipal,
+    sortedActors,
+    String(binding.version),
+    String(binding.disabled),
+    binding.approvalEvidenceRef,
+  ];
+  return crypto.createHash('sha256').update(parts.join(':')).digest('hex');
+}
+
 export interface BindingsStore {
   get(accountKey: string, companyId: string): Promise<CompanyArchiveBinding | null>;
   set(binding: CompanyArchiveBinding): Promise<void>;
+  setWithCas(
+    binding: Omit<CompanyArchiveBinding, 'version'>,
+    expectedVersion: number,
+  ): Promise<CompanyArchiveBinding>;
 }
 
 export class MemoryBindingsStore implements BindingsStore {
@@ -20,6 +41,29 @@ export class MemoryBindingsStore implements BindingsStore {
   async set(binding: CompanyArchiveBinding): Promise<void> {
     const key = `${binding.accountKey}:${binding.companyId}`;
     this.bindings.set(key, { ...binding });
+  }
+
+  async setWithCas(
+    params: Omit<CompanyArchiveBinding, 'version'>,
+    expectedVersion: number,
+  ): Promise<CompanyArchiveBinding> {
+    const key = `${params.accountKey}:${params.companyId}`;
+    const existing = this.bindings.get(key);
+    const currentVersion = existing?.version ?? 0;
+
+    if (currentVersion !== expectedVersion) {
+      throw new Error(
+        `CAS mismatch: expected binding version ${expectedVersion}, but current version is ${currentVersion}`,
+      );
+    }
+
+    const nextVersion = currentVersion + 1;
+    const finalBinding: CompanyArchiveBinding = {
+      ...params,
+      version: nextVersion,
+    };
+    this.bindings.set(key, { ...finalBinding });
+    return { ...finalBinding };
   }
 
   clear(): void {
@@ -40,6 +84,35 @@ export class FirestoreBindingsStore implements BindingsStore {
   async set(binding: CompanyArchiveBinding): Promise<void> {
     const docId = `${binding.accountKey}_${binding.companyId}`;
     await this.firestore.collection(BINDINGS_COLLECTION).doc(docId).set(binding);
+  }
+
+  async setWithCas(
+    params: Omit<CompanyArchiveBinding, 'version'>,
+    expectedVersion: number,
+  ): Promise<CompanyArchiveBinding> {
+    const docId = `${params.accountKey}_${params.companyId}`;
+    const docRef = this.firestore.collection(BINDINGS_COLLECTION).doc(docId);
+
+    return this.firestore.runTransaction(async (txn) => {
+      const snap = await txn.get(docRef);
+      const existing = snap.exists ? (snap.data() as CompanyArchiveBinding) : null;
+      const currentVersion = existing?.version ?? 0;
+
+      if (currentVersion !== expectedVersion) {
+        throw new Error(
+          `CAS mismatch: expected binding version ${expectedVersion}, but current version is ${currentVersion}`,
+        );
+      }
+
+      const nextVersion = currentVersion + 1;
+      const finalBinding: CompanyArchiveBinding = {
+        ...params,
+        version: nextVersion,
+      };
+
+      txn.set(docRef, finalBinding);
+      return finalBinding;
+    });
   }
 }
 

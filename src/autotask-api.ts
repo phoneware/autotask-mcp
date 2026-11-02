@@ -8,6 +8,21 @@ import {
   primeMetadataCache,
   getEntityMetadata,
 } from './readonly-fields.js';
+import {
+  classifyRouteMutation,
+  consumeDispatchPermit,
+  computeBodyDigest,
+  type DispatchPermitToken,
+} from './provisioning/dispatch.js';
+import {
+  readBoundedText,
+  MAX_AUTOTASK_JSON_BYTES,
+} from './bounded-response.js';
+import {
+  safeAutotaskError,
+  safeCoordinatorError,
+  sanitizeErrorMessage,
+} from './safe-errors.js';
 
 export { assertWritableFields, clearMetadataCache, primeMetadataCache, getEntityMetadata };
 // Unauthenticated endpoint used to discover which Autotask zone (data center)
@@ -31,7 +46,9 @@ const RETRYABLE_5XX_METHODS = new Set(['GET', 'DELETE']);
 const IMPERSONATION_REFUSAL = /adequate permissions to (create|add)/i;
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, ms);
+  return promise;
 }
 
 function escapeRegExp(s: string): string {
@@ -143,12 +160,16 @@ export class AutotaskApi {
 
   private async detectZone(): Promise<string> {
     const url = `${ZONE_INFO_URL}?user=${encodeURIComponent(this.username)}`;
-    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+    const resp = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    });
     if (!resp.ok) {
-      const text = await resp.text();
+      const text = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask zone detection');
       throw new Error(`Zone detection failed (${resp.status}): ${redactSecrets(text)}`);
     }
-    const zone = (await resp.json()) as ZoneInformation;
+    const zoneText = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask zone detection');
+    const zone = (zoneText ? JSON.parse(zoneText) : {}) as ZoneInformation;
     if (!zone.url) {
       throw new Error('Zone detection returned no URL. Set AUTOTASK_API_URL to pin the zone.');
     }
@@ -171,6 +192,18 @@ export class AutotaskApi {
     body?: unknown,
     opts: { internal?: boolean; maxRetries?: number } = {},
   ): Promise<unknown> {
+    if (!opts.internal) {
+      const classification = classifyRouteMutation(method, path, body);
+      if (classification.isProtected) {
+        const toolHint = classification.curatedTool
+          ? ` Use curated tool "${classification.curatedTool}".`
+          : '';
+        throw new Error(
+          `Refused: route "${path}" is a protected mutation requiring coordinated dispatch.${toolHint}`,
+        );
+      }
+    }
+
     if (opts.internal) {
       return this.execute(method, path, body, opts.maxRetries);
     }
@@ -187,9 +220,24 @@ export class AutotaskApi {
     method: 'POST' | 'PATCH' | 'PUT',
     path: string,
     body?: unknown,
-    opts: { timeoutMs?: number; armBeforeFetch?: () => Promise<void> } = {},
+    opts: {
+      timeoutMs?: number;
+      permitToken?: DispatchPermitToken;
+      armBeforeFetch?: () => Promise<void>;
+    } = {},
   ): Promise<unknown> {
     const timeoutMs = opts.timeoutMs ?? 15000;
+    const bodyDigest = computeBodyDigest(body);
+
+    if (opts.permitToken) {
+      consumeDispatchPermit(opts.permitToken, {
+        provider: 'autotask',
+        method,
+        route: path,
+        bodyDigest,
+      });
+    }
+
     await governor.assertBudget(() => this.fetchThresholdRaw());
     return governor.withSlot(path, async () => {
       const base = await this.getBaseUrl();
@@ -198,13 +246,14 @@ export class AutotaskApi {
       const options: RequestInit = {
         method,
         headers,
+        redirect: 'error',
         signal: AbortSignal.timeout(timeoutMs),
       };
       if (body !== undefined) {
-        options.body = JSON.stringify(body);
+        options.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
 
-      // Arm immediately before outbound fetch if callback provided
+      // Optional armBeforeFetch for backward compatibility
       if (opts.armBeforeFetch) {
         await opts.armBeforeFetch();
       }
@@ -214,15 +263,18 @@ export class AutotaskApi {
         resp = await fetch(url, options);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Mutation dispatch uncertain (network/timeout): ${redactSecrets(msg)}`);
+        throw safeCoordinatorError(
+          'MUTATION_DISPATCH_UNCERTAIN',
+          `Mutation dispatch uncertain (network/timeout): ${sanitizeErrorMessage(msg)}`,
+        );
       }
 
       if (resp.status === 204) return { success: true };
-      const text = await resp.text();
+      const text = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask mutation response');
       if (resp.ok) {
         return text ? JSON.parse(text) : { success: true };
       }
-      throw new Error(`Autotask API error (${resp.status}): ${redactSecrets(text)}`);
+      throw safeAutotaskError(resp.status, 'AUTOTASK_API_ERROR');
     });
   }
   /**
@@ -262,7 +314,7 @@ export class AutotaskApi {
 
       if (resp.status === 204) return { success: true };
       if (resp.ok) {
-        const text = await resp.text();
+        const text = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask API response');
         return text ? JSON.parse(text) : { success: true };
       }
 
@@ -289,7 +341,7 @@ export class AutotaskApi {
         continue;
       }
 
-      const text = await resp.text();
+      const text = await readBoundedText(resp, MAX_AUTOTASK_JSON_BYTES, 'Autotask API error response');
 
       // An impersonated create Autotask will not attribute. The record itself
       // is permitted (the API user can create it); only the attribution is
@@ -300,7 +352,7 @@ export class AutotaskApi {
         continue;
       }
 
-      throw new Error(`Autotask API error (${resp.status}): ${redactSecrets(text)}`);
+      throw safeAutotaskError(resp.status, 'AUTOTASK_API_ERROR');
     }
   }
 

@@ -30,6 +30,7 @@ export interface MirrorAttachment {
   contentType: string;
   fileSize?: number;
   data: string; // base64
+  attachmentType?: string;
   [key: string]: unknown;
 }
 
@@ -58,17 +59,29 @@ export class AutotaskMirror {
   public attachments = new Map<number, MirrorAttachment>();
   public notes = new Map<number, MirrorNote>();
 
-  public requestLog: Array<{
+  public arrivalJournal: Array<{
     method: string;
     url: string;
     headers: http.IncomingHttpHeaders;
     body?: unknown;
+    receivedAt: number;
   }> = [];
+
+  public appliedJournal: Array<{
+    method: string;
+    entity: string;
+    id: number;
+    details: Record<string, unknown>;
+    appliedAt: number;
+  }> = [];
+
   public idCounter = 1000;
 
   // Fault injection hooks
   public simulateConcurrentResolutionModification: string | null = null;
   public simulate500OnWrite = false;
+  public simulateNetworkDropOnWrite = false;
+  public simulateHeldBeforeApplyMs = 0;
 
   constructor() {}
 
@@ -93,44 +106,50 @@ export class AutotaskMirror {
     this.checklistItems.clear();
     this.attachments.clear();
     this.notes.clear();
-    this.requestLog = [];
+    this.arrivalJournal = [];
+    this.appliedJournal = [];
     this.simulateConcurrentResolutionModification = null;
     this.simulate500OnWrite = false;
+    this.simulateNetworkDropOnWrite = false;
+    this.simulateHeldBeforeApplyMs = 0;
   }
 
   async start(): Promise<{ url: string; port: number }> {
-    return new Promise((resolve, reject) => {
-      this.server = http.createServer((req, res) => {
-        this.handleRequest(req, res);
-      });
+    const { promise, resolve, reject } = Promise.withResolvers<{
+      url: string;
+      port: number;
+    }>();
 
-      this.server.on('error', (err) => {
-        reject(err);
-      });
-
-      this.server.listen(0, '127.0.0.1', () => {
-        const addr = this.server?.address() as AddressInfo;
-        this.port = addr.port;
-        this.baseUrl = `http://127.0.0.1:${this.port}/atservicesrest/`;
-        resolve({ url: this.baseUrl, port: this.port });
-      });
+    this.server = http.createServer((req, res) => {
+      this.handleRequest(req, res);
     });
+
+    this.server.on('error', reject);
+
+    this.server.listen(0, '127.0.0.1', () => {
+      const addr = this.server?.address() as AddressInfo;
+      this.port = addr.port;
+      this.baseUrl = `http://127.0.0.1:${this.port}/atservicesrest/`;
+      resolve({ url: this.baseUrl, port: this.port });
+    });
+
+    return promise;
   }
 
   async stop(): Promise<void> {
     if (!this.server) return;
-    return new Promise((resolve) => {
-      this.server?.close(() => {
-        this.server = null;
-        resolve();
-      });
+    const { promise, resolve } = Promise.withResolvers<void>();
+    this.server.close(() => {
+      this.server = null;
+      resolve();
     });
+    return promise;
   }
 
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
     const chunks: Buffer[] = [];
     req.on('data', (c) => chunks.push(c));
-    req.on('end', () => {
+    req.on('end', async () => {
       const bodyRaw = Buffer.concat(chunks).toString('utf-8');
       let body: unknown;
       if (bodyRaw) {
@@ -141,16 +160,24 @@ export class AutotaskMirror {
         }
       }
 
-      this.requestLog.push({
+      this.arrivalJournal.push({
         method: req.method || 'GET',
         url: req.url || '/',
         headers: req.headers,
         body,
+        receivedAt: Date.now(),
       });
 
-      this.route(req, res, body);
+      if (this.simulateHeldBeforeApplyMs > 0) {
+        const { promise, resolve } = Promise.withResolvers<void>();
+        setTimeout(resolve, this.simulateHeldBeforeApplyMs);
+        await promise;
+      }
+
+      this.route(req, res, body as Record<string, unknown> | undefined);
     });
   }
+
   private route(
     req: http.IncomingMessage,
     res: http.ServerResponse,
@@ -158,19 +185,19 @@ export class AutotaskMirror {
   ): void {
     const url = req.url || '/';
     const method = req.method?.toUpperCase() || 'GET';
-    // Helper to send json
+
     const sendJson = (status: number, data: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(data));
     };
 
-    // 1. Zone Information (public/unauthenticated probe)
+    // 1. Zone Information
     if (url.includes('/V1.0/zoneInformation')) {
       sendJson(200, { zoneName: 'mirror-zone', url: this.baseUrl });
       return;
     }
 
-    // Verify auth headers on all other endpoints
+    // Verify auth headers
     const hasAuth =
       Boolean(req.headers['apiintegrationcode']) &&
       Boolean(req.headers['username']) &&
@@ -185,7 +212,12 @@ export class AutotaskMirror {
       return;
     }
 
-    // 2. Threshold Information (governor budget probe)
+    if (this.simulateNetworkDropOnWrite && (method === 'PATCH' || method === 'POST')) {
+      req.socket.destroy();
+      return;
+    }
+
+    // 2. Threshold Information
     if (url.includes('/V1.0/ThresholdInformation')) {
       sendJson(200, {
         item: {
@@ -219,13 +251,13 @@ export class AutotaskMirror {
     }
 
     // 4. Ticket Checklist Items
-    // GET /V1.0/Tickets/:ticketId/ChecklistItems/:itemId
     const checklistItemMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/ChecklistItems\/(\d+)/);
     if (checklistItemMatch && method === 'GET') {
+      const ticketId = Number(checklistItemMatch[1]);
       const itemId = Number(checklistItemMatch[2]);
       const item = this.checklistItems.get(itemId);
-      if (!item) {
-        sendJson(404, { message: `Checklist item ${itemId} not found` });
+      if (!item || item.ticketID !== ticketId) {
+        sendJson(404, { message: `ChecklistItem ${itemId} not found on ticket ${ticketId}` });
         return;
       }
       sendJson(200, { item });
@@ -233,73 +265,74 @@ export class AutotaskMirror {
     }
 
     // PATCH /V1.0/Tickets/:ticketId/ChecklistItems
-    const checklistChildMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/ChecklistItems$/);
-    if (checklistChildMatch && method === 'PATCH') {
-      const ticketId = Number(checklistChildMatch[1]);
+    const checklistPatchMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/ChecklistItems/);
+    if (checklistPatchMatch && method === 'PATCH') {
+      const ticketId = Number(checklistPatchMatch[1]);
       const itemId = Number(body?.id);
-      const existing = this.checklistItems.get(itemId);
-      if (!existing) {
-        sendJson(404, { message: `Checklist item ${itemId} not found` });
+      const item = this.checklistItems.get(itemId);
+      if (!item || item.ticketID !== ticketId) {
+        sendJson(404, { message: `ChecklistItem ${itemId} not found on ticket ${ticketId}` });
         return;
       }
-      if (existing.ticketID !== ticketId) {
-        sendJson(400, {
-          message: `Item ${itemId} belongs to ticket ${existing.ticketID}, not ${ticketId}`,
-        });
-        return;
-      }
+
       if (body?.isCompleted !== undefined) {
-        existing.isCompleted = Boolean(body.isCompleted);
-        existing.completedDateTime = existing.isCompleted ? new Date().toISOString() : null;
+        item.isCompleted = Boolean(body.isCompleted);
       }
-      sendJson(200, { item: existing });
+
+      this.appliedJournal.push({
+        method: 'PATCH',
+        entity: 'ChecklistItem',
+        id: itemId,
+        details: { isCompleted: item.isCompleted },
+        appliedAt: Date.now(),
+      });
+
+      sendJson(200, { itemId, item });
       return;
     }
 
     // 5. Ticket Attachments
-    // GET /V1.0/Tickets/:ticketId/Attachments/:attachmentId
-    const attachmentItemMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/Attachments\/(\d+)/);
-    if (attachmentItemMatch && method === 'GET') {
-      const attachmentId = Number(attachmentItemMatch[2]);
-      const att = this.attachments.get(attachmentId);
-      if (!att) {
-        sendJson(404, { message: `Attachment ${attachmentId} not found` });
+    const attachmentGetMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/Attachments\/(\d+)/);
+    if (attachmentGetMatch && method === 'GET') {
+      const ticketId = Number(attachmentGetMatch[1]);
+      const attId = Number(attachmentGetMatch[2]);
+      const att = this.attachments.get(attId);
+      if (!att || att.ticketID !== ticketId) {
+        sendJson(404, { message: `Attachment ${attId} not found on ticket ${ticketId}` });
         return;
       }
       sendJson(200, { item: att });
       return;
     }
 
-    // POST /V1.0/Tickets/:ticketId/Attachments
-    if (url.match(/\/V1\.0\/Tickets\/(\d+)\/Attachments$/) && method === 'POST') {
-      const tMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/Attachments$/)!;
-      const ticketId = Number(tMatch[1]);
-      const newId = ++this.idCounter;
-      const title = typeof body?.title === 'string' ? body.title : 'attachment';
-      const contentType =
-        typeof body?.contentType === 'string' ? body.contentType : 'application/octet-stream';
-      const data = typeof body?.data === 'string' ? body.data : '';
-      const newAtt: MirrorAttachment = {
-        id: newId,
-        ticketID: ticketId,
-        title,
-        contentType,
-        fileSize: data ? Buffer.byteLength(data, 'base64') : 0,
-        data,
-      };
-      this.attachments.set(newId, newAtt);
-      sendJson(200, { item: newAtt, itemId: newId });
+    // 6. Ticket Notes query
+    if (url.includes('/V1.0/TicketNotes/query') && method === 'POST') {
+      const filter = (body as { filter?: Array<{ field?: string; value?: unknown }> })?.filter;
+      const ticketFilter = filter?.find((f) => f.field === 'ticketID');
+      const ticketId = ticketFilter ? Number(ticketFilter.value) : null;
+
+      const matchingNotes: MirrorNote[] = [];
+      for (const note of this.notes.values()) {
+        if (ticketId === null || note.ticketID === ticketId) {
+          matchingNotes.push(note);
+        }
+      }
+
+      sendJson(200, {
+        items: matchingNotes,
+        pageDetails: { count: matchingNotes.length },
+      });
       return;
     }
 
-    // 6. Ticket Notes
-    // GET /V1.0/Tickets/:ticketId/Notes/:noteId or GET /V1.0/TicketNotes/:noteId
-    const noteMatch = url.match(/\/V1\.0\/(?:Tickets\/\d+\/Notes|TicketNotes)\/(\d+)/);
-    if (noteMatch && method === 'GET') {
-      const noteId = Number(noteMatch[1]);
+    // GET /V1.0/Tickets/:ticketId/Notes/:noteId
+    const noteGetMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/Notes\/(\d+)/);
+    if (noteGetMatch && method === 'GET') {
+      const ticketId = Number(noteGetMatch[1]);
+      const noteId = Number(noteGetMatch[2]);
       const note = this.notes.get(noteId);
-      if (!note) {
-        sendJson(404, { message: `Note ${noteId} not found` });
+      if (!note || note.ticketID !== ticketId) {
+        sendJson(404, { message: `Note ${noteId} not found on ticket ${ticketId}` });
         return;
       }
       sendJson(200, { item: note });
@@ -307,66 +340,53 @@ export class AutotaskMirror {
     }
 
     // POST /V1.0/Tickets/:ticketId/Notes
-    if (url.match(/\/V1\.0\/Tickets\/(\d+)\/Notes$/) && method === 'POST') {
-      const tMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/Notes$/)!;
-      const ticketId = Number(tMatch[1]);
-      const newId = ++this.idCounter;
-      const title = typeof body?.title === 'string' ? body.title : 'Note';
-      const description = typeof body?.description === 'string' ? body.description : '';
-      const noteType = typeof body?.noteType === 'number' ? body.noteType : 1;
-      const publish = typeof body?.publish === 'number' ? body.publish : 1;
-      const newNote: MirrorNote = {
-        id: newId,
+    const notePostMatch = url.match(/\/V1\.0\/Tickets\/(\d+)\/Notes/);
+    if (notePostMatch && method === 'POST') {
+      const ticketId = Number(notePostMatch[1]);
+      const noteId = ++this.idCounter;
+      const note: MirrorNote = {
+        id: noteId,
         ticketID: ticketId,
-        title,
-        description,
-        noteType,
-        publish,
+        title: String(body?.title || 'Note'),
+        description: String(body?.description || ''),
+        noteType: Number(body?.noteType || 1),
+        publish: Number(body?.publish || 1),
       };
-      this.notes.set(newId, newNote);
-      sendJson(200, { itemId: newId });
+      this.notes.set(noteId, note);
+
+      this.appliedJournal.push({
+        method: 'POST',
+        entity: 'TicketNote',
+        id: noteId,
+        details: { ...note },
+        appliedAt: Date.now(),
+      });
+
+      sendJson(200, { itemId: noteId, item: note });
       return;
     }
 
-    // POST /V1.0/TicketNotes/query
-    if (url.includes('/V1.0/TicketNotes/query') && method === 'POST') {
-      let filteredNotes = Array.from(this.notes.values());
-      const filter = Array.isArray(body?.filter) ? body.filter : [];
-      const ticketClause = filter.find(
-        (c): c is { op?: string; field?: unknown; value?: unknown } => {
-          if (c && typeof c === 'object' && 'field' in c) {
-            return c.field === 'ticketID';
-          }
-          return false;
-        },
-      );
-      if (ticketClause && ticketClause.value !== undefined) {
-        filteredNotes = filteredNotes.filter((n) => n.ticketID === Number(ticketClause.value));
-      }
-      sendJson(200, { items: filteredNotes, pageDetails: { count: filteredNotes.length } });
-      return;
-    }
-
-    // 7. Tickets
-    // GET /V1.0/Tickets/:id
-    const ticketMatch = url.match(/\/V1\.0\/Tickets\/(\d+)$/);
-    if (ticketMatch && method === 'GET') {
-      const ticketId = Number(ticketMatch[1]);
+    // 7. Tickets CRUD & Resolution
+    const ticketGetMatch = url.match(/\/V1\.0\/Tickets\/(\d+)/);
+    if (ticketGetMatch && method === 'GET') {
+      const ticketId = Number(ticketGetMatch[1]);
       const ticket = this.tickets.get(ticketId);
       if (!ticket) {
         sendJson(404, { message: `Ticket ${ticketId} not found` });
         return;
       }
-      const ticketCopy = { ...ticket };
-      if (this.simulateConcurrentResolutionModification !== null) {
-        ticket.resolution = this.simulateConcurrentResolutionModification;
+
+      if (this.simulateConcurrentResolutionModification) {
+        ticket.resolution = `${ticket.resolution || ''}\n${this.simulateConcurrentResolutionModification}`;
+        this.simulateConcurrentResolutionModification = null;
       }
-      sendJson(200, { item: ticketCopy });
+
+      sendJson(200, { item: ticket });
       return;
     }
 
     // PATCH /V1.0/Tickets
-    if (url.match(/\/V1\.0\/Tickets$/) && method === 'PATCH') {
+    if (url.includes('/V1.0/Tickets') && method === 'PATCH') {
       const ticketId = Number(body?.id);
       const ticket = this.tickets.get(ticketId);
       if (!ticket) {
@@ -374,13 +394,22 @@ export class AutotaskMirror {
         return;
       }
 
-      if (typeof body?.resolution === 'string') {
-        ticket.resolution = body.resolution;
+      if (body?.resolution !== undefined) {
+        ticket.resolution = String(body.resolution);
       }
-      sendJson(200, { item: ticket });
+
+      this.appliedJournal.push({
+        method: 'PATCH',
+        entity: 'Ticket',
+        id: ticketId,
+        details: { resolution: ticket.resolution },
+        appliedAt: Date.now(),
+      });
+
+      sendJson(200, { itemId: ticketId, item: ticket });
       return;
     }
 
-    sendJson(404, { message: `Not found in mirror: ${method} ${url}` });
+    sendJson(404, { message: `Endpoint not found: ${method} ${url}` });
   }
 }

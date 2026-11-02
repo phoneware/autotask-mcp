@@ -5,8 +5,16 @@ import type {
   Claim,
   OperationIntent,
   OperationKind,
+  OperationReceipt,
   TicketCoordinator,
+  CompanyArchiveBinding,
 } from './contracts.js';
+import { deriveCanonicalAccountKey, assertAccountWriteAdmitted } from './account.js';
+import { sanitizeErrorMessage } from '../safe-errors.js';
+import { BINDINGS_COLLECTION } from '../archive/bindings.js';
+
+export const OPERATIONS_COLLECTION = 'provisioning_operations';
+export const COORDINATORS_COLLECTION = 'provisioning_coordinators';
 
 export class StoreUnavailableError extends Error {
   constructor(message: string) {
@@ -27,22 +35,39 @@ export function canonicalizeNumericId(raw: string | number, label = 'id'): strin
   return String(n);
 }
 
-export function deriveAccountKey(effectiveZoneUrl?: string): string {
-  const username = (process.env.AUTOTASK_USERNAME || '').toLowerCase().trim();
-  const rawUrl =
-    effectiveZoneUrl ||
-    process.env.AUTOTASK_API_URL ||
-    'https://webservices.autotask.net/atservicesrest/';
-
-  let normalizedUrl: string;
-  try {
-    const parsed = new URL(rawUrl);
-    normalizedUrl = `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
-  } catch {
-    normalizedUrl = rawUrl.toLowerCase().trim().replace(/\/+$/, '');
+/**
+ * Recursively canonicalize any JSON-compatible value to an unambiguous,
+ * key-sorted JSON string without whitespace.
+ */
+export function canonicalJsonStringify(val: unknown): string {
+  if (val === null || typeof val !== 'object') {
+    return JSON.stringify(val);
   }
+  if (Array.isArray(val)) {
+    return `[${val.map((item) => canonicalJsonStringify(item)).join(',')}]`;
+  }
+  const obj = val as Record<string, unknown>;
+  const sortedKeys = Object.keys(obj).sort();
+  const entries = sortedKeys
+    .filter((k) => obj[k] !== undefined)
+    .map((k) => `${JSON.stringify(k)}:${canonicalJsonStringify(obj[k])}`);
+  return `{${entries.join(',')}}`;
+}
 
-  return crypto.createHash('sha256').update(`${username}\0${normalizedUrl}`).digest('hex').slice(0, 16);
+export function computeIntentSha256(
+  ticketId: string,
+  kind: string,
+  payload: Record<string, unknown>,
+): string {
+  const canonicalJson = canonicalJsonStringify(payload);
+  return crypto.createHash('sha256').update(`${ticketId}:${kind}:${canonicalJson}`).digest('hex');
+}
+
+/**
+ * Backward-compatible alias for deriveCanonicalAccountKey.
+ */
+export function deriveAccountKey(effectiveZoneUrl?: string): string {
+  return deriveCanonicalAccountKey(undefined, effectiveZoneUrl);
 }
 
 export function operationKey(accountKey: string, operationId: string): string {
@@ -55,8 +80,17 @@ export function coordinatorDocId(accountKey: string, canonicalTicketId: string):
 
 export interface AcquireResult {
   acquired: boolean;
+  alreadyVerified?: boolean;
   claim: Claim;
   operation: OperationIntent;
+}
+
+export interface ArmDispatchOptions {
+  preparedSha256?: string;
+  requestSha256?: string;
+  policyFingerprint?: string;
+  requiredBindingId?: string;
+  expectedPolicyRevision?: number;
 }
 
 export interface OperationStore {
@@ -96,14 +130,24 @@ export interface OperationStore {
     attemptId: string,
     operationId: string,
     intentSha256: string,
-  ): Promise<{ armed: boolean; expiresAt: number }>;
+    options?: ArmDispatchOptions,
+  ): Promise<{ armed: boolean; dispatchId?: string; expiresAt: number }>;
 
   markVerified(
     accountKey: string,
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: Record<string, unknown>,
+    receipt: OperationReceipt | Record<string, unknown>,
+    dispatchId?: string,
+  ): Promise<void>;
+
+  markObservationOnly(
+    accountKey: string,
+    ticketId: string,
+    attemptId: string,
+    operationId: string,
+    receipt: OperationReceipt | Record<string, unknown>,
   ): Promise<void>;
 
   markUncertain(
@@ -112,6 +156,7 @@ export interface OperationStore {
     attemptId: string,
     operationId: string,
     error: string,
+    dispatchId?: string,
   ): Promise<void>;
 
   renewLease(
@@ -142,7 +187,6 @@ export class MemoryOperationStore implements OperationStore {
   }): Promise<OperationIntent> {
     const key = operationKey(params.accountKey, params.operationId);
     const existing = this.operations.get(key);
-    const now = Date.now();
 
     if (existing) {
       if (
@@ -151,24 +195,18 @@ export class MemoryOperationStore implements OperationStore {
         existing.kind !== params.kind
       ) {
         throw new Error(
-          `Conflict: operationId "${params.operationId}" was previously recorded with different intent/target; write refused`,
-        );
-      }
-      if (
-        existing.actor.email !== params.actor.email ||
-        existing.actor.resourceId !== params.actor.resourceId
-      ) {
-        throw new Error(
-          `Conflict: operationId "${params.operationId}" was previously prepared by another actor (${existing.actor.email} / ${existing.actor.resourceId}); write refused`,
+          `Conflict: operationId "${params.operationId}" was already prepared with different immutable intent`,
         );
       }
       return { ...existing };
     }
 
-    const intent: OperationIntent = {
-      version: 1,
+    const now = Date.now();
+    const op: OperationIntent = {
+      version: 2,
       accountKey: params.accountKey,
       operationId: params.operationId,
+      operationKey: key,
       actor: params.actor,
       kind: params.kind,
       ticketId: params.ticketId,
@@ -180,8 +218,8 @@ export class MemoryOperationStore implements OperationStore {
       updatedAt: now,
     };
 
-    this.operations.set(key, intent);
-    return { ...intent };
+    this.operations.set(key, op);
+    return { ...op };
   }
 
   async savePreparedState(params: {
@@ -191,9 +229,9 @@ export class MemoryOperationStore implements OperationStore {
     claim: Claim;
     preparedState: Record<string, unknown>;
   }): Promise<void> {
+    const now = Date.now();
     const coordKey = coordinatorDocId(params.accountKey, params.ticketId);
     const coord = this.coordinators.get(coordKey);
-    const now = Date.now();
 
     if (
       !coord ||
@@ -207,17 +245,33 @@ export class MemoryOperationStore implements OperationStore {
       );
     }
 
+    if (params.claim.mode === 'reconciling') {
+      throw new Error(
+        `Conflict: cannot commit preparation in reconciling recovery mode for operation "${params.operationId}"`,
+      );
+    }
+
     const key = operationKey(params.accountKey, params.operationId);
     const op = this.operations.get(key);
     if (!op) {
       throw new Error(`Operation "${params.operationId}" not found`);
     }
 
-    if (op.phase === 'dispatching' || op.phase === 'verified') {
-      throw new Error(`Conflict: operation "${params.operationId}" is already ${op.phase}`);
+    if (op.phase !== 'preparing' && op.phase !== 'prepared') {
+      throw new Error(`Conflict: operation "${params.operationId}" is already ${op.phase}; preparation refused`);
     }
 
-    op.preparedState = { ...(op.preparedState ?? {}), ...params.preparedState };
+    if (op.preparedState) {
+      const existingJson = canonicalJsonStringify(op.preparedState);
+      const incomingJson = canonicalJsonStringify(params.preparedState);
+      if (existingJson !== incomingJson) {
+        throw new Error(
+          `Conflict: operation "${params.operationId}" already has immutable preparation committed; replacement refused`,
+        );
+      }
+    }
+
+    op.preparedState = { ...params.preparedState };
     op.phase = 'prepared';
     op.updatedAt = now;
   }
@@ -253,6 +307,26 @@ export class MemoryOperationStore implements OperationStore {
     const mode =
       op.phase === 'dispatching' || op.phase === 'uncertain' ? 'reconciling' : 'preparing';
 
+    const claim: Claim = {
+      accountKey,
+      ticketId,
+      operationKey: opKey,
+      intentSha256: op.intentSha256,
+      attemptId,
+      fence: coord.fence,
+      mode,
+      expiresAt: coord.lease?.expiresAt ?? 0,
+    };
+
+    if (op.phase === 'verified') {
+      return {
+        acquired: false,
+        alreadyVerified: true,
+        claim,
+        operation: { ...op },
+      };
+    }
+
     if (coord.activeDispatch && coord.activeDispatch.operationId !== operationId) {
       throw new Error(
         `Conflict: ticket ${ticketId} has an unresolved dispatch barrier for operation "${coord.activeDispatch.operationId}"; cannot acquire for operation "${operationId}" until reconciled`,
@@ -262,7 +336,7 @@ export class MemoryOperationStore implements OperationStore {
     if (coord.lease && coord.lease.expiresAt > now && coord.lease.attemptId !== attemptId) {
       return {
         acquired: false,
-        claim: { attemptId, fence: coord.fence, expiresAt: coord.lease.expiresAt, mode },
+        claim,
         operation: { ...op },
       };
     }
@@ -276,9 +350,12 @@ export class MemoryOperationStore implements OperationStore {
       expiresAt,
     };
 
+    claim.fence = fence;
+    claim.expiresAt = expiresAt;
+
     return {
       acquired: true,
-      claim: { attemptId, fence, expiresAt, mode },
+      claim,
       operation: { ...op },
     };
   }
@@ -289,12 +366,19 @@ export class MemoryOperationStore implements OperationStore {
     attemptId: string,
     operationId: string,
     intentSha256: string,
-  ): Promise<{ armed: boolean; expiresAt: number }> {
+    options?: ArmDispatchOptions,
+  ): Promise<{ armed: boolean; dispatchId?: string; expiresAt: number }> {
     const now = Date.now();
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coord = this.coordinators.get(coordKey);
     if (!coord || !coord.lease || coord.lease.attemptId !== attemptId || coord.lease.expiresAt <= now) {
       return { armed: false, expiresAt: 0 };
+    }
+
+    if (coord.activeDispatch && coord.activeDispatch.operationId !== operationId) {
+      throw new Error(
+        `Conflict: ticket ${ticketId} already has an active dispatch barrier for operation "${coord.activeDispatch.operationId}"`,
+      );
     }
 
     const opKey = operationKey(accountKey, operationId);
@@ -307,11 +391,22 @@ export class MemoryOperationStore implements OperationStore {
       );
     }
 
+    if (op.intentSha256 !== intentSha256) {
+      throw new Error(
+        `Conflict: intentSha256 mismatch when arming operation "${operationId}"`,
+      );
+    }
+
+    const dispatchId = crypto.randomUUID();
     coord.activeDispatch = {
+      dispatchId,
       operationKey: opKey,
       attemptId,
       operationId,
       intentSha256,
+      preparedSha256: options?.preparedSha256,
+      requestSha256: options?.requestSha256,
+      policyFingerprint: options?.policyFingerprint,
       dispatchedAt: now,
     };
 
@@ -319,7 +414,7 @@ export class MemoryOperationStore implements OperationStore {
     op.dispatchedAt = now;
     op.updatedAt = now;
 
-    return { armed: true, expiresAt: coord.lease.expiresAt };
+    return { armed: true, dispatchId, expiresAt: coord.lease.expiresAt };
   }
 
   async markVerified(
@@ -327,13 +422,76 @@ export class MemoryOperationStore implements OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: Record<string, unknown>,
+    receipt: OperationReceipt | Record<string, unknown>,
+    dispatchId?: string,
   ): Promise<void> {
     const now = Date.now();
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coord = this.coordinators.get(coordKey);
-    if (coord && coord.activeDispatch?.operationId === operationId) {
+
+    if (
+      !coord ||
+      !coord.lease ||
+      coord.lease.attemptId !== attemptId ||
+      coord.lease.expiresAt <= now
+    ) {
+      throw new Error(
+        `Conflict: cannot mark verified; lease for ticket ${ticketId} expired or not owned by attempt ${attemptId}`,
+      );
+    }
+
+    if (coord.activeDispatch) {
+      if (coord.activeDispatch.operationId !== operationId) {
+        throw new Error(
+          `Conflict: active dispatch barrier belongs to operation "${coord.activeDispatch.operationId}", not "${operationId}"`,
+        );
+      }
+      if (dispatchId && coord.activeDispatch.dispatchId && coord.activeDispatch.dispatchId !== dispatchId) {
+        throw new Error('Conflict: dispatchId mismatch during finalization');
+      }
       coord.activeDispatch = null;
+    }
+
+    const opKey = operationKey(accountKey, operationId);
+    const op = this.operations.get(opKey);
+    if (!op) {
+      throw new Error(`Operation "${operationId}" not found`);
+    }
+
+    if (op.phase !== 'dispatching' && op.phase !== 'uncertain') {
+      throw new Error(`Conflict: cannot finalize operation in phase "${op.phase}"`);
+    }
+
+    op.phase = 'verified';
+    op.completedAt = now;
+    op.updatedAt = now;
+    op.receipt = receipt;
+  }
+
+  async markObservationOnly(
+    accountKey: string,
+    ticketId: string,
+    attemptId: string,
+    operationId: string,
+    receipt: OperationReceipt | Record<string, unknown>,
+  ): Promise<void> {
+    const now = Date.now();
+    const coordKey = coordinatorDocId(accountKey, ticketId);
+    const coord = this.coordinators.get(coordKey);
+
+    if (
+      !coord ||
+      !coord.lease ||
+      coord.lease.attemptId !== attemptId ||
+      coord.lease.expiresAt <= now
+    ) {
+      throw new Error(`Conflict: lease expired or not owned by attempt ${attemptId}`);
+    }
+
+    if (coord.activeDispatch) {
+      throw new Error(
+        `Conflict: cannot record observation-only while active dispatch barrier is present for "${coord.activeDispatch.operationId}"`,
+      );
     }
 
     const opKey = operationKey(accountKey, operationId);
@@ -352,14 +510,16 @@ export class MemoryOperationStore implements OperationStore {
     attemptId: string,
     operationId: string,
     error: string,
+    _dispatchId?: string,
   ): Promise<void> {
     const opKey = operationKey(accountKey, operationId);
     const op = this.operations.get(opKey);
     if (op && op.phase !== 'verified') {
       op.phase = 'uncertain';
       op.updatedAt = Date.now();
-      op.error = error;
+      op.error = sanitizeErrorMessage(error);
     }
+    // Note: coord.activeDispatch barrier remains intact!
   }
 
   async renewLease(
@@ -371,20 +531,18 @@ export class MemoryOperationStore implements OperationStore {
     const now = Date.now();
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coord = this.coordinators.get(coordKey);
-    if (!coord || !coord.lease || coord.lease.attemptId !== attemptId) {
+    if (!coord || !coord.lease || coord.lease.attemptId !== attemptId || coord.lease.expiresAt <= now) {
       return { renewed: false, expiresAt: 0 };
     }
-    if (coord.lease.expiresAt <= now) {
-      return { renewed: false, expiresAt: 0 };
-    }
-    coord.lease.expiresAt = now + ttlMs;
-    return { renewed: true, expiresAt: coord.lease.expiresAt };
+    const expiresAt = now + ttlMs;
+    coord.lease.expiresAt = expiresAt;
+    return { renewed: true, expiresAt };
   }
 
   async releaseLease(accountKey: string, ticketId: string, attemptId: string): Promise<void> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coord = this.coordinators.get(coordKey);
-    if (coord && coord.lease && coord.lease.attemptId === attemptId) {
+    if (coord && coord.lease?.attemptId === attemptId) {
       coord.lease = null;
     }
   }
@@ -392,20 +550,21 @@ export class MemoryOperationStore implements OperationStore {
   async inspectCoordinator(accountKey: string, ticketId: string): Promise<TicketCoordinator | null> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coord = this.coordinators.get(coordKey);
-    return coord ? JSON.parse(JSON.stringify(coord)) : null;
-  }
-
-  clear(): void {
-    this.operations.clear();
-    this.coordinators.clear();
+    return coord ? { ...coord } : null;
   }
 }
 
-export const OPERATIONS_COLLECTION = 'autotask_mcp_ticket_operations';
-export const COORDINATORS_COLLECTION = 'autotask_mcp_ticket_coordinators';
-
 export class FirestoreOperationStore implements OperationStore {
-  constructor(private readonly firestore: Firestore) {}
+  private readonly firestore: Firestore;
+
+  constructor(firestore?: Firestore) {
+    this.firestore =
+      firestore ||
+      new Firestore({
+        projectId: process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT,
+        ignoreUndefinedProperties: true,
+      });
+  }
 
   async prepareOperation(params: {
     accountKey: string;
@@ -417,12 +576,13 @@ export class FirestoreOperationStore implements OperationStore {
     intentSha256: string;
     payload: Record<string, unknown>;
   }): Promise<OperationIntent> {
+    await assertAccountWriteAdmitted(this.firestore, params.accountKey);
+
     const key = operationKey(params.accountKey, params.operationId);
     const docRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(key);
 
     return this.firestore.runTransaction(async (txn) => {
       const snap = await txn.get(docRef);
-      const now = Date.now();
       if (snap.exists) {
         const existing = snap.data() as OperationIntent;
         if (
@@ -431,24 +591,18 @@ export class FirestoreOperationStore implements OperationStore {
           existing.kind !== params.kind
         ) {
           throw new Error(
-            `Conflict: operationId "${params.operationId}" was previously recorded with different intent/target; write refused`,
-          );
-        }
-        if (
-          existing.actor.email !== params.actor.email ||
-          existing.actor.resourceId !== params.actor.resourceId
-        ) {
-          throw new Error(
-            `Conflict: operationId "${params.operationId}" was previously prepared by another actor (${existing.actor.email} / ${existing.actor.resourceId}); write refused`,
+            `Conflict: operationId "${params.operationId}" was already prepared with different immutable intent`,
           );
         }
         return existing;
       }
 
-      const intent: OperationIntent = {
-        version: 1,
+      const now = Date.now();
+      const op: OperationIntent = {
+        version: 2,
         accountKey: params.accountKey,
         operationId: params.operationId,
+        operationKey: key,
         actor: params.actor,
         kind: params.kind,
         ticketId: params.ticketId,
@@ -460,8 +614,8 @@ export class FirestoreOperationStore implements OperationStore {
         updatedAt: now,
       };
 
-      txn.set(docRef, intent);
-      return intent;
+      txn.set(docRef, op);
+      return op;
     });
   }
 
@@ -472,6 +626,12 @@ export class FirestoreOperationStore implements OperationStore {
     claim: Claim;
     preparedState: Record<string, unknown>;
   }): Promise<void> {
+    if (params.claim.mode === 'reconciling') {
+      throw new Error(
+        `Conflict: cannot commit preparation in reconciling recovery mode for operation "${params.operationId}"`,
+      );
+    }
+
     const coordKey = coordinatorDocId(params.accountKey, params.ticketId);
     const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
     const opKey = operationKey(params.accountKey, params.operationId);
@@ -500,12 +660,22 @@ export class FirestoreOperationStore implements OperationStore {
         throw new Error(`Operation "${params.operationId}" not found`);
       }
 
-      if (op.phase === 'dispatching' || op.phase === 'verified') {
-        throw new Error(`Conflict: operation "${params.operationId}" is already ${op.phase}`);
+      if (op.phase !== 'preparing' && op.phase !== 'prepared') {
+        throw new Error(`Conflict: operation "${params.operationId}" is already ${op.phase}; preparation refused`);
+      }
+
+      if (op.preparedState) {
+        const existingJson = canonicalJsonStringify(op.preparedState);
+        const incomingJson = canonicalJsonStringify(params.preparedState);
+        if (existingJson !== incomingJson) {
+          throw new Error(
+            `Conflict: operation "${params.operationId}" already has immutable preparation committed; replacement refused`,
+          );
+        }
       }
 
       txn.update(opRef, {
-        preparedState: { ...(op.preparedState ?? {}), ...params.preparedState },
+        preparedState: { ...params.preparedState },
         phase: 'prepared',
         updatedAt: now,
       });
@@ -548,6 +718,26 @@ export class FirestoreOperationStore implements OperationStore {
       const mode =
         op.phase === 'dispatching' || op.phase === 'uncertain' ? 'reconciling' : 'preparing';
 
+      const claim: Claim = {
+        accountKey,
+        ticketId,
+        operationKey: opKey,
+        intentSha256: op.intentSha256,
+        attemptId,
+        fence: data?.fence ?? 0,
+        mode,
+        expiresAt: data?.lease?.expiresAt ?? 0,
+      };
+
+      if (op.phase === 'verified') {
+        return {
+          acquired: false,
+          alreadyVerified: true,
+          claim,
+          operation: op,
+        };
+      }
+
       if (data?.activeDispatch && data.activeDispatch.operationId !== operationId) {
         throw new Error(
           `Conflict: ticket ${ticketId} has an unresolved dispatch barrier for operation "${data.activeDispatch.operationId}"; cannot acquire for operation "${operationId}" until reconciled`,
@@ -557,7 +747,7 @@ export class FirestoreOperationStore implements OperationStore {
       if (data?.lease && data.lease.expiresAt > now && data.lease.attemptId !== attemptId) {
         return {
           acquired: false,
-          claim: { attemptId, fence: data.fence, expiresAt: data.lease.expiresAt, mode },
+          claim,
           operation: op,
         };
       }
@@ -581,9 +771,12 @@ export class FirestoreOperationStore implements OperationStore {
         { merge: true },
       );
 
+      claim.fence = fence;
+      claim.expiresAt = expiresAt;
+
       return {
         acquired: true,
-        claim: { attemptId, fence, expiresAt, mode },
+        claim,
         operation: op,
       };
     });
@@ -595,7 +788,8 @@ export class FirestoreOperationStore implements OperationStore {
     attemptId: string,
     operationId: string,
     intentSha256: string,
-  ): Promise<{ armed: boolean; expiresAt: number }> {
+    options?: ArmDispatchOptions,
+  ): Promise<{ armed: boolean; dispatchId?: string; expiresAt: number }> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
     const opKey = operationKey(accountKey, operationId);
@@ -610,6 +804,12 @@ export class FirestoreOperationStore implements OperationStore {
         return { armed: false, expiresAt: 0 };
       }
 
+      if (data.activeDispatch && data.activeDispatch.operationId !== operationId) {
+        throw new Error(
+          `Conflict: ticket ${ticketId} already has an active dispatch barrier for operation "${data.activeDispatch.operationId}"`,
+        );
+      }
+
       const opSnap = await txn.get(opRef);
       const opData = opSnap.data() as OperationIntent | undefined;
       if (!opData || opData.phase !== 'prepared') {
@@ -620,12 +820,44 @@ export class FirestoreOperationStore implements OperationStore {
         );
       }
 
+      if (opData.intentSha256 !== intentSha256) {
+        throw new Error(
+          `Conflict: intentSha256 mismatch when arming operation "${operationId}"`,
+        );
+      }
+
+      // Re-verify authoritative policy in the arming transaction if required
+      if (options?.requiredBindingId) {
+        const bindingRef = this.firestore.collection(BINDINGS_COLLECTION).doc(options.requiredBindingId);
+        const bindingSnap = await txn.get(bindingRef);
+        if (!bindingSnap.exists) {
+          throw new Error(`Conflict: required binding "${options.requiredBindingId}" not found during arming`);
+        }
+        const binding = bindingSnap.data() as CompanyArchiveBinding;
+        if (binding.disabled) {
+          throw new Error(`Conflict: required binding "${options.requiredBindingId}" is disabled`);
+        }
+        if (
+          options.expectedPolicyRevision !== undefined &&
+          binding.version !== options.expectedPolicyRevision
+        ) {
+          throw new Error(
+            `Conflict: binding revision changed during arming (expected: ${options.expectedPolicyRevision}, current: ${binding.version})`,
+          );
+        }
+      }
+
+      const dispatchId = crypto.randomUUID();
       txn.update(coordRef, {
         activeDispatch: {
+          dispatchId,
           operationKey: opKey,
           attemptId,
           operationId,
           intentSha256,
+          preparedSha256: options?.preparedSha256,
+          requestSha256: options?.requestSha256,
+          policyFingerprint: options?.policyFingerprint,
           dispatchedAt: now,
         },
       });
@@ -636,7 +868,7 @@ export class FirestoreOperationStore implements OperationStore {
         updatedAt: now,
       });
 
-      return { armed: true, expiresAt: data.lease.expiresAt };
+      return { armed: true, dispatchId, expiresAt: data.lease.expiresAt };
     });
   }
 
@@ -645,7 +877,8 @@ export class FirestoreOperationStore implements OperationStore {
     ticketId: string,
     attemptId: string,
     operationId: string,
-    receipt: Record<string, unknown>,
+    receipt: OperationReceipt | Record<string, unknown>,
+    dispatchId?: string,
   ): Promise<void> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
@@ -655,17 +888,89 @@ export class FirestoreOperationStore implements OperationStore {
     await this.firestore.runTransaction(async (txn) => {
       const coordSnap = await txn.get(coordRef);
       const data = coordSnap.data() as TicketCoordinator | undefined;
-      if (coordSnap.exists && data?.activeDispatch && data.activeDispatch.operationId === operationId) {
+      const now = Date.now();
+
+      if (
+        !data ||
+        !data.lease ||
+        data.lease.attemptId !== attemptId ||
+        data.lease.expiresAt <= now
+      ) {
+        throw new Error(
+          `Conflict: cannot mark verified; lease for ticket ${ticketId} expired or not owned by attempt ${attemptId}`,
+        );
+      }
+
+      if (coordSnap.exists && data?.activeDispatch) {
+        if (data.activeDispatch.operationId !== operationId) {
+          throw new Error(
+            `Conflict: active dispatch barrier belongs to operation "${data.activeDispatch.operationId}", not "${operationId}"`,
+          );
+        }
+        if (dispatchId && data.activeDispatch.dispatchId && data.activeDispatch.dispatchId !== dispatchId) {
+          throw new Error('Conflict: dispatchId mismatch during finalization');
+        }
         txn.update(coordRef, { activeDispatch: null });
+      }
+
+      const opSnap = await txn.get(opRef);
+      const op = opSnap.data() as OperationIntent | undefined;
+      if (!op) {
+        throw new Error(`Operation "${operationId}" not found`);
+      }
+
+      if (op.phase !== 'dispatching' && op.phase !== 'uncertain') {
+        throw new Error(`Conflict: cannot finalize operation in phase "${op.phase}"`);
       }
 
       const updates: Record<string, unknown> = {
         phase: 'verified',
-        completedAt: Date.now(),
-        updatedAt: Date.now(),
+        completedAt: now,
+        updatedAt: now,
         receipt,
       };
       txn.update(opRef, updates);
+    });
+  }
+
+  async markObservationOnly(
+    accountKey: string,
+    ticketId: string,
+    attemptId: string,
+    operationId: string,
+    receipt: OperationReceipt | Record<string, unknown>,
+  ): Promise<void> {
+    const coordKey = coordinatorDocId(accountKey, ticketId);
+    const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
+    const opKey = operationKey(accountKey, operationId);
+    const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
+
+    await this.firestore.runTransaction(async (txn) => {
+      const coordSnap = await txn.get(coordRef);
+      const now = Date.now();
+      const coord = coordSnap.data() as TicketCoordinator | undefined;
+
+      if (
+        !coord ||
+        !coord.lease ||
+        coord.lease.attemptId !== attemptId ||
+        coord.lease.expiresAt <= now
+      ) {
+        throw new Error(`Conflict: lease expired or not owned by attempt ${attemptId}`);
+      }
+
+      if (coord.activeDispatch) {
+        throw new Error(
+          `Conflict: cannot record observation-only while active dispatch barrier is present for "${coord.activeDispatch.operationId}"`,
+        );
+      }
+
+      txn.update(opRef, {
+        phase: 'verified',
+        completedAt: now,
+        updatedAt: now,
+        receipt,
+      });
     });
   }
 
@@ -675,6 +980,7 @@ export class FirestoreOperationStore implements OperationStore {
     attemptId: string,
     operationId: string,
     error: string,
+    _dispatchId?: string,
   ): Promise<void> {
     const opKey = operationKey(accountKey, operationId);
     const opRef = this.firestore.collection(OPERATIONS_COLLECTION).doc(opKey);
@@ -684,8 +990,8 @@ export class FirestoreOperationStore implements OperationStore {
       if (data && data.phase !== 'verified') {
         txn.update(opRef, {
           phase: 'uncertain',
-          error,
           updatedAt: Date.now(),
+          error: sanitizeErrorMessage(error),
         });
       }
     });
@@ -698,30 +1004,41 @@ export class FirestoreOperationStore implements OperationStore {
     ttlMs: number,
   ): Promise<{ renewed: boolean; expiresAt: number }> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
-    const docRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
+    const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
+
     return this.firestore.runTransaction(async (txn) => {
-      const snap = await txn.get(docRef);
+      const snap = await txn.get(coordRef);
       const now = Date.now();
       const data = snap.data() as TicketCoordinator | undefined;
+
       if (!data?.lease || data.lease.attemptId !== attemptId || data.lease.expiresAt <= now) {
         return { renewed: false, expiresAt: 0 };
       }
+
       const expiresAt = now + ttlMs;
-      txn.update(docRef, { 'lease.expiresAt': expiresAt });
+      txn.update(coordRef, {
+        'lease.expiresAt': expiresAt,
+      });
+
       return { renewed: true, expiresAt };
     });
   }
 
   async releaseLease(accountKey: string, ticketId: string, attemptId: string): Promise<void> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
-    const docRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
-    await this.firestore.runTransaction(async (txn) => {
-      const snap = await txn.get(docRef);
-      const data = snap.data() as TicketCoordinator | undefined;
-      if (data?.lease && data.lease.attemptId === attemptId) {
-        txn.update(docRef, { lease: null });
-      }
-    });
+    const coordRef = this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey);
+
+    try {
+      await this.firestore.runTransaction(async (txn) => {
+        const snap = await txn.get(coordRef);
+        const data = snap.data() as TicketCoordinator | undefined;
+        if (data?.lease?.attemptId === attemptId) {
+          txn.update(coordRef, { lease: null });
+        }
+      });
+    } catch {
+      // Best-effort release
+    }
   }
 
   async inspectCoordinator(accountKey: string, ticketId: string): Promise<TicketCoordinator | null> {
@@ -732,21 +1049,15 @@ export class FirestoreOperationStore implements OperationStore {
   }
 }
 
-let activeOperationStore: OperationStore | null = null;
+let globalOperationStore: OperationStore | null = null;
 
 export function getOperationStore(): OperationStore {
-  if (activeOperationStore) return activeOperationStore;
-  try {
-    const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
-    const fs = new Firestore({ projectId, ignoreUndefinedProperties: true });
-    activeOperationStore = new FirestoreOperationStore(fs);
-    return activeOperationStore;
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new StoreUnavailableError(`Failed to initialize Firestore operation store: ${msg}`);
+  if (!globalOperationStore) {
+    globalOperationStore = new FirestoreOperationStore();
   }
+  return globalOperationStore;
 }
 
 export function setOperationStore(store: OperationStore | null): void {
-  activeOperationStore = store;
+  globalOperationStore = store;
 }

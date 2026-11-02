@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install deps against the lockfile first for better layer caching.
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # Compile TypeScript to dist/.
 COPY tsconfig.json ./

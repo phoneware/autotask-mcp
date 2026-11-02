@@ -649,13 +649,17 @@ function makeAuthMiddleware(opts: AppOptions) {
 /** The signed-in person for this request, if there is one. */
 export function callerFrom(req: Request): CallerIdentity | undefined {
   const auth = (req as Request & { auth?: { extra?: Record<string, unknown> } }).auth;
-  const email = auth?.extra?.email;
-  if (typeof email !== 'string') return undefined;
+  const rawEmail = auth?.extra?.email;
+  if (typeof rawEmail !== 'string') return undefined;
+  const email = rawEmail.trim().toLowerCase();
+  if (!email || !email.includes('@')) return undefined;
+
   const resourceId = auth?.extra?.resourceId;
-  // A token with no resource id predates authorization. Treat it as having no
-  // rights at all rather than inheriting the API user's: it will be refused and
-  // re-issued on the next refresh, which re-resolves properly.
-  if (typeof resourceId !== 'number') return undefined;
+  // A token with no positive safe-integer resource id predates authorization or is malformed.
+  if (typeof resourceId !== 'number' || !Number.isSafeInteger(resourceId) || resourceId <= 0) {
+    return undefined;
+  }
+
   const rawCaps = auth?.extra?.capabilities;
   const capabilities = Array.isArray(rawCaps) ? (rawCaps as Capability[]) : [];
   const userType = auth?.extra?.userType;

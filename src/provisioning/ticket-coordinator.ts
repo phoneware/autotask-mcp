@@ -4,13 +4,32 @@ import type {
   Claim,
   OperationIntent,
   OperationKind,
+  OperationReceipt,
+  PreparedRequest,
 } from './contracts.js';
 import {
   canonicalizeNumericId,
   deriveAccountKey,
   getOperationStore,
+  computeIntentSha256,
   type OperationStore,
+  type ArmDispatchOptions,
 } from './operation-store.js';
+import {
+  issueDispatchPermit,
+  type DispatchPermitToken,
+} from './dispatch.js';
+
+export interface TicketOperationInput {
+  ticketId: string;
+  actor: Actor;
+  operationId: string;
+  kind: OperationKind;
+  payload: Record<string, unknown>;
+  effectiveZoneUrl?: string;
+  store?: OperationStore;
+  ttlMs?: number;
+}
 
 export class TicketCoordinatorSession {
   readonly accountKey: string;
@@ -28,20 +47,27 @@ export class TicketCoordinatorSession {
   private renewalTimer: NodeJS.Timeout | null = null;
   private lost = false;
   private armed = false;
+  private dispatchId?: string;
+  private currentPermitToken?: DispatchPermitToken;
   private operation: OperationIntent | null = null;
 
-  constructor(params: {
-    ticketId: string;
-    actor: Actor;
-    operationId: string;
-    kind: OperationKind;
-    payload: Record<string, unknown>;
-    store?: OperationStore;
-    ttlMs?: number;
-  }) {
-    this.accountKey = deriveAccountKey();
+  constructor(params: TicketOperationInput) {
+    const rawEmail = (params.actor?.email || '').trim().toLowerCase();
+    if (!rawEmail) {
+      throw new Error('Actor must have a verified non-empty email address');
+    }
+    const rawResourceId = params.actor?.resourceId;
+    if (typeof rawResourceId !== 'number' || !Number.isSafeInteger(rawResourceId) || rawResourceId <= 0) {
+      throw new Error(`Actor resourceId must be a positive safe integer (got: ${JSON.stringify(rawResourceId)})`);
+    }
+
+    this.actor = {
+      email: rawEmail,
+      resourceId: rawResourceId,
+    };
+
     this.ticketId = canonicalizeNumericId(params.ticketId, 'ticketId');
-    this.actor = params.actor;
+    this.accountKey = deriveAccountKey(params.effectiveZoneUrl);
     this.operationId = params.operationId;
     this.kind = params.kind;
     this.payload = params.payload;
@@ -49,11 +75,7 @@ export class TicketCoordinatorSession {
     this.ttlMs = params.ttlMs ?? 15000;
     this.attemptId = crypto.randomUUID();
 
-    const canonicalJson = JSON.stringify(this.payload, Object.keys(this.payload).sort());
-    this.intentSha256 = crypto
-      .createHash('sha256')
-      .update(`${this.ticketId}:${this.kind}:${canonicalJson}`)
-      .digest('hex');
+    this.intentSha256 = computeIntentSha256(this.ticketId, this.kind, this.payload);
   }
 
   getOperation(): OperationIntent | null {
@@ -68,8 +90,18 @@ export class TicketCoordinatorSession {
     return this.armed;
   }
 
-  async prepareAndAcquire(maxWaitMs = 15000): Promise<{ alreadyVerified: boolean; isRecovery: boolean }> {
-    // 1. Transactionally register/validate operation intent
+  getDispatchId(): string | undefined {
+    return this.dispatchId;
+  }
+
+  getPermitToken(): DispatchPermitToken | undefined {
+    return this.currentPermitToken;
+  }
+
+  async prepareAndAcquire(
+    maxWaitMs = 15000,
+  ): Promise<{ alreadyVerified: boolean; isRecovery: boolean }> {
+    // 1. Register/validate operation intent
     this.operation = await this.store.prepareOperation({
       accountKey: this.accountKey,
       operationId: this.operationId,
@@ -84,7 +116,7 @@ export class TicketCoordinatorSession {
       return { alreadyVerified: true, isRecovery: false };
     }
 
-    // 2. Acquire coordinator lease and return fresh operation snapshot under the claim
+    // 2. Acquire coordinator lease
     const start = Date.now();
     while (true) {
       const res = await this.store.acquireCoordinatorLease(
@@ -96,11 +128,19 @@ export class TicketCoordinatorSession {
         this.operationId,
       );
 
+      if (res.alreadyVerified) {
+        this.claim = res.claim;
+        this.operation = res.operation;
+        return { alreadyVerified: true, isRecovery: false };
+      }
+
       if (res.acquired) {
         this.claim = res.claim;
         this.operation = res.operation;
-        this.startHeartbeat();
         const isRecovery = res.claim.mode === 'reconciling';
+        if (this.operation.phase !== 'verified') {
+          this.startHeartbeat();
+        }
         return { alreadyVerified: this.operation.phase === 'verified', isRecovery };
       }
 
@@ -112,11 +152,16 @@ export class TicketCoordinatorSession {
         );
       }
 
-      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      const { promise, resolve } = Promise.withResolvers<void>();
+      setTimeout(resolve, 100);
+      await promise;
     }
   }
 
-  async commitPreparation(preparedState: Record<string, unknown>): Promise<void> {
+  async commitPreparation(
+    preparedState: Record<string, unknown>,
+    _preparedRequest?: PreparedRequest,
+  ): Promise<void> {
     if (!this.claim || !this.isFencedAndValid()) {
       throw new Error(
         `Conflict: claim expired or lost before committing preparation for ticket ${this.ticketId}`,
@@ -135,7 +180,14 @@ export class TicketCoordinatorSession {
     }
   }
 
-  async armDispatch(): Promise<void> {
+  async armDispatch(
+    options?: ArmDispatchOptions & {
+      provider?: 'autotask' | 'google-drive';
+      canonicalRoute?: string;
+      method?: string;
+      exactBodyDigest?: string;
+    },
+  ): Promise<{ armed: boolean; dispatchId?: string; permitToken?: DispatchPermitToken }> {
     if (!this.claim || !this.isFencedAndValid()) {
       throw new Error(
         `Conflict: coordinator lease expired before arming dispatch on ticket ${this.ticketId}; write refused`,
@@ -148,6 +200,7 @@ export class TicketCoordinatorSession {
       this.attemptId,
       this.operationId,
       this.intentSha256,
+      options,
     );
 
     if (!res.armed) {
@@ -156,11 +209,41 @@ export class TicketCoordinatorSession {
         `Conflict: could not arm dispatch barrier for ticket ${this.ticketId} under operation "${this.operationId}"; lease expired or lost`,
       );
     }
+
     this.armed = true;
+    this.dispatchId = res.dispatchId;
+
+    if (options?.provider && options?.canonicalRoute && options?.method && options?.exactBodyDigest) {
+      this.currentPermitToken = issueDispatchPermit({
+        dispatchId: res.dispatchId || crypto.randomUUID(),
+        provider: options.provider,
+        accountKey: this.accountKey,
+        target: this.ticketId,
+        method: options.method,
+        route: options.canonicalRoute,
+        exactBodyDigest: options.exactBodyDigest,
+        policyFingerprint: options.policyFingerprint,
+        issuedAt: Date.now(),
+      });
+    }
+
+    return { armed: true, dispatchId: this.dispatchId, permitToken: this.currentPermitToken };
   }
 
-  async markVerified(receipt: Record<string, unknown>): Promise<void> {
+  async markVerified(receipt: OperationReceipt | Record<string, unknown>): Promise<void> {
     await this.store.markVerified(
+      this.accountKey,
+      this.ticketId,
+      this.attemptId,
+      this.operationId,
+      receipt,
+      this.dispatchId,
+    );
+    this.armed = false;
+  }
+
+  async markObservationOnly(receipt: OperationReceipt | Record<string, unknown>): Promise<void> {
+    await this.store.markObservationOnly(
       this.accountKey,
       this.ticketId,
       this.attemptId,
@@ -177,11 +260,12 @@ export class TicketCoordinatorSession {
       this.attemptId,
       this.operationId,
       error,
+      this.dispatchId,
     );
-    // Active dispatch remains sticky on coordinator!
   }
 
   private startHeartbeat(): void {
+    if (this.renewalTimer) return;
     const intervalMs = Math.max(1000, Math.floor(this.ttlMs / 3));
     this.renewalTimer = setInterval(async () => {
       try {
@@ -229,7 +313,26 @@ export class TicketCoordinatorSession {
     try {
       await this.store.releaseLease(this.accountKey, this.ticketId, this.attemptId);
     } catch {
-      // Ignore release errors
+      // Best-effort release
     }
+  }
+}
+
+/**
+ * Scoped operation lifecycle wrapper (Contract 3.3).
+ * Encloses lease acquisition, heartbeat startup, operation execution,
+ * and guaranteed cleanup on every exit path.
+ */
+export async function withTicketOperation<T>(
+  input: TicketOperationInput,
+  callback: (session: TicketCoordinatorSession) => Promise<T>,
+  maxWaitMs = 15000,
+): Promise<T> {
+  const session = new TicketCoordinatorSession(input);
+  await session.prepareAndAcquire(maxWaitMs);
+  try {
+    return await callback(session);
+  } finally {
+    await session.release();
   }
 }

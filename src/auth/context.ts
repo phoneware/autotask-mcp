@@ -39,3 +39,32 @@ export function withCaller<T>(identity: CallerIdentity | undefined, fn: () => T)
 export function currentCaller(): CallerIdentity | undefined {
   return storage.getStore();
 }
+
+/**
+ * Resolve and strictly validate caller actor identity for protected provisioning mutations.
+ * Refuses unauthenticated, anonymous, or fallback actors (e.g. autotask-mcp or resource 0).
+ */
+export function resolveActorOrThrow(): { email: string; resourceId: number } {
+  const caller = currentCaller();
+  if (caller) {
+    const email = (caller.email || '').trim().toLowerCase();
+    const resourceId = caller.resourceId;
+    if (email && Number.isSafeInteger(resourceId) && resourceId > 0) {
+      return { email, resourceId };
+    }
+  }
+
+  // Check stdio / environment actor if running outside authenticated HTTP session
+  const envEmail = (process.env.AUTOTASK_ACTOR_EMAIL || process.env.STDIO_ACTOR_EMAIL || '').trim().toLowerCase();
+  const envResId = parseInt(
+    process.env.AUTOTASK_ACTOR_RESOURCE_ID || process.env.STDIO_ACTOR_RESOURCE_ID || '',
+    10,
+  );
+  if (envEmail && Number.isSafeInteger(envResId) && envResId > 0) {
+    return { email: envEmail, resourceId: envResId };
+  }
+
+  throw new Error(
+    'Refused: provisioning operations require an authenticated caller with a verified email and positive resourceId. Fallback or anonymous actors are forbidden.',
+  );
+}

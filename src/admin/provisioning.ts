@@ -1,12 +1,10 @@
-import { getBindingsStore, FirestoreBindingsStore, BINDINGS_COLLECTION } from '../archive/bindings.js';
+import { fileURLToPath } from 'node:url';
+import { getBindingsStore } from '../archive/bindings.js';
 import {
   getRequirementsStore,
-  FirestoreRequirementsStore,
-  REQUIREMENTS_COLLECTION,
   type ChecklistTaskRequirement,
 } from '../provisioning/requirements.js';
 import type { CompanyArchiveBinding } from '../provisioning/contracts.js';
-import { Firestore } from '@google-cloud/firestore';
 
 /**
  * Privileged administration command for customer archive destination bindings
@@ -21,16 +19,18 @@ export async function setCompanyArchiveBinding(params: {
   archivePrincipal: string;
   allowedActorResourceIds: number[];
   approvalEvidenceRef: string;
-  expectedVersion?: number;
+  expectedVersion: number;
   disabled?: boolean;
 }): Promise<CompanyArchiveBinding> {
-  const store = getBindingsStore();
+  if (params.expectedVersion === undefined || typeof params.expectedVersion !== 'number') {
+    throw new Error('expectedVersion is required for binding CAS operations (0 for create-only)');
+  }
 
   if (
-    !params.driveId.trim() ||
-    !params.folderId.trim() ||
-    !params.archivePrincipal.trim() ||
-    !params.approvalEvidenceRef.trim()
+    !params.driveId?.trim() ||
+    !params.folderId?.trim() ||
+    !params.archivePrincipal?.trim() ||
+    !params.approvalEvidenceRef?.trim()
   ) {
     throw new Error('All destination and approval fields must be non-empty strings');
   }
@@ -43,99 +43,52 @@ export async function setCompanyArchiveBinding(params: {
     throw new Error('allowedActorResourceIds must be a non-empty array of positive safe integers');
   }
 
-  // Atomic transaction if Firestore is used
-  if (store instanceof FirestoreBindingsStore) {
-    const fs = new Firestore({
-      projectId: process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT,
-      ignoreUndefinedProperties: true,
-    });
-    const docId = `${params.accountKey}_${params.companyId}`;
-    const docRef = fs.collection(BINDINGS_COLLECTION).doc(docId);
-
-    return fs.runTransaction(async (txn) => {
-      const snap = await txn.get(docRef);
-      const existing = snap.exists ? (snap.data() as CompanyArchiveBinding) : null;
-
-      if (params.expectedVersion !== undefined) {
-        const currentVersion = existing?.version ?? 0;
-        if (currentVersion !== params.expectedVersion) {
-          throw new Error(
-            `CAS mismatch: expected binding version ${params.expectedVersion}, but current version is ${currentVersion}`,
-          );
-        }
-      }
-
-      const newVersion = (existing?.version ?? 0) + 1;
-      const binding: CompanyArchiveBinding = {
-        accountKey: params.accountKey,
-        companyId: params.companyId,
-        driveId: params.driveId.trim(),
-        folderId: params.folderId.trim(),
-        archivePrincipal: params.archivePrincipal.trim(),
-        allowedActorResourceIds: params.allowedActorResourceIds,
-        version: newVersion,
-        approvalEvidenceRef: params.approvalEvidenceRef.trim(),
-        disabled: Boolean(params.disabled),
-      };
-
-      txn.set(docRef, binding);
-      return binding;
-    });
-  }
-
-  // In-memory atomic fallback for tests
-  const existing = await store.get(params.accountKey, params.companyId);
-  if (params.expectedVersion !== undefined) {
-    const currentVersion = existing?.version ?? 0;
-    if (currentVersion !== params.expectedVersion) {
-      throw new Error(
-        `CAS mismatch: expected binding version ${params.expectedVersion}, but current version is ${currentVersion}`,
-      );
-    }
-  }
-
-  const newVersion = (existing?.version ?? 0) + 1;
-  const binding: CompanyArchiveBinding = {
+  const store = getBindingsStore();
+  const bindingData: Omit<CompanyArchiveBinding, 'version'> = {
     accountKey: params.accountKey,
     companyId: params.companyId,
     driveId: params.driveId.trim(),
     folderId: params.folderId.trim(),
     archivePrincipal: params.archivePrincipal.trim(),
-    allowedActorResourceIds: params.allowedActorResourceIds,
-    version: newVersion,
+    allowedActorResourceIds: [...params.allowedActorResourceIds].sort((a, b) => a - b),
     approvalEvidenceRef: params.approvalEvidenceRef.trim(),
     disabled: Boolean(params.disabled),
   };
 
-  await store.set(binding);
-  return binding;
+  const written = await store.setWithCas(bindingData, params.expectedVersion);
+  // Authoritative readback
+  const verified = await store.get(params.accountKey, params.companyId);
+  if (!verified || verified.version !== written.version) {
+    throw new Error('Readback verification failed after binding write');
+  }
+  return verified;
 }
 
-export async function setChecklistRequirement(params: ChecklistTaskRequirement): Promise<void> {
-  const store = getRequirementsStore();
-
-  if (store instanceof FirestoreRequirementsStore) {
-    const fs = new Firestore({
-      projectId: process.env.FIRESTORE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT,
-      ignoreUndefinedProperties: true,
-    });
-    const docId = `${params.accountKey}_${params.ticketId}_${params.checklistItemId}`;
-    const docRef = fs.collection(REQUIREMENTS_COLLECTION).doc(docId);
-
-    await fs.runTransaction(async (txn) => {
-      const snap = await txn.get(docRef);
-      const existing = snap.exists ? (snap.data() as ChecklistTaskRequirement) : null;
-      if (params.version !== undefined && existing) {
-        if (existing.version !== params.version) {
-          throw new Error(`CAS mismatch: requirement version changed from ${params.version} to ${existing.version}`);
-        }
-      }
-      txn.set(docRef, params);
-    });
-    return;
+export async function setChecklistRequirement(
+  params: ChecklistTaskRequirement & { expectedVersion: number },
+): Promise<ChecklistTaskRequirement> {
+  if (params.expectedVersion === undefined || typeof params.expectedVersion !== 'number') {
+    throw new Error('expectedVersion is required for requirement CAS operations (0 for create-only)');
   }
 
-  await store.set(params);
+  if (!params.accountKey?.trim() || !params.ticketId?.trim() || !params.checklistItemId?.trim()) {
+    throw new Error('accountKey, ticketId, and checklistItemId must be non-empty');
+  }
+
+  if (!params.semanticFingerprint?.trim()) {
+    throw new Error('semanticFingerprint must be non-empty');
+  }
+
+  const store = getRequirementsStore();
+  const { version: _ignoreVersion, expectedVersion, ...reqData } = params;
+
+  const written = await store.setWithCas(reqData, expectedVersion);
+  // Authoritative readback
+  const verified = await store.get(params.accountKey, params.ticketId, params.checklistItemId);
+  if (!verified || verified.version !== written.version) {
+    throw new Error('Readback verification failed after requirement write');
+  }
+  return verified;
 }
 
 export async function main(argv: string[]): Promise<void> {
@@ -162,8 +115,8 @@ export async function main(argv: string[]): Promise<void> {
   }
 
   if (command === 'set-requirement') {
-    await setChecklistRequirement(parsedArgs);
-    console.log(JSON.stringify({ success: true }, null, 2));
+    const res = await setChecklistRequirement(parsedArgs);
+    console.log(JSON.stringify(res, null, 2));
     return;
   }
 
@@ -171,8 +124,15 @@ export async function main(argv: string[]): Promise<void> {
   process.exit(1);
 }
 
-// CLI entrypoint execution
-if (process.argv[1] && process.argv[1].includes('provisioning')) {
+// Strict exact ESM entrypoint detection
+const isDirectEntry = Boolean(
+  process.argv[1] &&
+    (process.argv[1] === fileURLToPath(import.meta.url) ||
+      process.argv[1].endsWith('/admin/provisioning.js') ||
+      process.argv[1].endsWith('/admin/provisioning.ts')),
+);
+
+if (isDirectEntry) {
   main(process.argv).catch((err) => {
     console.error(err);
     process.exit(1);

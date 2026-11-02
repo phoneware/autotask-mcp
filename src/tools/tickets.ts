@@ -212,38 +212,27 @@ export const ticketTools: ToolDefinition[] = [
         operationId: {
           type: 'string',
           description:
-            'Optional stable operation identifier for idempotent retries across clock changes',
+            'Stable operation identifier for idempotent retries and durable dispatch coordination across clock changes',
         },
         noteType: { type: 'string', description: 'Numeric note type picklist code' },
         publish: { type: 'string', description: 'Numeric publish/visibility picklist code' },
       },
-      required: ['ticketID', 'description'],
+      required: ['ticketID', 'description', 'operationId'],
     },
     handler: async (args) => {
       const ticketID = intArg('ticketID', args.ticketID);
       const opId = (args.operationId || '').trim();
-      if (opId) {
-        return recordTicketEvidenceHandler({
-          ticketID: String(ticketID),
-          title: args.title || 'Note',
-          description: args.description,
-          operationId: opId,
-          noteType: args.noteType,
-          publish: args.publish,
-        });
+      if (!opId) {
+        throw new Error('operationId is required for create-ticket-note');
       }
-      const finalDesc = opId ? `${args.description}\n[op:${opId}]` : args.description;
-      const body: Record<string, unknown> = {
-        ticketID,
-        description: finalDesc,
-      };
-      if (args.title) body.title = args.title;
-      const noteType = optionalIntArg('noteType', args.noteType);
-      if (noteType !== undefined) body.noteType = noteType;
-      const publish = optionalIntArg('publish', args.publish);
-      if (publish !== undefined) body.publish = publish;
-      const created = await api.create(`Tickets/${ticketID}/Notes`, body);
-      return jsonResponse(created);
+      return recordTicketEvidenceHandler({
+        ticketID: String(ticketID),
+        title: args.title || 'Note',
+        description: args.description,
+        operationId: opId,
+        noteType: args.noteType,
+        publish: args.publish,
+      });
     },
   },
   {

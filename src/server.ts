@@ -26,6 +26,7 @@ import {
 import { findOperation } from './generated/registry.js';
 import { callApiTool } from './tools/meta.js';
 import { getPromotedToolNames } from './tools/promotion/index.js';
+import { sanitizeErrorMessage } from './safe-errors.js';
 const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf-8'),
 ) as { version: string };
@@ -125,7 +126,8 @@ export function buildServer(
             [key: string]: unknown;
           };
         } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
+          const rawMsg = err instanceof Error ? err.message : String(err);
+          const message = sanitizeErrorMessage(rawMsg);
           return {
             content: [{ type: 'text' as const, text: `Error: ${message}` }],
             isError: true,

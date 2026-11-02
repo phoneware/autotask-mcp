@@ -1,15 +1,23 @@
 import type { ToolDefinition, ToolResponse } from '../types.js';
 import { api } from '../autotask-api.js';
 import { assertSafeNumericId } from '../security.js';
-import { currentCaller } from '../auth/context.js';
+import { currentCaller, resolveActorOrThrow } from '../auth/context.js';
 import {
   fetchPrivatePdfAttachment,
   unwrapSingleAttachment,
   type TicketAttachmentModel,
 } from '../archive/source.js';
-import { assertAuthorizedArchiveBinding } from '../archive/bindings.js';
+import {
+  assertAuthorizedArchiveBinding,
+  computeBindingFingerprint,
+} from '../archive/bindings.js';
 import { DriveArchiveProvider } from '../archive/drive.js';
-import { TicketCoordinatorSession } from '../provisioning/ticket-coordinator.js';
+import { ArchiveCredentialProvider } from '../archive/credentials.js';
+import {
+  TicketCoordinatorSession,
+  withTicketOperation,
+} from '../provisioning/ticket-coordinator.js';
+import { computeBodyDigest } from '../provisioning/dispatch.js';
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB decoded
 
@@ -24,11 +32,15 @@ function isVerifiedImageBytes(buffer: Buffer, mimeType: string): boolean {
   if (mimeType === 'image/gif' && buffer.subarray(0, 3).toString('ascii') === 'GIF') {
     return true;
   }
-  if (mimeType === 'image/webp' && buffer.subarray(0, 4).toString('ascii') === 'RIFF') {
+  if (
+    mimeType === 'image/webp' &&
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.length >= 12 &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
     return true;
   }
-  // Generic image fallback if starting with non-PDF bytes
-  return buffer.subarray(0, 5).toString('ascii') !== '%PDF-';
+  return false;
 }
 
 export const attachmentTools: ToolDefinition[] = [
@@ -240,127 +252,142 @@ export const attachmentTools: ToolDefinition[] = [
         throw new Error('expectedSha256 must be a 64-character hex digest');
       }
 
-      const caller = currentCaller();
-      const actorEmail = caller?.email ?? 'autotask-mcp';
-      const actorResourceId = caller?.resourceId ?? 0;
+      const actor = resolveActorOrThrow();
 
-      // 1. Prepare operation and acquire coordinator lease
-      const session = new TicketCoordinatorSession({
-        ticketId,
-        actor: { email: actorEmail, resourceId: actorResourceId },
-        operationId,
-        kind: 'attachment_archive',
-        payload: {
-          ticketID: ticketId,
-          attachmentID: attachmentId,
-          expectedCompanyID: expectedCompanyId,
-          expectedSha256,
-        },
-      });
-
-      const { alreadyVerified, isRecovery } = await session.prepareAndAcquire();
-      if (alreadyVerified) {
-        const op = session.getOperation();
-        const receipt = op?.receipt ?? { status: 'verified', operationId };
-        return {
-          content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
-          structuredContent: receipt,
-        };
-      }
-
-      const provider = new DriveArchiveProvider();
-      const existingPrepared = session.getOperation()?.preparedState;
-      let fileId = (existingPrepared?.driveFileId as string) || '';
-
-      // Destination binding authorization check
-      const binding = await assertAuthorizedArchiveBinding({
-        accountKey: session.accountKey,
-        companyId: expectedCompanyId,
-        actorResourceId,
-      });
-
-      // 2. Read-only recovery reconciliation: if in recovery and fileId exists, reconcile WITHOUT upload!
-      if (isRecovery && fileId && existingPrepared?.sourceMetadata) {
-        try {
-          const receipt = await provider.reconcileStoredArchive({
-            operationId,
-            sourceMetadata: existingPrepared.sourceMetadata as any,
-            binding,
-            fileId,
-          });
-          await session.markVerified(receipt as unknown as Record<string, unknown>);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
-            structuredContent: receipt,
-          };
-        } catch {
-          throw new Error(
-            `Conflict: operation "${operationId}" has an uncertain dispatch and file was not verified in Drive; read-only reconciliation required`,
-          );
-        }
-      }
-
-      try {
-        // 3. Private attachment fetch and validation
-        const privateAtt = await fetchPrivatePdfAttachment({
+      return withTicketOperation(
+        {
           ticketId,
-          attachmentId,
-          expectedCompanyId,
-          expectedSha256,
-        });
-
-        // 4. Autonomous credential minting BEFORE arming dispatch
-        await provider.resolveAccessToken(binding.archivePrincipal);
-
-        // 5. Pre-allocate Drive file ID
-        if (!fileId) {
-          fileId = await provider.generateFileId(binding.archivePrincipal);
-        }
-
-        const policyFingerprint = `${session.accountKey}:${binding.companyId}:${binding.driveId}:${binding.folderId}:${binding.archivePrincipal}:${binding.allowedActorResourceIds.sort().join(',')}:${binding.version}:${binding.disabled}`;
-
-        // 6. Fenced preparation commit (write-once)
-        await session.commitPreparation({
-          sourceMetadata: privateAtt.metadata,
-          driveFileId: fileId,
-          policyFingerprint,
-        });
-
-        // Re-check binding version right before dispatch
-        await assertAuthorizedArchiveBinding({
-          accountKey: session.accountKey,
-          companyId: expectedCompanyId,
-          actorResourceId,
-          expectedVersion: binding.version,
-        });
-
-        // 7. Arm sticky dispatch barrier before external upload
-        await session.armDispatch();
-
-        // 8. Upload once and verify readback
-        const receipt = await provider.uploadPreparedOnce({
+          actor,
           operationId,
-          attachment: privateAtt,
-          binding,
-          fileId,
-        });
+          kind: 'attachment_archive',
+          payload: {
+            ticketID: ticketId,
+            attachmentID: attachmentId,
+            expectedCompanyID: expectedCompanyId,
+            expectedSha256,
+          },
+        },
+        async (session) => {
+          const op = session.getOperation();
+          if (op?.phase === 'verified') {
+            const receipt = op.receipt ?? { status: 'verified', operationId };
+            return {
+              content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
+              structuredContent: receipt as unknown as Record<string, unknown>,
+            };
+          }
 
-        // 9. Mark verified and clear dispatch barrier
-        await session.markVerified(receipt as unknown as Record<string, unknown>);
+          const provider = new DriveArchiveProvider();
+          const existingPrepared = op?.preparedState;
+          let fileId = (existingPrepared?.driveFileId as string) || '';
 
-        return {
-          content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
-          structuredContent: receipt,
-        };
-      } catch (err: unknown) {
-        if (session.isArmed()) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          await session.markUncertain(errMsg);
-        }
-        throw err;
-      } finally {
-        await session.release();
-      }
+          // 1. Destination binding authorization check
+          const binding = await assertAuthorizedArchiveBinding({
+            accountKey: session.accountKey,
+            companyId: expectedCompanyId,
+            actorResourceId: actor.resourceId,
+          });
+
+          // 2. Preflight credentials
+          const credProvider = new ArchiveCredentialProvider();
+          const cred = await credProvider.getDriveCredential(binding.archivePrincipal);
+
+          // 3. Read-only recovery reconciliation if in recovery mode
+          const isRecovery = session.getClaim()?.mode === 'reconciling';
+          if (isRecovery && fileId && existingPrepared?.sourceMetadata) {
+            try {
+              const receipt = await provider.reconcileStoredArchive({
+                operationId,
+                sourceMetadata: existingPrepared.sourceMetadata as unknown as AttachmentMetadata,
+                binding,
+                fileId,
+                token: cred.accessToken,
+              });
+              await session.markVerified(receipt);
+              return {
+                content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
+                structuredContent: receipt as unknown as Record<string, unknown>,
+              };
+            } catch {
+              throw new Error(
+                `Conflict: operation "${operationId}" has an uncertain dispatch and file was not verified in Drive; read-only reconciliation required`,
+              );
+            }
+          }
+
+          // 4. Preflight destination folder in Google Drive BEFORE arming dispatch
+          await provider.preflightDestination(binding, cred.accessToken);
+
+          // 5. Private attachment fetch and validation
+          const privateAtt = await fetchPrivatePdfAttachment({
+            ticketId,
+            attachmentId,
+            expectedCompanyId,
+            expectedSha256,
+          });
+
+          // 6. Pre-allocate Drive file ID before arming
+          if (!fileId) {
+            fileId = await provider.generateFileId(binding.archivePrincipal, cred.accessToken);
+          }
+
+          const policyFingerprint = computeBindingFingerprint(binding);
+
+          // 7. Fenced preparation commit (write-once)
+          await session.commitPreparation({
+            sourceMetadata: privateAtt.metadata,
+            driveFileId: fileId,
+            policyFingerprint,
+          });
+
+          // 8. Re-check binding version right before arming
+          await assertAuthorizedArchiveBinding({
+            accountKey: session.accountKey,
+            companyId: expectedCompanyId,
+            actorResourceId: actor.resourceId,
+            expectedVersion: binding.version,
+          });
+
+          const uploadRoute = `${process.env.DRIVE_UPLOAD_BASE_URL || 'https://www.googleapis.com/upload/drive/v3'}/files?uploadType=multipart&supportsAllDrives=true`;
+
+          // 9. Arm sticky dispatch barrier before external upload
+          const armRes = await session.armDispatch({
+            requiredBindingId: `${session.accountKey}_${expectedCompanyId}`,
+            expectedPolicyRevision: binding.version,
+            policyFingerprint,
+            provider: 'google-drive',
+            canonicalRoute: uploadRoute,
+            method: 'POST',
+            exactBodyDigest: computeBodyDigest(privateAtt.bytes),
+          });
+
+          try {
+            // 10. Single upload and verify readback
+            const receipt = await provider.uploadPreparedOnce({
+              operationId,
+              attachment: privateAtt,
+              binding,
+              fileId,
+              token: cred.accessToken,
+              permitToken: armRes.permitToken,
+            });
+
+            // 11. Mark verified and clear dispatch barrier
+            await session.markVerified(receipt);
+
+            return {
+              content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
+              structuredContent: receipt as unknown as Record<string, unknown>,
+            };
+          } catch (err: unknown) {
+            if (session.isArmed()) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              await session.markUncertain(errMsg);
+            }
+            throw err;
+          }
+        },
+      );
     },
   },
 ];

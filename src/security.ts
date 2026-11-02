@@ -96,7 +96,7 @@ export function assertSafeNumericId(value: string, label: string): string {
   if (!Number.isSafeInteger(n) || n <= 0) {
     throw new Error(`${label} must be a positive safe integer (got: ${JSON.stringify(value)})`);
   }
-  return str;
+  return String(n);
 }
 
 /**
