@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -12,12 +12,21 @@ const SYNTHETIC_USER = 'protocol-tester@phoneware.us';
 const SYNTHETIC_SECRET = 'synth-secret-key-1234567890';
 const SYNTHETIC_INTEG_CODE = 'SYNTH-INTEG-CODE-XYZ-123';
 
-vi.hoisted(() => {
+const { savedEnv } = vi.hoisted(() => {
+  const saved: Record<string, string | undefined> = {
+    AUTOTASK_USERNAME: process.env.AUTOTASK_USERNAME,
+    AUTOTASK_SECRET: process.env.AUTOTASK_SECRET,
+    AUTOTASK_INTEGRATION_CODE: process.env.AUTOTASK_INTEGRATION_CODE,
+    AUTOTASK_API_URL: process.env.AUTOTASK_API_URL,
+    AUTOTASK_READ_ONLY: process.env.AUTOTASK_READ_ONLY,
+    MCP_CONFIRM_DESTRUCTIVE: process.env.MCP_CONFIRM_DESTRUCTIVE,
+  };
   process.env.AUTOTASK_USERNAME = 'protocol-tester@phoneware.us';
   process.env.AUTOTASK_SECRET = 'synth-secret-key-1234567890';
   process.env.AUTOTASK_INTEGRATION_CODE = 'SYNTH-INTEG-CODE-XYZ-123';
   delete process.env.AUTOTASK_READ_ONLY;
   delete process.env.MCP_CONFIRM_DESTRUCTIVE;
+  return { savedEnv: saved };
 });
 
 interface FakeChecklistItem {
@@ -45,23 +54,42 @@ interface ServerFaultHooks {
     ticketId: string,
     itemId: string,
     req: IncomingMessage,
-  ) => { status: number; body: unknown } | null;
+  ) =>
+    | { status: number; body: unknown }
+    | null
+    | Promise<{ status: number; body: unknown } | null>;
   onPatch?: (
     ticketId: string,
     body: unknown,
     req: IncomingMessage,
     res: ServerResponse,
-  ) => {
-    status?: number;
-    body?: unknown;
-    dropSocket?: boolean;
-    mutateState?: boolean;
-  } | null;
+  ) =>
+    | {
+      status?: number;
+      body?: unknown;
+      dropSocket?: boolean;
+      mutateState?: boolean;
+    }
+    | null
+    | Promise<{
+      status?: number;
+      body?: unknown;
+      dropSocket?: boolean;
+      mutateState?: boolean;
+    } | null>;
+  beforePatchResponse?: (
+    ticketId: string,
+    itemId: string,
+    item: FakeChecklistItem,
+  ) => Promise<void> | void;
   onReadbackGet?: (
     ticketId: string,
     itemId: string,
     req: IncomingMessage,
-  ) => { status: number; body: unknown } | null;
+  ) =>
+    | { status: number; body: unknown }
+    | null
+    | Promise<{ status: number; body: unknown } | null>;
 }
 
 function parseJsonBody(req: IncomingMessage): Promise<{ raw: string; json: unknown }> {
@@ -212,7 +240,7 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         if (patchCallCount === 0) {
           // Pre-read GET
           if (faultHooks.onPreReadGet) {
-            const override = faultHooks.onPreReadGet(ticketId, itemId, req);
+            const override = await faultHooks.onPreReadGet(ticketId, itemId, req);
             if (override) {
               res.statusCode = override.status;
               res.setHeader('content-type', 'application/json');
@@ -223,7 +251,7 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         } else {
           // Readback GET (post-write)
           if (faultHooks.onReadbackGet) {
-            const override = faultHooks.onReadbackGet(ticketId, itemId, req);
+            const override = await faultHooks.onReadbackGet(ticketId, itemId, req);
             if (override) {
               res.statusCode = override.status;
               res.setHeader('content-type', 'application/json');
@@ -269,7 +297,7 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
             : undefined;
 
         if (faultHooks.onPatch) {
-          const override = faultHooks.onPatch(ticketId, json, req, res);
+          const override = await faultHooks.onPatch(ticketId, json, req, res);
           if (override) {
             if (override.mutateState && patchId !== undefined && patchCompleted !== undefined) {
               const existing = fakeStore.get(itemKey(ticketId, patchId));
@@ -317,6 +345,9 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         existing.completedDateTime = patchCompleted ? '2026-11-02T16:00:00Z' : null;
         existing.completedByResourceID = patchCompleted ? 77 : null;
         fakeStore.set(itemKey(ticketId, patchId), existing);
+        if (faultHooks.beforePatchResponse) {
+          await faultHooks.beforePatchResponse(ticketId, patchId, existing);
+        }
 
         res.statusCode = 200;
         res.setHeader('content-type', 'application/json');
@@ -342,6 +373,14 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
     resetApi();
     clearMetadataCache();
     governor.reset();
+
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   });
 
   beforeEach(() => {
@@ -381,18 +420,26 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         expect(tool).toBeDefined();
         expect(tool?.description).toContain('SET_TICKET_CHECKLIST_ITEM');
 
-        const schema = tool?.inputSchema;
+        const schema = tool?.inputSchema as {
+          type?: string;
+          properties?: Record<string, unknown>;
+          required?: string[];
+        };
         expect(schema).toBeDefined();
-        if (schema && typeof schema === 'object' && 'properties' in schema) {
-          const props = schema.properties;
-          expect(props).toBeDefined();
-          if (props && typeof props === 'object') {
-            expect('ticketID' in props).toBe(true);
-            expect('checklistItemID' in props).toBe(true);
-            expect('completed' in props).toBe(true);
-            expect('confirm' in props).toBe(true);
-          }
-        }
+        expect(schema.type).toBe('object');
+        expect(schema.properties).toBeDefined();
+        expect(typeof schema.properties).toBe('object');
+        expect(schema.properties).toHaveProperty('ticketID');
+        expect(schema.properties).toHaveProperty('checklistItemID');
+        expect(schema.properties).toHaveProperty('completed');
+        expect(schema.properties).toHaveProperty('confirm');
+
+        expect(schema.required).toBeDefined();
+        expect(Array.isArray(schema.required)).toBe(true);
+        expect(schema.required).toContain('ticketID');
+        expect(schema.required).toContain('checklistItemID');
+        expect(schema.required).toContain('completed');
+        expect(schema.required).toContain('confirm');
       } finally {
         await session.close();
       }
@@ -1110,18 +1157,20 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         itemName: 'Configure VLAN',
       });
 
-      // When readback arrives, simulate that a concurrent worker set isCompleted back to false
-      faultHooks.onReadbackGet = () => ({
-        status: 200,
-        body: {
-          item: {
-            id: 5022,
-            ticketID: 8001,
-            isCompleted: false, // competing write reverted state!
-            completedByResourceID: 999,
-          },
-        },
-      });
+      // Model an independently applied competing mutation to the underlying fake store
+      // occurring between PATCH and readback GET. The fake server serves the live fakeStore
+      // record on readback rather than returning a mocked response.
+      faultHooks.onReadbackGet = () => {
+        fakeStore.set(itemKey(8001, 5022), {
+          id: 5022,
+          ticketID: 8001,
+          isCompleted: false, // competing write reverted state!
+          itemName: 'Configure VLAN',
+          completedDateTime: null,
+          completedByResourceID: 999,
+        });
+        return null; // Return null so fakeServer serves the live record from fakeStore
+      };
 
       const session = await createSession();
       try {
@@ -1137,14 +1186,25 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
 
         expect(res.isError).toBe(true);
         const text = extractToolText(res);
-        expect(text).toMatch(
-          /Verification failed: checklist item 5022 isCompleted did not match requested state true \(actual: false\)/,
+        expect(text).toContain(
+          'Verification failed: checklist item 5022 isCompleted did not match requested state true',
         );
 
         // Protocol sequence completed: GET -> PATCH -> GET
         const checklistOps = getChecklistOperations();
         expect(checklistOps).toHaveLength(3);
         expect(checklistOps.map((o) => o.method)).toEqual(['GET', 'PATCH', 'GET']);
+
+        // Assert exact resulting state in the fake store matches the independent competing write
+        const stored = fakeStore.get(itemKey(8001, 5022));
+        expect(stored).toEqual({
+          id: 5022,
+          ticketID: 8001,
+          isCompleted: false,
+          itemName: 'Configure VLAN',
+          completedDateTime: null,
+          completedByResourceID: 999,
+        });
       } finally {
         await session.close();
       }
@@ -1159,25 +1219,52 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
       });
 
       const orderLog: string[] = [];
+      let patchResponseCompleted = false;
+      let readbackGetCallsWhilePatchHeld = 0;
 
+      let notifyPatchArrived: () => void = () => { };
+      const patchArrivedPromise = new Promise<void>((resolve) => {
+        notifyPatchArrived = resolve;
+      });
+
+      let releasePatchBarrier: () => void = () => { };
+      const patchBarrierPromise = new Promise<void>((resolve) => {
+        releasePatchBarrier = resolve;
+      });
+
+
+      // Install listeners first
       faultHooks.onPreReadGet = () => {
         orderLog.push('pre-read-get');
         return null;
       };
 
-      faultHooks.onPatch = () => {
+      faultHooks.beforePatchResponse = async (ticketId, itemId) => {
         orderLog.push('patch-mutate');
-        return null;
+        // Stateful mutation must already be applied to fakeStore
+        expect(fakeStore.get(itemKey(ticketId, itemId))?.isCompleted).toBe(true);
+
+        // Notify test driver that PATCH has arrived and applied its mutation
+        notifyPatchArrived();
+
+        // Hold PATCH response open until test driver explicitly releases it
+        await patchBarrierPromise;
+
+        orderLog.push('patch-complete');
+        patchResponseCompleted = true;
       };
 
       faultHooks.onReadbackGet = () => {
+        if (!patchResponseCompleted) {
+          readbackGetCallsWhilePatchHeld++;
+        }
         orderLog.push('readback-get');
         return null;
       };
 
       const session = await createSession();
       try {
-        const res = await session.client.callTool({
+        const callPromise = session.client.callTool({
           name: 'set-ticket-checklist-item',
           arguments: {
             ticketID: '8001',
@@ -1187,9 +1274,38 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
           },
         });
 
+        // 1. Await explicit observed PATCH arrival before checking zero readback
+        await patchArrivedPromise;
+
+        // 2. While the PATCH response is held open, verify NO readback GET has arrived
+        expect(readbackGetCallsWhilePatchHeld).toBe(0);
+        const inFlightOps = getChecklistOperations();
+        expect(inFlightOps.map((o) => o.method)).toEqual(['GET', 'PATCH']);
+
+        // 3. Release the barrier so PATCH response completes
+        releasePatchBarrier();
+
+        // 4. Await tool call completion
+        const res = await callPromise;
         expect(res.isError).toBeFalsy();
-        expect(orderLog).toEqual(['pre-read-get', 'patch-mutate', 'readback-get']);
+
+        // 5. Assert that no readback was initiated while PATCH was held
+        expect(readbackGetCallsWhilePatchHeld).toBe(0);
+
+        // 6. Assert strict completion ordering: pre-read GET -> PATCH mutate -> PATCH complete -> readback GET
+        expect(orderLog).toEqual([
+          'pre-read-get',
+          'patch-mutate',
+          'patch-complete',
+          'readback-get',
+        ]);
+
+        // Protocol sequence completed: GET -> PATCH -> GET
+        const checklistOps = getChecklistOperations();
+        expect(checklistOps).toHaveLength(3);
+        expect(checklistOps.map((o) => o.method)).toEqual(['GET', 'PATCH', 'GET']);
       } finally {
+        releasePatchBarrier();
         await session.close();
       }
     });
