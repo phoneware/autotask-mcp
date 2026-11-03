@@ -596,8 +596,12 @@ describe('set-ticket-checklist-item tool', () => {
   });
 
   it('fails verification when post-write readback returns empty / missing record', async () => {
+    const callOrder: string[] = [];
+    let updateCompleted = false;
     let readCount = 0;
+
     request.mockImplementation(async (method: string, path: string) => {
+      callOrder.push(method);
       if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
         readCount++;
         if (readCount === 1) {
@@ -610,12 +614,19 @@ describe('set-ticket-checklist-item tool', () => {
             },
           };
         }
+        if (!updateCompleted) {
+          throw new Error('Verification readback GET called before update completed');
+        }
         return {};
       }
       throw new Error(`Unexpected request ${method} ${path}`);
     });
 
-    update.mockResolvedValue({ id: 501 });
+    update.mockImplementation(async () => {
+      callOrder.push('PATCH');
+      updateCompleted = true;
+      return { id: 501 };
+    });
 
     await expect(
       setChecklistTool.handler({
@@ -626,11 +637,24 @@ describe('set-ticket-checklist-item tool', () => {
     ).rejects.toThrow(
       /Verification failed: checklist item 501 not found on ticket 1001 after update/,
     );
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      'TicketChecklistItems',
+      { id: 501, isCompleted: true },
+      'Tickets',
+      '1001',
+    );
+    expect(callOrder).toEqual(['GET', 'PATCH', 'GET']);
   });
 
   it('fails verification when post-write readback returns mismatched item id', async () => {
+    const callOrder: string[] = [];
+    let updateCompleted = false;
     let readCount = 0;
+
     request.mockImplementation(async (method: string, path: string) => {
+      callOrder.push(method);
       if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
         readCount++;
         if (readCount === 1) {
@@ -642,6 +666,9 @@ describe('set-ticket-checklist-item tool', () => {
               itemName: 'Verify LAN port mapping',
             },
           };
+        }
+        if (!updateCompleted) {
+          throw new Error('Verification readback GET called before update completed');
         }
         return {
           item: {
@@ -655,7 +682,11 @@ describe('set-ticket-checklist-item tool', () => {
       throw new Error(`Unexpected request ${method} ${path}`);
     });
 
-    update.mockResolvedValue({ id: 501 });
+    update.mockImplementation(async () => {
+      callOrder.push('PATCH');
+      updateCompleted = true;
+      return { id: 501 };
+    });
 
     await expect(
       setChecklistTool.handler({
@@ -666,11 +697,24 @@ describe('set-ticket-checklist-item tool', () => {
     ).rejects.toThrow(
       /Verification failed: read-back checklist item id 888 did not match requested 501/,
     );
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      'TicketChecklistItems',
+      { id: 501, isCompleted: true },
+      'Tickets',
+      '1001',
+    );
+    expect(callOrder).toEqual(['GET', 'PATCH', 'GET']);
   });
 
   it('fails verification when post-write readback returns foreign parent ticketID', async () => {
+    const callOrder: string[] = [];
+    let updateCompleted = false;
     let readCount = 0;
+
     request.mockImplementation(async (method: string, path: string) => {
+      callOrder.push(method);
       if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
         readCount++;
         if (readCount === 1) {
@@ -682,6 +726,9 @@ describe('set-ticket-checklist-item tool', () => {
               itemName: 'Verify LAN port mapping',
             },
           };
+        }
+        if (!updateCompleted) {
+          throw new Error('Verification readback GET called before update completed');
         }
         return {
           item: {
@@ -695,7 +742,11 @@ describe('set-ticket-checklist-item tool', () => {
       throw new Error(`Unexpected request ${method} ${path}`);
     });
 
-    update.mockResolvedValue({ id: 501 });
+    update.mockImplementation(async () => {
+      callOrder.push('PATCH');
+      updateCompleted = true;
+      return { id: 501 };
+    });
 
     await expect(
       setChecklistTool.handler({
@@ -706,11 +757,24 @@ describe('set-ticket-checklist-item tool', () => {
     ).rejects.toThrow(
       /Verification failed: read-back checklist item 501 belongs to ticketID 9999, not 1001/,
     );
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      'TicketChecklistItems',
+      { id: 501, isCompleted: true },
+      'Tickets',
+      '1001',
+    );
+    expect(callOrder).toEqual(['GET', 'PATCH', 'GET']);
   });
 
   it('fails verification when post-write readback isCompleted is string "false" rather than strict boolean', async () => {
+    const callOrder: string[] = [];
+    let updateCompleted = false;
     let readCount = 0;
+
     request.mockImplementation(async (method: string, path: string) => {
+      callOrder.push(method);
       if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
         readCount++;
         if (readCount === 1) {
@@ -722,6 +786,9 @@ describe('set-ticket-checklist-item tool', () => {
               itemName: 'Configure VLAN 10',
             },
           };
+        }
+        if (!updateCompleted) {
+          throw new Error('Verification readback GET called before update completed');
         }
         return {
           item: {
@@ -735,7 +802,11 @@ describe('set-ticket-checklist-item tool', () => {
       throw new Error(`Unexpected request ${method} ${path}`);
     });
 
-    update.mockResolvedValue({ id: 501 });
+    update.mockImplementation(async () => {
+      callOrder.push('PATCH');
+      updateCompleted = true;
+      return { id: 501 };
+    });
 
     await expect(
       setChecklistTool.handler({
@@ -746,11 +817,24 @@ describe('set-ticket-checklist-item tool', () => {
     ).rejects.toThrow(
       /Verification failed: checklist item 501 read-back isCompleted is not a boolean \("false"\)/,
     );
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      'TicketChecklistItems',
+      { id: 501, isCompleted: true },
+      'Tickets',
+      '1001',
+    );
+    expect(callOrder).toEqual(['GET', 'PATCH', 'GET']);
   });
 
   it('fails verification when post-write readback isCompleted is absent/undefined', async () => {
+    const callOrder: string[] = [];
+    let updateCompleted = false;
     let readCount = 0;
+
     request.mockImplementation(async (method: string, path: string) => {
+      callOrder.push(method);
       if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
         readCount++;
         if (readCount === 1) {
@@ -763,6 +847,9 @@ describe('set-ticket-checklist-item tool', () => {
             },
           };
         }
+        if (!updateCompleted) {
+          throw new Error('Verification readback GET called before update completed');
+        }
         return {
           item: {
             id: 501,
@@ -774,7 +861,11 @@ describe('set-ticket-checklist-item tool', () => {
       throw new Error(`Unexpected request ${method} ${path}`);
     });
 
-    update.mockResolvedValue({ id: 501 });
+    update.mockImplementation(async () => {
+      callOrder.push('PATCH');
+      updateCompleted = true;
+      return { id: 501 };
+    });
 
     await expect(
       setChecklistTool.handler({
@@ -785,11 +876,24 @@ describe('set-ticket-checklist-item tool', () => {
     ).rejects.toThrow(
       /Verification failed: checklist item 501 read-back isCompleted is not a boolean \(undefined\)/,
     );
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      'TicketChecklistItems',
+      { id: 501, isCompleted: false },
+      'Tickets',
+      '1001',
+    );
+    expect(callOrder).toEqual(['GET', 'PATCH', 'GET']);
   });
 
   it('fails verification when post-write readback shows isCompleted unchanged (status did not change)', async () => {
+    const callOrder: string[] = [];
+    let updateCompleted = false;
     let readCount = 0;
+
     request.mockImplementation(async (method: string, path: string) => {
+      callOrder.push(method);
       if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
         readCount++;
         if (readCount === 1) {
@@ -801,6 +905,9 @@ describe('set-ticket-checklist-item tool', () => {
               itemName: 'Verify cellular signal strength',
             },
           };
+        }
+        if (!updateCompleted) {
+          throw new Error('Verification readback GET called before update completed');
         }
         return {
           item: {
@@ -814,7 +921,11 @@ describe('set-ticket-checklist-item tool', () => {
       throw new Error(`Unexpected request ${method} ${path}`);
     });
 
-    update.mockResolvedValue({ id: 501 });
+    update.mockImplementation(async () => {
+      callOrder.push('PATCH');
+      updateCompleted = true;
+      return { id: 501 };
+    });
 
     await expect(
       setChecklistTool.handler({
@@ -825,6 +936,15 @@ describe('set-ticket-checklist-item tool', () => {
     ).rejects.toThrow(
       /Verification failed: checklist item 501 isCompleted did not match requested state true \(actual: false\)/,
     );
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      'TicketChecklistItems',
+      { id: 501, isCompleted: true },
+      'Tickets',
+      '1001',
+    );
+    expect(callOrder).toEqual(['GET', 'PATCH', 'GET']);
   });
 
   it('refuses invalid completed argument', async () => {
