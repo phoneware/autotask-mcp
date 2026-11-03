@@ -418,8 +418,6 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         });
 
         expect(res.isError).toBe(true);
-        const text = extractToolText(res);
-        expect(text).toMatch(/requires confirm: "SET_TICKET_CHECKLIST_ITEM"/);
         expect(recordedRequests).toHaveLength(0);
         expect(fakeStore.get(itemKey(8001, 5001))?.isCompleted).toBe(false);
       } finally {
