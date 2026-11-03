@@ -54,10 +54,7 @@ interface ServerFaultHooks {
     ticketId: string,
     itemId: string,
     req: IncomingMessage,
-  ) =>
-    | { status: number; body: unknown }
-    | null
-    | Promise<{ status: number; body: unknown } | null>;
+  ) => { status: number; body: unknown } | null | Promise<{ status: number; body: unknown } | null>;
   onPatch?: (
     ticketId: string,
     body: unknown,
@@ -65,18 +62,18 @@ interface ServerFaultHooks {
     res: ServerResponse,
   ) =>
     | {
-      status?: number;
-      body?: unknown;
-      dropSocket?: boolean;
-      mutateState?: boolean;
-    }
+        status?: number;
+        body?: unknown;
+        dropSocket?: boolean;
+        mutateState?: boolean;
+      }
     | null
     | Promise<{
-      status?: number;
-      body?: unknown;
-      dropSocket?: boolean;
-      mutateState?: boolean;
-    } | null>;
+        status?: number;
+        body?: unknown;
+        dropSocket?: boolean;
+        mutateState?: boolean;
+      } | null>;
   beforePatchResponse?: (
     ticketId: string,
     itemId: string,
@@ -87,10 +84,7 @@ interface ServerFaultHooks {
     ticketId: string,
     itemId: string,
     req: IncomingMessage,
-  ) =>
-    | { status: number; body: unknown }
-    | null
-    | Promise<{ status: number; body: unknown } | null>;
+  ) => { status: number; body: unknown } | null | Promise<{ status: number; body: unknown } | null>;
 }
 
 function parseJsonBody(req: IncomingMessage): Promise<{ raw: string; json: unknown }> {
@@ -177,11 +171,7 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
       const integ = req.headers['apiintegrationcode'];
       const user = req.headers['username'];
       const sec = req.headers['secret'];
-      if (
-        integ !== SYNTHETIC_INTEG_CODE ||
-        user !== SYNTHETIC_USER ||
-        sec !== SYNTHETIC_SECRET
-      ) {
+      if (integ !== SYNTHETIC_INTEG_CODE || user !== SYNTHETIC_USER || sec !== SYNTHETIC_SECRET) {
         res.statusCode = 401;
         res.setHeader('content-type', 'application/json');
         res.end(JSON.stringify({ message: 'Unauthorized: synthetic credentials invalid' }));
@@ -407,8 +397,8 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
       client,
       mcpServer,
       async close() {
-        await client.close().catch(() => { });
-        await mcpServer.close().catch(() => { });
+        await client.close().catch(() => {});
+        await mcpServer.close().catch(() => {});
       },
     };
   }
@@ -1228,7 +1218,7 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
       let isCleaningUp = false;
 
       let patchBodyBarrierReleased = false;
-      let releasePatchBarrier: () => void = () => { };
+      let releasePatchBarrier: () => void = () => {};
       const patchBodyBarrierPromise = new Promise<void>((resolve) => {
         releasePatchBarrier = () => {
           patchBodyBarrierReleased = true;
@@ -1236,24 +1226,24 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         };
       });
 
-      let notifyPatchPersisted: () => void = () => { };
+      let notifyPatchPersisted: () => void = () => {};
       const patchPersistedPromise = new Promise<void>((resolve) => {
         notifyPatchPersisted = resolve;
       });
 
-      let notifyPatchHeadersObserved: () => void = () => { };
+      let notifyPatchHeadersObserved: () => void = () => {};
       const patchHeadersObservedPromise = new Promise<void>((resolve) => {
         notifyPatchHeadersObserved = resolve;
       });
 
       let patchServerFinished = false;
-      let notifyPatchServerFinished: () => void = () => { };
+      let notifyPatchServerFinished: () => void = () => {};
       const patchServerFinishedPromise = new Promise<void>((resolve) => {
         notifyPatchServerFinished = resolve;
       });
 
       let patchBodyConsumed = false;
-      let notifyPatchBodyConsumed: () => void = () => { };
+      let notifyPatchBodyConsumed: () => void = () => {};
       const patchBodyConsumedPromise = new Promise<void>((resolve) => {
         notifyPatchBodyConsumed = resolve;
       });
@@ -1347,7 +1337,7 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
 
           const origText = response.text.bind(response);
           patchResponseOrigText = origText;
-          response.text = async function(): Promise<string> {
+          response.text = async function (): Promise<string> {
             const text = await origText();
             if (!isCleaningUp) {
               patchBodyConsumed = true;
