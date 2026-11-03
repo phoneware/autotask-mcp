@@ -1236,7 +1236,6 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         };
       });
 
-      let patchPersisted = false;
       let notifyPatchPersisted: () => void = () => { };
       const patchPersistedPromise = new Promise<void>((resolve) => {
         notifyPatchPersisted = resolve;
@@ -1261,8 +1260,6 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
 
       let targetItemGetCount = 0;
       let readbackDispatchCount = 0;
-      let seqPatchPersisted = 0;
-      let seqPatchHeadersObserved = 0;
       let seqPatchServerFinished = 0;
       let seqPatchBodyConsumed = 0;
       let seqReadbackDispatched = 0;
@@ -1345,7 +1342,7 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
           const response = await originalFetch(input, init);
           capturedPatchResponse = response;
 
-          seqPatchHeadersObserved = recordEvent('PATCH headers observed by client');
+          recordEvent('PATCH headers observed by client');
           notifyPatchHeadersObserved();
 
           const origText = response.text.bind(response);
@@ -1377,8 +1374,7 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
 
         res.flushHeaders();
 
-        patchPersisted = true;
-        seqPatchPersisted = recordEvent('PATCH persisted');
+        recordEvent('PATCH persisted');
         notifyPatchPersisted();
 
         await patchBodyBarrierPromise;
