@@ -81,6 +81,7 @@ interface ServerFaultHooks {
     ticketId: string,
     itemId: string,
     item: FakeChecklistItem,
+    res: ServerResponse,
   ) => Promise<void> | void;
   onReadbackGet?: (
     ticketId: string,
@@ -345,12 +346,13 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         existing.completedDateTime = patchCompleted ? '2026-11-02T16:00:00Z' : null;
         existing.completedByResourceID = patchCompleted ? 77 : null;
         fakeStore.set(itemKey(ticketId, patchId), existing);
-        if (faultHooks.beforePatchResponse) {
-          await faultHooks.beforePatchResponse(ticketId, patchId, existing);
-        }
-
         res.statusCode = 200;
         res.setHeader('content-type', 'application/json');
+
+        if (faultHooks.beforePatchResponse) {
+          await faultHooks.beforePatchResponse(ticketId, patchId, existing, res);
+        }
+
         res.end(JSON.stringify({ itemId: Number(patchId) }));
         return;
       }
@@ -1218,53 +1220,175 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         itemName: 'Verify BGP peering',
       });
 
-      const orderLog: string[] = [];
-      let patchResponseCompleted = false;
-      let readbackGetCallsWhilePatchHeld = 0;
+      const originalFetch = globalThis.fetch;
+      let session: { client: Client; close: () => Promise<void> } | null = null;
+      let callPromise: Promise<{ isError?: boolean; content?: unknown }> | null = null;
+      let capturedPatchResponse: Response | null = null;
+      let patchResponseOrigText: (() => Promise<string>) | null = null;
+      let isCleaningUp = false;
 
-      let notifyPatchArrived: () => void = () => { };
-      const patchArrivedPromise = new Promise<void>((resolve) => {
-        notifyPatchArrived = resolve;
-      });
-
+      let patchBodyBarrierReleased = false;
       let releasePatchBarrier: () => void = () => { };
-      const patchBarrierPromise = new Promise<void>((resolve) => {
-        releasePatchBarrier = resolve;
+      const patchBodyBarrierPromise = new Promise<void>((resolve) => {
+        releasePatchBarrier = () => {
+          patchBodyBarrierReleased = true;
+          resolve();
+        };
       });
 
+      let patchPersisted = false;
+      let notifyPatchPersisted: () => void = () => { };
+      const patchPersistedPromise = new Promise<void>((resolve) => {
+        notifyPatchPersisted = resolve;
+      });
 
-      // Install listeners first
-      faultHooks.onPreReadGet = () => {
-        orderLog.push('pre-read-get');
-        return null;
+      let notifyPatchHeadersObserved: () => void = () => { };
+      const patchHeadersObservedPromise = new Promise<void>((resolve) => {
+        notifyPatchHeadersObserved = resolve;
+      });
+
+      let patchServerFinished = false;
+      let notifyPatchServerFinished: () => void = () => { };
+      const patchServerFinishedPromise = new Promise<void>((resolve) => {
+        notifyPatchServerFinished = resolve;
+      });
+
+      let patchBodyConsumed = false;
+      let notifyPatchBodyConsumed: () => void = () => { };
+      const patchBodyConsumedPromise = new Promise<void>((resolve) => {
+        notifyPatchBodyConsumed = resolve;
+      });
+
+      let targetItemGetCount = 0;
+      let readbackDispatchCount = 0;
+      let seqPatchPersisted = 0;
+      let seqPatchHeadersObserved = 0;
+      let seqPatchServerFinished = 0;
+      let seqPatchBodyConsumed = 0;
+      let seqReadbackDispatched = 0;
+
+      type OrderingEvent =
+        | 'PATCH persisted'
+        | 'PATCH headers observed by client'
+        | 'PATCH server finish'
+        | 'PATCH body consumed by actual API'
+        | 'readback fetch dispatched';
+
+      interface RecordedEvent {
+        seq: number;
+        event: OrderingEvent;
+      }
+
+      const recordedEvents: RecordedEvent[] = [];
+      let eventClock = 0;
+
+      function recordEvent(event: OrderingEvent): number {
+        const seq = ++eventClock;
+        recordedEvents.push({ seq, event });
+        return seq;
+      }
+      const targetOrigin = new URL(baseUrl).origin;
+      const targetItemPath = '/V1.0/Tickets/8001/ChecklistItems/5023';
+      const targetPatchPath = '/V1.0/Tickets/8001/ChecklistItems';
+
+      function parseFetchTarget(
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ): { origin: string; pathname: string; method: string } {
+        let rawUrl: string;
+        let method = init?.method;
+
+        if (typeof input === 'string') {
+          rawUrl = input;
+        } else if (input instanceof URL) {
+          rawUrl = input.href;
+        } else if (input instanceof Request) {
+          rawUrl = input.url;
+          if (!method) {
+            method = input.method;
+          }
+        } else if (input && typeof input === 'object' && 'url' in input) {
+          const urlCandidate = input.url;
+          rawUrl = typeof urlCandidate === 'string' ? urlCandidate : String(urlCandidate);
+          if (!method && 'method' in input && typeof input.method === 'string') {
+            method = input.method;
+          }
+        } else {
+          rawUrl = String(input);
+        }
+
+        const parsed = new URL(rawUrl, baseUrl);
+        return {
+          origin: parsed.origin,
+          pathname: parsed.pathname,
+          method: (method || 'GET').toUpperCase(),
+        };
+      }
+
+      globalThis.fetch = async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ): Promise<Response> => {
+        const { origin, pathname, method } = parseFetchTarget(input, init);
+        const isTargetOrigin = origin === targetOrigin;
+
+        if (isTargetOrigin && pathname === targetItemPath && method === 'GET') {
+          targetItemGetCount++;
+          if (targetItemGetCount > 1) {
+            readbackDispatchCount++;
+            seqReadbackDispatched = recordEvent('readback fetch dispatched');
+          }
+          return await originalFetch(input, init);
+        }
+
+        if (isTargetOrigin && pathname === targetPatchPath && method === 'PATCH') {
+          const response = await originalFetch(input, init);
+          capturedPatchResponse = response;
+
+          seqPatchHeadersObserved = recordEvent('PATCH headers observed by client');
+          notifyPatchHeadersObserved();
+
+          const origText = response.text.bind(response);
+          patchResponseOrigText = origText;
+          response.text = async function(): Promise<string> {
+            const text = await origText();
+            if (!isCleaningUp) {
+              patchBodyConsumed = true;
+              seqPatchBodyConsumed = recordEvent('PATCH body consumed by actual API');
+              notifyPatchBodyConsumed();
+            }
+            return text;
+          };
+
+          return response;
+        }
+
+        return await originalFetch(input, init);
       };
 
-      faultHooks.beforePatchResponse = async (ticketId, itemId) => {
-        orderLog.push('patch-mutate');
-        // Stateful mutation must already be applied to fakeStore
+      faultHooks.beforePatchResponse = async (ticketId, itemId, _item, res) => {
         expect(fakeStore.get(itemKey(ticketId, itemId))?.isCompleted).toBe(true);
 
-        // Notify test driver that PATCH has arrived and applied its mutation
-        notifyPatchArrived();
+        res.once('finish', () => {
+          patchServerFinished = true;
+          seqPatchServerFinished = recordEvent('PATCH server finish');
+          notifyPatchServerFinished();
+        });
 
-        // Hold PATCH response open until test driver explicitly releases it
-        await patchBarrierPromise;
+        res.flushHeaders();
 
-        orderLog.push('patch-complete');
-        patchResponseCompleted = true;
+        patchPersisted = true;
+        seqPatchPersisted = recordEvent('PATCH persisted');
+        notifyPatchPersisted();
+
+        await patchBodyBarrierPromise;
       };
 
-      faultHooks.onReadbackGet = () => {
-        if (!patchResponseCompleted) {
-          readbackGetCallsWhilePatchHeld++;
-        }
-        orderLog.push('readback-get');
-        return null;
-      };
-
-      const session = await createSession();
       try {
-        const callPromise = session.client.callTool({
+        session = await createSession();
+
+        // 1. Start the real SDK callTool()
+        callPromise = session.client.callTool({
           name: 'set-ticket-checklist-item',
           arguments: {
             ticketID: '8001',
@@ -1274,39 +1398,95 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
           },
         });
 
-        // 1. Await explicit observed PATCH arrival before checking zero readback
-        await patchArrivedPromise;
+        // 2. Await PATCH persistence
+        await patchPersistedPromise;
 
-        // 2. While the PATCH response is held open, verify NO readback GET has arrived
-        expect(readbackGetCallsWhilePatchHeld).toBe(0);
-        const inFlightOps = getChecklistOperations();
-        expect(inFlightOps.map((o) => o.method)).toEqual(['GET', 'PATCH']);
+        // 3. Await actual client headers
+        await patchHeadersObservedPromise;
 
-        // 3. Release the barrier so PATCH response completes
+        // 4. Assert the body is still held and both completion markers are false
+        expect(patchBodyBarrierReleased).toBe(false);
+        expect(patchServerFinished).toBe(false);
+        expect(patchBodyConsumed).toBe(false);
+
+        // 5. Complete an independent loopback HTTP round trip using the captured native fetch,
+        // including consuming its body. The existing fake ThresholdInformation route serves this checkpoint.
+        const checkpointUrl = new URL('V1.0/ThresholdInformation', baseUrl).href;
+        const checkpointRes = await originalFetch(checkpointUrl);
+        expect(checkpointRes.status).toBe(200);
+        const checkpointBody = await checkpointRes.text();
+        expect(checkpointBody).toContain('externalRequestThreshold');
+
+        // 6. While still held, require zero early readback dispatches
+        expect(patchBodyBarrierReleased).toBe(false);
+        expect(
+          readbackDispatchCount,
+          `Expected zero readback GET dispatches while PATCH response body is held, but observed ${readbackDispatchCount}`,
+        ).toBe(0);
+
+        // 7. Release the body
+        patchBodyBarrierReleased = true;
         releasePatchBarrier();
 
-        // 4. Await tool call completion
+        // 8. Await the tool result
         const res = await callPromise;
-        expect(res.isError).toBeFalsy();
+        expect(res?.isError).toBeFalsy();
 
-        // 5. Assert that no readback was initiated while PATCH was held
-        expect(readbackGetCallsWhilePatchHeld).toBe(0);
+        // Ensure completion markers have settled
+        await patchServerFinishedPromise;
+        await patchBodyConsumedPromise;
 
-        // 6. Assert strict completion ordering: pre-read GET -> PATCH mutate -> PATCH complete -> readback GET
-        expect(orderLog).toEqual([
-          'pre-read-get',
-          'patch-mutate',
-          'patch-complete',
-          'readback-get',
-        ]);
+        // 9. Require readback dispatch strictly after both actual completion markers
+        expect(seqPatchServerFinished).toBeGreaterThan(0);
+        expect(seqPatchBodyConsumed).toBeGreaterThan(0);
+        expect(seqReadbackDispatched).toBeGreaterThan(0);
 
-        // Protocol sequence completed: GET -> PATCH -> GET
+        expect(
+          seqReadbackDispatched,
+          `Expected readback GET dispatch (seq ${seqReadbackDispatched}) to occur after PATCH server finish (seq ${seqPatchServerFinished})`,
+        ).toBeGreaterThan(seqPatchServerFinished);
+
+        expect(
+          seqReadbackDispatched,
+          `Expected readback GET dispatch (seq ${seqReadbackDispatched}) to occur after PATCH body consumed by actual API (seq ${seqPatchBodyConsumed})`,
+        ).toBeGreaterThan(seqPatchBodyConsumed);
+
+        // 10. Verify the native GET/PATCH/GET sequence and resulting stored record
         const checklistOps = getChecklistOperations();
         expect(checklistOps).toHaveLength(3);
         expect(checklistOps.map((o) => o.method)).toEqual(['GET', 'PATCH', 'GET']);
+        expect(checklistOps[0].url).toBe('/V1.0/Tickets/8001/ChecklistItems/5023');
+        expect(checklistOps[1].url).toBe('/V1.0/Tickets/8001/ChecklistItems');
+        expect(checklistOps[2].url).toBe('/V1.0/Tickets/8001/ChecklistItems/5023');
+
+        const stored = fakeStore.get(itemKey(8001, 5023));
+        expect(stored).toBeDefined();
+        expect(stored?.isCompleted).toBe(true);
       } finally {
+        isCleaningUp = true;
         releasePatchBarrier();
-        await session.close();
+
+        if (callPromise) {
+          try {
+            await callPromise;
+          } catch {
+            // Settle tool call without rethrowing
+          }
+        }
+
+        if (capturedPatchResponse && !capturedPatchResponse.bodyUsed && patchResponseOrigText) {
+          try {
+            await patchResponseOrigText();
+          } catch {
+            // Cleanup drain only, never production body consumption
+          }
+        }
+
+        if (session) {
+          await session.close();
+        }
+
+        globalThis.fetch = originalFetch;
       }
     });
   });
