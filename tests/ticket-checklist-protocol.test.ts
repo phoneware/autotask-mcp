@@ -7,8 +7,8 @@ import { buildServer } from '../src/server.js';
 import { resetApi, clearMetadataCache } from '../src/autotask-api.js';
 import { governor } from '../src/governor.js';
 
-// Synthetic test credentials — must be hoisted before imports construct singletons.
-const SYNTHETIC_USER = 'protocol-tester@phoneware.us';
+// Synthetic test credentials: hoist before imports construct singletons.
+const SYNTHETIC_USER = 'protocol-tester@example.test';
 const SYNTHETIC_SECRET = 'synth-secret-key-1234567890';
 const SYNTHETIC_INTEG_CODE = 'SYNTH-INTEG-CODE-XYZ-123';
 
@@ -21,7 +21,7 @@ const { savedEnv } = vi.hoisted(() => {
     AUTOTASK_READ_ONLY: process.env.AUTOTASK_READ_ONLY,
     MCP_CONFIRM_DESTRUCTIVE: process.env.MCP_CONFIRM_DESTRUCTIVE,
   };
-  process.env.AUTOTASK_USERNAME = 'protocol-tester@phoneware.us';
+  process.env.AUTOTASK_USERNAME = 'protocol-tester@example.test';
   process.env.AUTOTASK_SECRET = 'synth-secret-key-1234567890';
   process.env.AUTOTASK_INTEGRATION_CODE = 'SYNTH-INTEG-CODE-XYZ-123';
   delete process.env.AUTOTASK_READ_ONLY;
@@ -1412,7 +1412,13 @@ describe('set-ticket-checklist-item MCP protocol & wire integration', () => {
         // 5. Complete an independent loopback HTTP round trip using the captured native fetch,
         // including consuming its body. The existing fake ThresholdInformation route serves this checkpoint.
         const checkpointUrl = new URL('V1.0/ThresholdInformation', baseUrl).href;
-        const checkpointRes = await originalFetch(checkpointUrl);
+        const checkpointRes = await originalFetch(checkpointUrl, {
+          headers: {
+            ApiIntegrationCode: SYNTHETIC_INTEG_CODE,
+            UserName: SYNTHETIC_USER,
+            Secret: SYNTHETIC_SECRET,
+          },
+        });
         expect(checkpointRes.status).toBe(200);
         const checkpointBody = await checkpointRes.text();
         expect(checkpointBody).toContain('externalRequestThreshold');
