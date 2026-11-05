@@ -1,14 +1,6 @@
 import crypto from 'node:crypto';
-import type {
-  Actor,
-  OperationIntent,
-  OperationKind,
-} from './contracts.js';
-import {
-  deriveAccountKey,
-  getOperationStore,
-  type OperationStore,
-} from './operation-store.js';
+import type { Actor, OperationIntent, OperationKind } from './contracts.js';
+import { deriveAccountKey, getOperationStore, type OperationStore } from './operation-store.js';
 
 export class TicketCoordinatorSession {
   readonly accountKey: string;
@@ -67,7 +59,9 @@ export class TicketCoordinatorSession {
     return this.armed;
   }
 
-  async prepareAndAcquire(maxWaitMs = 15000): Promise<{ alreadyVerified: boolean; isRecovery: boolean }> {
+  async prepareAndAcquire(
+    maxWaitMs = 15000,
+  ): Promise<{ alreadyVerified: boolean; isRecovery: boolean }> {
     // 1. Transactionally register/validate operation intent
     this.operation = await this.store.prepareOperation({
       accountKey: this.accountKey,

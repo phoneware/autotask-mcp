@@ -209,8 +209,7 @@ export async function recordTicketEvidenceHandler(args: {
       for (const note of pageResult.items) {
         const noteDesc = typeof note.description === 'string' ? note.description : '';
         const noteTitle = typeof note.title === 'string' ? note.title : '';
-        const match =
-          noteDesc.match(/\[op:([^\s,\]]+)\]/) || noteTitle.match(/\[op:([^\s,\]]+)\]/);
+        const match = noteDesc.match(/\[op:([^\s,\]]+)\]/) || noteTitle.match(/\[op:([^\s,\]]+)\]/);
         if (match && match[1] === opId) {
           matchingNotes.push(note);
         }
@@ -293,7 +292,9 @@ export async function recordTicketEvidenceHandler(args: {
     );
     const verifiedNote = unwrapRecord<Record<string, unknown>>(verifyRes);
     if (!verifiedNote || Object.keys(verifiedNote).length === 0) {
-      throw new Error(`Verification failed: created note ${createdId} not found on ticket ${ticketId}`);
+      throw new Error(
+        `Verification failed: created note ${createdId} not found on ticket ${ticketId}`,
+      );
     }
 
     if (
@@ -608,7 +609,8 @@ export const ticketWriteTools: ToolDefinition[] = [
         description: { type: 'string', description: 'Evidence note content (1..32000 characters)' },
         operationId: {
           type: 'string',
-          description: 'Stable operation identifier for idempotent retries and dispatch coordination',
+          description:
+            'Stable operation identifier for idempotent retries and dispatch coordination',
         },
         noteType: {
           type: 'string',
@@ -621,7 +623,10 @@ export const ticketWriteTools: ToolDefinition[] = [
       },
       required: ['ticketID', 'title', 'description', 'operationId'],
     },
-    handler: (args) => recordTicketEvidenceHandler(args as unknown as Parameters<typeof recordTicketEvidenceHandler>[0]),
+    handler: (args) =>
+      recordTicketEvidenceHandler(
+        args as unknown as Parameters<typeof recordTicketEvidenceHandler>[0],
+      ),
   },
   {
     name: 'set-ticket-checklist-item',
@@ -655,8 +660,7 @@ export const ticketWriteTools: ToolDefinition[] = [
         },
         evidenceAttachmentID: {
           type: 'string',
-          description:
-            'Optional Autotask ticket attachment ID containing the document evidence',
+          description: 'Optional Autotask ticket attachment ID containing the document evidence',
         },
       },
       required: ['ticketID', 'checklistItemID', 'completed'],

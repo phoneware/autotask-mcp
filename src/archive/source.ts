@@ -65,7 +65,10 @@ export async function fetchPrivatePdfAttachment(params: {
   }
 
   if (params.expectedCompanyId) {
-    const safeExpectedCompanyId = assertSafeNumericId(params.expectedCompanyId, 'expectedCompanyId');
+    const safeExpectedCompanyId = assertSafeNumericId(
+      params.expectedCompanyId,
+      'expectedCompanyId',
+    );
     if (actualCompanyId !== safeExpectedCompanyId) {
       throw new Error(
         `Company mismatch: ticket ${safeTicketId} belongs to companyID ${actualCompanyId}, not expected ${safeExpectedCompanyId}; archival refused`,
@@ -113,7 +116,9 @@ export async function fetchPrivatePdfAttachment(params: {
   const rawData = typeof att.data === 'string' ? att.data : '';
   const base64Data = rawData.replace(/^data:[^;]+;base64,/, '').trim();
   if (!base64Data) {
-    throw new Error(`Attachment ${safeAttachmentId} on ticket ${safeTicketId} contains no binary data`);
+    throw new Error(
+      `Attachment ${safeAttachmentId} on ticket ${safeTicketId} contains no binary data`,
+    );
   }
 
   // Bounded encoded check before decoding buffer
@@ -148,7 +153,9 @@ export async function fetchPrivatePdfAttachment(params: {
   }
   // 6. Magic bytes check: %PDF- (0x25 0x50 0x44 0x46 0x2D)
   if (buffer.length < 5 || buffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
-    throw new Error(`Integrity check failed: attachment content does not have valid PDF magic bytes (%PDF-)`);
+    throw new Error(
+      `Integrity check failed: attachment content does not have valid PDF magic bytes (%PDF-)`,
+    );
   }
 
   // 7. SHA-256 verification

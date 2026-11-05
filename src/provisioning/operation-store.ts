@@ -1,11 +1,6 @@
 import crypto from 'node:crypto';
 import { Firestore } from '@google-cloud/firestore';
-import type {
-  Actor,
-  OperationIntent,
-  OperationKind,
-  TicketCoordinator,
-} from './contracts.js';
+import type { Actor, OperationIntent, OperationKind, TicketCoordinator } from './contracts.js';
 
 export class StoreUnavailableError extends Error {
   constructor(message: string) {
@@ -228,7 +223,12 @@ export class MemoryOperationStore implements OperationStore {
     const now = Date.now();
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coord = this.coordinators.get(coordKey);
-    if (!coord || !coord.lease || coord.lease.attemptId !== attemptId || coord.lease.expiresAt <= now) {
+    if (
+      !coord ||
+      !coord.lease ||
+      coord.lease.attemptId !== attemptId ||
+      coord.lease.expiresAt <= now
+    ) {
       return { armed: false, expiresAt: 0 };
     }
 
@@ -324,7 +324,10 @@ export class MemoryOperationStore implements OperationStore {
     }
   }
 
-  async inspectCoordinator(accountKey: string, ticketId: string): Promise<TicketCoordinator | null> {
+  async inspectCoordinator(
+    accountKey: string,
+    ticketId: string,
+  ): Promise<TicketCoordinator | null> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const coord = this.coordinators.get(coordKey);
     return coord ? JSON.parse(JSON.stringify(coord)) : null;
@@ -534,7 +537,11 @@ export class FirestoreOperationStore implements OperationStore {
     await this.firestore.runTransaction(async (txn) => {
       const coordSnap = await txn.get(coordRef);
       const data = coordSnap.data() as TicketCoordinator | undefined;
-      if (coordSnap.exists && data?.activeDispatch && data.activeDispatch.operationId === operationId) {
+      if (
+        coordSnap.exists &&
+        data?.activeDispatch &&
+        data.activeDispatch.operationId === operationId
+      ) {
         txn.update(coordRef, { activeDispatch: null });
       }
 
@@ -603,7 +610,10 @@ export class FirestoreOperationStore implements OperationStore {
     });
   }
 
-  async inspectCoordinator(accountKey: string, ticketId: string): Promise<TicketCoordinator | null> {
+  async inspectCoordinator(
+    accountKey: string,
+    ticketId: string,
+  ): Promise<TicketCoordinator | null> {
     const coordKey = coordinatorDocId(accountKey, ticketId);
     const snap = await this.firestore.collection(COORDINATORS_COLLECTION).doc(coordKey).get();
     if (!snap.exists) return null;

@@ -8,14 +8,8 @@ import { attachmentTools } from '../src/tools/attachments.js';
 import { DESTRUCTIVE_TOOLS } from '../src/security.js';
 import { withCaller } from '../src/auth/context.js';
 import { resetApi } from '../src/autotask-api.js';
-import {
-  setOperationStore,
-  MemoryOperationStore,
-} from '../src/provisioning/operation-store.js';
-import {
-  setBindingsStore,
-  MemoryBindingsStore,
-} from '../src/archive/bindings.js';
+import { setOperationStore, MemoryOperationStore } from '../src/provisioning/operation-store.js';
+import { setBindingsStore, MemoryBindingsStore } from '../src/archive/bindings.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
@@ -39,7 +33,9 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
   const checklistTool = ticketWriteTools.find((t) => t.name === 'set-ticket-checklist-item')!;
   const recordEvidenceTool = ticketWriteTools.find((t) => t.name === 'record-ticket-evidence')!;
   const getAttachmentTool = attachmentTools.find((t) => t.name === 'get-ticket-attachment')!;
-  const archiveAttachmentTool = attachmentTools.find((t) => t.name === 'archive-ticket-attachment')!;
+  const archiveAttachmentTool = attachmentTools.find(
+    (t) => t.name === 'archive-ticket-attachment',
+  )!;
 
   const testCaller = {
     email: 'tech@phoneware.us',
@@ -107,7 +103,8 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
     if (savedEnv.driveApi !== undefined) process.env.DRIVE_API_BASE_URL = savedEnv.driveApi;
     else delete process.env.DRIVE_API_BASE_URL;
 
-    if (savedEnv.driveUpload !== undefined) process.env.DRIVE_UPLOAD_BASE_URL = savedEnv.driveUpload;
+    if (savedEnv.driveUpload !== undefined)
+      process.env.DRIVE_UPLOAD_BASE_URL = savedEnv.driveUpload;
     else delete process.env.DRIVE_UPLOAD_BASE_URL;
   });
 
@@ -284,7 +281,12 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
       autotaskMirror.seedTicket({ id: 9999, title: 'Other Customer Ticket' });
 
-      autotaskMirror.seedNote({ id: 702, ticketID: 1001, title: 'AP adoption confirmed', description: 'Evidence on the valid parent ticket.' } as never);
+      autotaskMirror.seedNote({
+        id: 702,
+        ticketID: 1001,
+        title: 'AP adoption confirmed',
+        description: 'Evidence on the valid parent ticket.',
+      } as never);
       autotaskMirror.seedChecklistItem({
         id: 501,
         ticketID: 9999, // Belongs to ticket 9999

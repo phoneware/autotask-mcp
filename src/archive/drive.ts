@@ -79,7 +79,9 @@ export class DriveArchiveProvider {
     const folderRes = await fetch(folderUrl, { method: 'GET', headers: readHeaders });
     if (!folderRes.ok) {
       const errText = truncateError(await folderRes.text());
-      throw new Error(`Drive destination folder verification failed (${folderRes.status}): ${errText}`);
+      throw new Error(
+        `Drive destination folder verification failed (${folderRes.status}): ${errText}`,
+      );
     }
 
     const folderMeta = (await folderRes.json()) as {
@@ -285,11 +287,7 @@ export class DriveArchiveProvider {
     }
 
     // Exact Shared Drive verification
-    if (
-      params.binding.driveId &&
-      readMeta.driveId &&
-      readMeta.driveId !== params.binding.driveId
-    ) {
+    if (params.binding.driveId && readMeta.driveId && readMeta.driveId !== params.binding.driveId) {
       throw new Error(
         `Drive verification failed: uploaded file driveId "${readMeta.driveId}" does not match binding "${params.binding.driveId}"`,
       );
@@ -318,7 +316,9 @@ export class DriveArchiveProvider {
       )}?alt=media&supportsAllDrives=true`;
       const mediaRes = await fetch(mediaUrl, { headers: readHeaders });
       if (!mediaRes.ok) {
-        throw new Error(`Drive media fetch failed during checksum verification (${mediaRes.status})`);
+        throw new Error(
+          `Drive media fetch failed during checksum verification (${mediaRes.status})`,
+        );
       }
       const mediaBuf = Buffer.from(await mediaRes.arrayBuffer());
       if (mediaBuf.byteLength > 5_000_000) {

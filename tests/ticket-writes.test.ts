@@ -10,10 +10,7 @@ import { DESTRUCTIVE_TOOLS, CONFIRM_REQUIRED_TOOLS, confirmTokenFor } from '../s
 import { withCaller } from '../src/auth/context.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import {
-  setOperationStore,
-  MemoryOperationStore,
-} from '../src/provisioning/operation-store.js';
+import { setOperationStore, MemoryOperationStore } from '../src/provisioning/operation-store.js';
 const { getById, update, request, entityFields, create, query, singleDispatchMutation } =
   vi.hoisted(() => ({
     getById: vi.fn(),
@@ -397,7 +394,9 @@ describe('set-ticket-checklist-item tool', () => {
     });
 
     update.mockResolvedValue({ id: 501 });
-    getById.mockResolvedValue({ item: { id: 900, ticketID: 1001, title: "Verification evidence" } });
+    getById.mockResolvedValue({
+      item: { id: 900, ticketID: 1001, title: 'Verification evidence' },
+    });
 
     const res = await setChecklistTool.handler({
       ticketID: '1001',
@@ -427,7 +426,9 @@ describe('set-ticket-checklist-item tool', () => {
   });
 
   it('no-ops when item is already in requested state', async () => {
-    getById.mockResolvedValue({ item: { id: 900, ticketID: 1001, title: "Verification evidence" } });
+    getById.mockResolvedValue({
+      item: { id: 900, ticketID: 1001, title: 'Verification evidence' },
+    });
     request.mockResolvedValue({
       item: {
         id: 502,
@@ -465,7 +466,9 @@ describe('set-ticket-checklist-item tool', () => {
       },
     });
 
-    getById.mockResolvedValue({ item: { id: 900, ticketID: 1001, title: "Verification evidence" } });
+    getById.mockResolvedValue({
+      item: { id: 900, ticketID: 1001, title: 'Verification evidence' },
+    });
     await expect(
       setChecklistTool.handler({
         ticketID: '1001', // Request specifies ticket 1001
@@ -572,7 +575,9 @@ describe('set-ticket-checklist-item tool', () => {
         text: 'Completely different check text.',
         operationId: 'op-verify-1',
       }),
-    ).rejects.toThrow(/Conflict: operationId "op-verify-1" was previously recorded with different text/);
+    ).rejects.toThrow(
+      /Conflict: operationId "op-verify-1" was previously recorded with different text/,
+    );
     expect(update).not.toHaveBeenCalled();
   });
 
@@ -673,7 +678,9 @@ describe('set-ticket-checklist-item tool', () => {
     });
 
     update.mockResolvedValue({ id: 501 });
-    getById.mockResolvedValue({ item: { id: 900, ticketID: 1001, title: "Verification evidence" } });
+    getById.mockResolvedValue({
+      item: { id: 900, ticketID: 1001, title: 'Verification evidence' },
+    });
 
     const res = await setChecklistTool.handler({
       ticketID: '1001',
