@@ -285,8 +285,9 @@ describe('resolveResourceForEmail', () => {
 describe('buildServer capability filtering', () => {
   // Registration, not just refusal: a tool a person may not use is never built,
   // so the model is not offered a capability it would only be denied.
-  const FULL = 49;
-  const MUTATING = 15;
+  // Hand-maintained total: 51 tools registered, of which every TOOL_CAPABILITY key is mutating.
+  const FULL = 51;
+  const MUTATING = TOOL_CAPABILITY.size;
 
   it('builds everything when no capabilities are given (stdio)', () => {
     expect(buildServer().registeredCount).toBe(FULL);

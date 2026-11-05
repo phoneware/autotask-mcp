@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '../types.js';
 import { api } from '../autotask-api.js';
+import { recordTicketEvidenceHandler } from './ticket-writes.js';
 import {
   jsonResponse,
   searchResponse,
@@ -208,6 +209,11 @@ export const ticketTools: ToolDefinition[] = [
         ticketID: { type: 'string', description: 'Ticket id to attach the note to' },
         title: { type: 'string', description: 'Note title' },
         description: { type: 'string', description: 'Note body text' },
+        operationId: {
+          type: 'string',
+          description:
+            'Optional stable operation identifier for idempotent retries across clock changes',
+        },
         noteType: { type: 'string', description: 'Numeric note type picklist code' },
         publish: { type: 'string', description: 'Numeric publish/visibility picklist code' },
       },
@@ -215,16 +221,29 @@ export const ticketTools: ToolDefinition[] = [
     },
     handler: async (args) => {
       const ticketID = intArg('ticketID', args.ticketID);
+      const opId = (args.operationId || '').trim();
+      if (opId) {
+        return recordTicketEvidenceHandler({
+          ticketID: String(ticketID),
+          title: args.title || 'Note',
+          description: args.description,
+          operationId: opId,
+          noteType: args.noteType,
+          publish: args.publish,
+        });
+      }
+      const finalDesc = opId ? `${args.description}\n[op:${opId}]` : args.description;
       const body: Record<string, unknown> = {
         ticketID,
-        description: args.description,
+        description: finalDesc,
       };
       if (args.title) body.title = args.title;
       const noteType = optionalIntArg('noteType', args.noteType);
       if (noteType !== undefined) body.noteType = noteType;
       const publish = optionalIntArg('publish', args.publish);
       if (publish !== undefined) body.publish = publish;
-      return jsonResponse(await api.create(`Tickets/${ticketID}/Notes`, body));
+      const created = await api.create(`Tickets/${ticketID}/Notes`, body);
+      return jsonResponse(created);
     },
   },
   {

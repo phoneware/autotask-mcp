@@ -1,12 +1,46 @@
 import { ToolResponse } from '../types.js';
 
+/**
+ * Sanitize response data to prevent large binary attachment blobs from leaking
+ * into generic MCP tool output and model transcripts.
+ */
+export function sanitizeResponseData(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) {
+    return value.map(sanitizeResponseData);
+  }
+  if (typeof value === 'object') {
+    const copy: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === 'data' && typeof v === 'string' && v.length > 100) {
+        const obj = value as Record<string, unknown>;
+        if (
+          'contentType' in obj ||
+          'attachmentId' in obj ||
+          'ticketID' in obj ||
+          'attachCode' in obj ||
+          'fileSize' in obj
+        ) {
+          copy[k] =
+            '[binary data omitted from generic output; use get-ticket-attachment for images or archive-ticket-attachment for archival]';
+          continue;
+        }
+      }
+      copy[k] = sanitizeResponseData(v);
+    }
+    return copy;
+  }
+  return value;
+}
+
 /** Wrap any value as a pretty-printed JSON text tool response with structuredContent. */
 export function jsonResponse(data: unknown, isError = false): ToolResponse {
-  const text = JSON.stringify(data, null, 2);
+  const sanitized = sanitizeResponseData(data);
+  const text = JSON.stringify(sanitized, null, 2);
   const structuredContent =
-    data !== null && typeof data === 'object' && !Array.isArray(data)
-      ? (data as Record<string, unknown>)
-      : { result: data };
+    sanitized !== null && typeof sanitized === 'object' && !Array.isArray(sanitized)
+      ? (sanitized as Record<string, unknown>)
+      : { result: sanitized };
   return {
     content: [{ type: 'text', text }],
     structuredContent,

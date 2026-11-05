@@ -116,7 +116,7 @@ describe('shared helpers', () => {
 describe('security: every mutating tool is confirm-gated', () => {
   it('all create-/update-/delete- tools require confirm and are destructive', () => {
     const mutating = allTools.filter((t) =>
-      /^(create|update|delete|cancel|append|set)-/.test(t.name),
+      /^(create|update|delete|cancel|append|set|record|archive)-/.test(t.name),
     );
     // Sanity: we actually have mutating tools to check.
     expect(mutating.length).toBeGreaterThan(0);
@@ -133,7 +133,7 @@ describe('security: every mutating tool is confirm-gated', () => {
     for (const t of allTools) {
       if (DESTRUCTIVE_TOOLS.has(t.name)) {
         expect(
-          /^(create|update|delete|cancel|append|set)-/.test(t.name),
+          /^(create|update|delete|cancel|append|set|record|archive)-/.test(t.name),
           `${t.name} flagged destructive`,
         ).toBe(true);
       }

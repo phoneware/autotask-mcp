@@ -118,6 +118,7 @@ describe('get-ticket-attachment tool', () => {
     const metadata = JSON.parse(res.content[0].text);
     expect(metadata.attached_as_image).toBe(false);
     expect(metadata.contentType).toBe('application/pdf');
+    expect(metadata.sha256).toBeDefined();
     expect(metadata.reason).toMatch(/is not an image; inline image content omitted/);
   });
 
@@ -186,6 +187,42 @@ describe('get-ticket-attachment tool', () => {
     ).rejects.toThrow(/numeric id/);
   });
 
+  it('refuses when attachment belongs to a different ticket (parent mismatch)', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 706,
+        ticketID: 9999, // Belongs to ticket 9999
+        title: 'secret-scan.png',
+        contentType: 'image/png',
+      },
+    });
+
+    await expect(
+      getAttachmentTool.handler({
+        ticketID: '1001', // Request specifies ticket 1001
+        attachmentID: '706',
+      }),
+    ).rejects.toThrow(/Parent mismatch: attachment 706 belongs to ticketID 9999, not 1001/);
+  });
+
+  it('refuses when attachment has absent or null ticketID (fails closed)', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 707,
+        // ticketID is undefined
+        title: 'orphaned.png',
+        contentType: 'image/png',
+      },
+    });
+
+    await expect(
+      getAttachmentTool.handler({
+        ticketID: '1001',
+        attachmentID: '707',
+      }),
+    ).rejects.toThrow(/Parent mismatch: attachment 707 belongs to ticketID unknown, not 1001/);
+  });
+
   it('is available in read-only mode and for Service Desk callers over real MCP server', async () => {
     process.env.AUTOTASK_READ_ONLY = 'true';
     const ro = buildServer();
@@ -200,6 +237,8 @@ describe('get-ticket-attachment tool', () => {
     expect(roTools).toContain('get-ticket-attachment');
     expect(roTools).not.toContain('append-ticket-resolution');
     expect(roTools).not.toContain('set-ticket-checklist-item');
+    expect(roTools).not.toContain('archive-ticket-attachment');
+    expect(roTools).not.toContain('record-ticket-evidence');
     await roClient.close();
 
     // Service Desk caller (read + create capabilities)
@@ -215,6 +254,6 @@ describe('get-ticket-attachment tool', () => {
     expect(sdTools).toContain('get-ticket-attachment');
     expect(sdTools).not.toContain('append-ticket-resolution');
     expect(sdTools).not.toContain('set-ticket-checklist-item');
-    await sdClient.close();
+    expect(sdTools).toContain('create-ticket');
   });
 });

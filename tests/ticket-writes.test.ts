@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import crypto from 'node:crypto';
 import {
   ticketWriteTools,
@@ -10,13 +10,35 @@ import { DESTRUCTIVE_TOOLS, CONFIRM_REQUIRED_TOOLS, confirmTokenFor } from '../s
 import { withCaller } from '../src/auth/context.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-
-const { getById, update, request, entityFields } = vi.hoisted(() => ({
-  getById: vi.fn(),
-  update: vi.fn(),
-  request: vi.fn(),
-  entityFields: vi.fn(),
-}));
+import { setOperationStore, MemoryOperationStore } from '../src/provisioning/operation-store.js';
+const { getById, update, request, entityFields, create, query, singleDispatchMutation } =
+  vi.hoisted(() => ({
+    getById: vi.fn(),
+    update: vi.fn(),
+    request: vi.fn(),
+    entityFields: vi.fn(),
+    create: vi.fn(),
+    query: vi.fn(),
+    singleDispatchMutation: vi.fn(
+      async (
+        method: string,
+        path: string,
+        body: unknown,
+        opts?: { armBeforeFetch?: () => Promise<void> },
+      ) => {
+        if (opts?.armBeforeFetch) {
+          await opts.armBeforeFetch();
+        }
+        if (method === 'PATCH' && path === 'V1.0/Tickets') {
+          return update('Tickets', body);
+        }
+        if (method === 'POST') {
+          return create(path.replace(/^V1\.0\//, ''), body);
+        }
+        return { success: true };
+      },
+    ),
+  }));
 
 vi.mock('../src/autotask-api.js', () => ({
   api: {
@@ -24,6 +46,9 @@ vi.mock('../src/autotask-api.js', () => ({
     update,
     request,
     entityFields,
+    create,
+    query,
+    singleDispatchMutation,
   },
 }));
 
@@ -52,6 +77,11 @@ describe('append-ticket-resolution tool', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    setOperationStore(new MemoryOperationStore());
+  });
+
+  afterEach(() => {
+    setOperationStore(null);
   });
 
   it('is registered as destructive and confirm-required with correct token', () => {
@@ -322,6 +352,11 @@ describe('set-ticket-checklist-item tool', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    setOperationStore(new MemoryOperationStore());
+  });
+
+  afterEach(() => {
+    setOperationStore(null);
   });
 
   it('is registered as destructive and confirm-required with correct token', () => {
@@ -359,11 +394,15 @@ describe('set-ticket-checklist-item tool', () => {
     });
 
     update.mockResolvedValue({ id: 501 });
+    getById.mockResolvedValue({
+      item: { id: 900, ticketID: 1001, title: 'Verification evidence' },
+    });
 
     const res = await setChecklistTool.handler({
       ticketID: '1001',
       checklistItemID: '501',
       completed: 'true',
+      evidenceNoteID: '900',
     });
 
     expect(update).toHaveBeenCalledTimes(1);
@@ -387,6 +426,9 @@ describe('set-ticket-checklist-item tool', () => {
   });
 
   it('no-ops when item is already in requested state', async () => {
+    getById.mockResolvedValue({
+      item: { id: 900, ticketID: 1001, title: 'Verification evidence' },
+    });
     request.mockResolvedValue({
       item: {
         id: 502,
@@ -403,6 +445,7 @@ describe('set-ticket-checklist-item tool', () => {
       ticketID: '1001',
       checklistItemID: '502',
       completed: 'true',
+      evidenceNoteID: '900',
     });
 
     expect(update).not.toHaveBeenCalled();
@@ -423,11 +466,15 @@ describe('set-ticket-checklist-item tool', () => {
       },
     });
 
+    getById.mockResolvedValue({
+      item: { id: 900, ticketID: 1001, title: 'Verification evidence' },
+    });
     await expect(
       setChecklistTool.handler({
         ticketID: '1001', // Request specifies ticket 1001
         checklistItemID: '503',
         completed: 'true',
+        evidenceNoteID: '900',
       }),
     ).rejects.toThrow(/Parent mismatch: checklist item 503 belongs to ticketID 9999, not 1001/);
 
@@ -443,18 +490,312 @@ describe('set-ticket-checklist-item tool', () => {
       }),
     ).rejects.toThrow(/completed must be "true" or "false"/);
   });
+
+  it('reconciles prior evidence on clock-advanced retry with operationId without duplicate write', async () => {
+    const existingResolution =
+      'Initial provisioning completed.\nInstalled Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us, op:esim-slot-a]';
+
+    getById.mockResolvedValue({
+      item: {
+        id: 12345,
+        resolution: existingResolution,
+      },
+    });
+
+    const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
+
+    // Retry 10 minutes later (clock has advanced)
+    const res = await appendTool.handler({
+      ticketID: '12345',
+      text: 'Installed Frontier eSIM into slot A.',
+      operationId: 'esim-slot-a',
+    });
+
+    expect(update).not.toHaveBeenCalled();
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.written).toBe(false);
+    expect(parsed.already_present).toBe(true);
+    expect(parsed.reconciled_from_prior_evidence).toBe(true);
+    expect(parsed.verified).toBe(true);
+    expect(parsed.operationId).toBe('esim-slot-a');
+    expect(parsed.appended_line).toBe(
+      'Installed Frontier eSIM into slot A. [2026-10-31 14:05 UTC, tech@phoneware.us, op:esim-slot-a]',
+    );
+  });
+
+  it('does not deduplicate distinct operations based merely on identical text when distinct operation IDs are supplied', async () => {
+    const existingResolution =
+      'Initial provisioning completed.\nRebooted router. [2026-10-31 14:05 UTC, tech@phoneware.us, op:phase-1-reboot]';
+
+    let readCount = 0;
+    let written = existingResolution;
+    getById.mockImplementation(async () => {
+      readCount++;
+      return { item: { id: 12345, resolution: readCount <= 2 ? existingResolution : written } };
+    });
+    update.mockImplementation(async (_t: string, body: { resolution: string }) => {
+      written = body.resolution;
+      return { id: 12345 };
+    });
+    entityFields.mockResolvedValue({ fields: [{ name: 'resolution', length: 5000 }] });
+
+    const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
+
+    const res = await appendTool.handler({
+      ticketID: '12345',
+      text: 'Rebooted router.',
+      operationId: 'phase-2-reboot',
+    });
+
+    // Because operation IDs differ (phase-1-reboot vs phase-2-reboot), it is NOT deduplicated!
+    expect(update).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.written).toBe(true);
+    expect(parsed.already_present).toBe(false);
+    expect(parsed.operationId).toBe('phase-2-reboot');
+  });
+
+  it('guards operationId against text mismatch', async () => {
+    const existingResolution =
+      'Initial provisioning completed.\nOriginal check. [2026-10-31 14:05 UTC, tech@phoneware.us, op:op-verify-1]';
+
+    getById.mockResolvedValue({
+      item: {
+        id: 12345,
+        resolution: existingResolution,
+      },
+    });
+
+    const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
+
+    // Attempting to reuse op-verify-1 with different text must throw
+    await expect(
+      appendTool.handler({
+        ticketID: '12345',
+        text: 'Completely different check text.',
+        operationId: 'op-verify-1',
+      }),
+    ).rejects.toThrow(
+      /Conflict: operationId "op-verify-1" was previously recorded with different text/,
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses when requireEvidence is true but no evidence is supplied', async () => {
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+        requireEvidence: 'true',
+      }),
+    ).rejects.toThrow(/checklist item completion requires observed evidence/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses when evidence note belongs to a different ticket (parent mismatch)', async () => {
+    getById.mockResolvedValue({
+      item: {
+        id: 888,
+        ticketID: 9999, // Wrong parent
+        title: 'Evidence on another ticket',
+        description: 'Verified',
+      },
+    });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+        evidenceNoteID: '888',
+      }),
+    ).rejects.toThrow(/Parent mismatch: evidence note 888 belongs to ticketID 9999, not 1001/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses when evidence attachment belongs to a different ticket (parent mismatch)', async () => {
+    request.mockResolvedValue({
+      item: {
+        id: 777,
+        ticketID: 9999, // Wrong parent
+        title: 'photo.jpg',
+      },
+    });
+
+    await expect(
+      setChecklistTool.handler({
+        ticketID: '1001',
+        checklistItemID: '501',
+        completed: 'true',
+        evidenceAttachmentID: '777',
+      }),
+    ).rejects.toThrow(
+      /Parent mismatch: evidence attachment 777 belongs to ticketID 9999, not 1001/,
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('successfully completes checklist item when valid evidence note is verified', async () => {
+    getById.mockImplementation(async (_entity: string, id: string | number) => {
+      if (String(id) === '888') {
+        return {
+          item: {
+            id: 888,
+            ticketID: 1001,
+            title: 'Verified mesh backhaul',
+            description: 'Link confirmed active',
+          },
+        };
+      }
+      throw new Error(`Unexpected getById for ${id}`);
+    });
+
+    let readCount = 0;
+    request.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path === 'V1.0/Tickets/1001/ChecklistItems/501') {
+        readCount++;
+        if (readCount === 1) {
+          return {
+            item: {
+              id: 501,
+              ticketID: 1001,
+              isCompleted: false,
+              itemName: 'Configure mesh backhaul',
+            },
+          };
+        }
+        return {
+          item: {
+            id: 501,
+            ticketID: 1001,
+            isCompleted: true,
+            itemName: 'Configure mesh backhaul',
+          },
+        };
+      }
+      throw new Error(`Unexpected request ${method} ${path}`);
+    });
+
+    update.mockResolvedValue({ id: 501 });
+    getById.mockResolvedValue({
+      item: { id: 900, ticketID: 1001, title: 'Verification evidence' },
+    });
+
+    const res = await setChecklistTool.handler({
+      ticketID: '1001',
+      checklistItemID: '501',
+      completed: 'true',
+      evidenceNoteID: '900',
+      evidenceNoteID: '888',
+    });
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.updated).toBe(true);
+    expect(parsed.isCompleted).toBe(true);
+    expect(parsed.evidenceVerified).toBe(true);
+    expect(parsed.evidenceNoteID).toBe(888);
+  });
+});
+describe('record-ticket-evidence tool', () => {
+  const recordEvidenceTool = ticketWriteTools.find((t) => t.name === 'record-ticket-evidence')!;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    setOperationStore(new MemoryOperationStore());
+  });
+
+  afterEach(() => {
+    setOperationStore(null);
+  });
+
+  it('is registered as destructive and confirm-required with RECORD_TICKET_EVIDENCE', () => {
+    expect(DESTRUCTIVE_TOOLS.has('record-ticket-evidence')).toBe(true);
+    expect(CONFIRM_REQUIRED_TOOLS.has('record-ticket-evidence')).toBe(true);
+    expect(confirmTokenFor('record-ticket-evidence')).toBe('RECORD_TICKET_EVIDENCE');
+  });
+
+  it('creates an evidence note, handles { itemId } response, and verifies on readback', async () => {
+    getById.mockResolvedValue({ item: { id: 1001, title: 'Test Ticket' } });
+    query.mockResolvedValue({ items: [] });
+    create.mockResolvedValue({ itemId: 991 });
+    request.mockResolvedValue({
+      item: {
+        id: 991,
+        ticketID: 1001,
+        title: 'eSIM profile download evidence',
+        description: 'Profile ICCID 8901260000000000000 installed.\n[op:esim-claim-1001]',
+      },
+    });
+
+    const res = await recordEvidenceTool.handler({
+      ticketID: '1001',
+      title: 'eSIM profile download evidence',
+      description: 'Profile ICCID 8901260000000000000 installed.',
+      operationId: 'esim-claim-1001',
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith('GET', 'V1.0/Tickets/1001/Notes/991');
+
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.created).toBe(true);
+    expect(parsed.noteID).toBe(991);
+    expect(parsed.verified).toBe(true);
+  });
+
+  it('reconciles prior evidence on retry with same operationId (idempotent)', async () => {
+    getById.mockResolvedValue({ item: { id: 1001, title: 'Test Ticket' } });
+    query.mockResolvedValue({
+      items: [
+        {
+          id: 991,
+          ticketID: 1001,
+          title: 'eSIM profile download evidence',
+          description: 'Profile ICCID 8901260000000000000 installed.\n[op:esim-claim-1001]',
+        },
+      ],
+    });
+
+    const res = await recordEvidenceTool.handler({
+      ticketID: '1001',
+      title: 'eSIM profile download evidence',
+      description: 'Profile ICCID 8901260000000000000 installed.',
+      operationId: 'esim-claim-1001',
+    });
+
+    expect(create).not.toHaveBeenCalled();
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.created).toBe(false);
+    expect(parsed.already_present).toBe(true);
+    expect(parsed.reconciled_from_prior_evidence).toBe(true);
+    expect(parsed.noteID).toBe(991);
+    expect(parsed.verified).toBe(true);
+  });
+
+  it('refuses secret credential patterns in evidence note title or description', async () => {
+    await expect(
+      recordEvidenceTool.handler({
+        ticketID: '1001',
+        title: 'Wi-Fi password: secret123',
+        description: 'Clean description',
+        operationId: 'secret-test-1',
+      }),
+    ).rejects.toThrow(/sensitive credential pattern/);
+    expect(create).not.toHaveBeenCalled();
+  });
 });
 
 describe('server integration: permissions and readonly mode', () => {
-  it('unregisters both write tools in read-only mode', () => {
+  it('unregisters write tools in read-only mode', () => {
     process.env.AUTOTASK_READ_ONLY = 'true';
     const server = buildServer();
     process.env.AUTOTASK_READ_ONLY = 'false';
 
     // In read-only mode, skipped must count them and registered tools omit them
-    expect(server.skipped).toBe(15);
+    expect(server.skipped).toBe(17);
   });
-
   it('withholds write tools from a Service Desk user session (read + create only)', async () => {
     const serviceDeskCapabilities = ['read', 'create'] as const;
     const { server } = buildServer(serviceDeskCapabilities);
