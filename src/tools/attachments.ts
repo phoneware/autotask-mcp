@@ -291,7 +291,7 @@ export const attachmentTools: ToolDefinition[] = [
             await session.markVerified(receipt as unknown as Record<string, unknown>);
             return {
               content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
-              structuredContent: receipt,
+              structuredContent: { ...receipt },
             };
           } catch {
             throw new Error(
@@ -332,7 +332,7 @@ export const attachmentTools: ToolDefinition[] = [
 
         return {
           content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
-          structuredContent: receipt,
+          structuredContent: { ...receipt },
         };
       } catch (err: unknown) {
         if (session.isArmed()) {

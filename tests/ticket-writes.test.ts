@@ -355,6 +355,11 @@ describe('set-ticket-checklist-item tool', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    setOperationStore(new MemoryOperationStore());
+  });
+
+  afterEach(() => {
+    setOperationStore(null);
   });
 
   it('is registered as destructive and confirm-required with correct token', () => {
@@ -392,11 +397,13 @@ describe('set-ticket-checklist-item tool', () => {
     });
 
     update.mockResolvedValue({ id: 501 });
+    getById.mockResolvedValue({ item: { id: 900, ticketID: 1001, title: "Verification evidence" } });
 
     const res = await setChecklistTool.handler({
       ticketID: '1001',
       checklistItemID: '501',
       completed: 'true',
+      evidenceNoteID: '900',
     });
 
     expect(update).toHaveBeenCalledTimes(1);
@@ -420,6 +427,7 @@ describe('set-ticket-checklist-item tool', () => {
   });
 
   it('no-ops when item is already in requested state', async () => {
+    getById.mockResolvedValue({ item: { id: 900, ticketID: 1001, title: "Verification evidence" } });
     request.mockResolvedValue({
       item: {
         id: 502,
@@ -436,6 +444,7 @@ describe('set-ticket-checklist-item tool', () => {
       ticketID: '1001',
       checklistItemID: '502',
       completed: 'true',
+      evidenceNoteID: '900',
     });
 
     expect(update).not.toHaveBeenCalled();
@@ -456,11 +465,13 @@ describe('set-ticket-checklist-item tool', () => {
       },
     });
 
+    getById.mockResolvedValue({ item: { id: 900, ticketID: 1001, title: "Verification evidence" } });
     await expect(
       setChecklistTool.handler({
         ticketID: '1001', // Request specifies ticket 1001
         checklistItemID: '503',
         completed: 'true',
+        evidenceNoteID: '900',
       }),
     ).rejects.toThrow(/Parent mismatch: checklist item 503 belongs to ticketID 9999, not 1001/);
 
@@ -514,19 +525,15 @@ describe('set-ticket-checklist-item tool', () => {
       'Initial provisioning completed.\nRebooted router. [2026-10-31 14:05 UTC, tech@phoneware.us, op:phase-1-reboot]';
 
     let readCount = 0;
+    let written = existingResolution;
     getById.mockImplementation(async () => {
       readCount++;
-      if (readCount === 1 || readCount === 2) {
-        return { item: { id: 12345, resolution: existingResolution } };
-      }
-      return {
-        item: {
-          id: 12345,
-          resolution: `${existingResolution}\nRebooted router. [2026-10-31 14:15 UTC, tech@phoneware.us, op:phase-2-reboot]`,
-        },
-      };
+      return { item: { id: 12345, resolution: readCount <= 2 ? existingResolution : written } };
     });
-    update.mockResolvedValue({ id: 12345 });
+    update.mockImplementation(async (_t: string, body: { resolution: string }) => {
+      written = body.resolution;
+      return { id: 12345 };
+    });
     entityFields.mockResolvedValue({ fields: [{ name: 'resolution', length: 5000 }] });
 
     const appendTool = ticketWriteTools.find((t) => t.name === 'append-ticket-resolution')!;
@@ -666,11 +673,13 @@ describe('set-ticket-checklist-item tool', () => {
     });
 
     update.mockResolvedValue({ id: 501 });
+    getById.mockResolvedValue({ item: { id: 900, ticketID: 1001, title: "Verification evidence" } });
 
     const res = await setChecklistTool.handler({
       ticketID: '1001',
       checklistItemID: '501',
       completed: 'true',
+      evidenceNoteID: '900',
       evidenceNoteID: '888',
     });
 

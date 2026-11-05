@@ -181,9 +181,12 @@ export async function recordTicketEvidenceHandler(args: {
   const { alreadyVerified } = await session.prepareAndAcquire();
   if (alreadyVerified) {
     const op = session.getOperation();
-    return jsonResponse(
-      op?.receipt ?? { ticketID: Number(ticketId), verified: true, operationId: opId },
-    );
+    return jsonResponse({
+      ...(op?.receipt ?? { ticketID: Number(ticketId), verified: true, operationId: opId }),
+      created: false,
+      already_present: true,
+      reconciled_from_prior_evidence: true,
+    });
   }
 
   try {
@@ -245,14 +248,13 @@ export async function recordTicketEvidenceHandler(args: {
         status: 'verified',
         created: false,
         already_present: true,
+        verified: true,
+        reconciled_from_prior_evidence: true,
         observedAt: new Date().toISOString(),
       };
       await session.markVerified(receipt);
       return jsonResponse(receipt);
     }
-
-    // Arm dispatch barrier
-    await session.armDispatch();
 
     const finalDescription = `${args.description}\n[op:${opId}]`;
 
@@ -317,6 +319,8 @@ export async function recordTicketEvidenceHandler(args: {
       status: 'verified',
       created: true,
       already_present: false,
+      verified: true,
+      reconciled_from_prior_evidence: false,
       observedAt: new Date().toISOString(),
     };
 
@@ -617,7 +621,7 @@ export const ticketWriteTools: ToolDefinition[] = [
       },
       required: ['ticketID', 'title', 'description', 'operationId'],
     },
-    handler: (args) => recordTicketEvidenceHandler(args),
+    handler: (args) => recordTicketEvidenceHandler(args as unknown as Parameters<typeof recordTicketEvidenceHandler>[0]),
   },
   {
     name: 'set-ticket-checklist-item',

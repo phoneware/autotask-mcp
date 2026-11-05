@@ -5,7 +5,6 @@ import { DriveMirror } from './test-support/drive-mirror.js';
 import { buildServer } from '../src/server.js';
 import { ticketWriteTools } from '../src/tools/ticket-writes.js';
 import { attachmentTools } from '../src/tools/attachments.js';
-import { ticketTools } from '../src/tools/tickets.js';
 import { DESTRUCTIVE_TOOLS } from '../src/security.js';
 import { withCaller } from '../src/auth/context.js';
 import { resetApi } from '../src/autotask-api.js';
@@ -41,7 +40,6 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
   const recordEvidenceTool = ticketWriteTools.find((t) => t.name === 'record-ticket-evidence')!;
   const getAttachmentTool = attachmentTools.find((t) => t.name === 'get-ticket-attachment')!;
   const archiveAttachmentTool = attachmentTools.find((t) => t.name === 'archive-ticket-attachment')!;
-  const createNoteTool = ticketTools.find((t) => t.name === 'create-ticket-note')!;
 
   const testCaller = {
     email: 'tech@phoneware.us',
@@ -286,6 +284,7 @@ describe('Provisioning Evidence & Transport Acceptance (Slice A1)', () => {
       autotaskMirror.seedTicket({ id: 1001, title: 'Hazelbrook Ticket' });
       autotaskMirror.seedTicket({ id: 9999, title: 'Other Customer Ticket' });
 
+      autotaskMirror.seedNote({ id: 702, ticketID: 1001, title: 'AP adoption confirmed', description: 'Evidence on the valid parent ticket.' } as never);
       autotaskMirror.seedChecklistItem({
         id: 501,
         ticketID: 9999, // Belongs to ticket 9999
