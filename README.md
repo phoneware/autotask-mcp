@@ -53,7 +53,7 @@ It is especially suited for:
   - Numeric arguments are validated: bad input is rejected, never sent to Autotask as `null`.
   - Secrets are redacted from all error output.
 - **Resilient transport**: honors `429` rate-limit `Retry-After`, retries idempotent calls on transient `5xx` with backoff.
-- **Two transports**: `stdio` (default, for desktop/CLI clients) and a multi-session, bearer-authenticated **HTTP** transport for remote/containerized use.
+- **Two transports**: `stdio` (default, for desktop/CLI clients) and a stateless, Google sign-in **HTTP** transport for remote/containerized use.
 - **Tenant-safe by default**: a budget governor caps concurrency at Autotask's per-endpoint thread limit and stops short of exhausting the hourly request budget, which is shared by every integration on the database.
 
 ## Requirements
@@ -154,28 +154,27 @@ docker compose up -d
 
 ## Configuration
 
-| Variable                            | Required | Description                                                                                                                                    |
-| ----------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AUTOTASK_USERNAME`                 | yes      | Autotask API user name                                                                                                                         |
-| `AUTOTASK_SECRET`                   | yes      | Autotask API secret                                                                                                                            |
-| `AUTOTASK_INTEGRATION_CODE`         | yes      | Integration code / API tracking identifier                                                                                                     |
-| `AUTOTASK_API_URL`                  | no       | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`)                                       |
-| `AUTOTASK_READ_ONLY`                | no       | `true` to disable all write tools                                                                                                              |
-| `AUTOTASK_CLOSED_STATUS_IDS`        | no       | Ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)                                                          |
-| `AUTOTASK_TRANSPORT`                | no       | `http` or `stdio`. Defaults to `stdio`, except on Cloud Run / Knative (`K_SERVICE` set) where it defaults to `http`                            |
-| `AUTOTASK_HTTP_HOST`                | no       | HTTP bind host (default `127.0.0.1`, or `0.0.0.0` when `K_SERVICE` is set)                                                                     |
-| `PORT`                              | no       | HTTP port (default `3000`)                                                                                                                     |
-| `AUTOTASK_HTTP_ALLOWED_HOSTS`       | no       | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset trusts the proxy                                                            |
-| `AUTOTASK_HTTP_ALLOWED_ORIGINS`     | no       | Comma-separated browser `Origin` allowlist. **Unset denies every browser origin**                                                              |
-| `AUTOTASK_RATE_LIMIT`               | no       | Requests per minute per client IP against `/mcp` (default `120`, `0` disables)                                                                 |
-| `AUTOTASK_MAX_SESSIONS`             | no       | Concurrent MCP sessions before `/mcp` returns 503 (default `100`)                                                                              |
-| `AUTOTASK_SESSION_TTL_MS`           | no       | Idle session lifetime (default `1800000`, 30 minutes)                                                                                          |
-| `AUTOTASK_MAX_BODY_BYTES`           | no       | Max request body size (default `4194304`, 4 MB)                                                                                                |
-| `AUTOTASK_THRESHOLD_STOP_PCT`       | no       | Refuse Autotask calls at this % of the tenant hourly budget (default `90`)                                                                     |
-| `AUTOTASK_THRESHOLD_WARN_PCT`       | no       | Warn at this % (default `75`, where Autotask starts adding latency)                                                                            |
-| `AUTOTASK_MAX_CONCURRENT`           | no       | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)                                                    |
-| `AUTOTASK_PERSISTENCE`              | no       | Where OAuth clients and tokens live: `firestore` or `memory`. Defaults to `firestore` on Cloud Run (`K_SERVICE` set), `memory` otherwise       |
-| `AUTOTASK_OAUTH_REDIRECT_ALLOWLIST` | no       | Comma-separated non-loopback redirect URIs a client may use. Loopback is always allowed. Defaults to `https://claude.ai/api/mcp/auth_callback` |
+| Variable                            | Required | Description                                                                                                                                                                |
+| ----------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTOTASK_USERNAME`                 | yes      | Autotask API user name                                                                                                                                                     |
+| `AUTOTASK_SECRET`                   | yes      | Autotask API secret. It also keys the sealing of OAuth sign-in state, so it must be at least 32 bytes when Google sign-in is configured                                    |
+| `AUTOTASK_INTEGRATION_CODE`         | yes      | Integration code / API tracking identifier                                                                                                                                 |
+| `AUTOTASK_API_URL`                  | no       | Pin the zone base URL and skip auto-detection (e.g. `https://webservices2.autotask.net/atservicesrest/`)                                                                   |
+| `AUTOTASK_READ_ONLY`                | no       | `true` to disable all write tools                                                                                                                                          |
+| `AUTOTASK_CLOSED_STATUS_IDS`        | no       | Ticket status codes treated as "closed" by `search-tickets openOnly` (default `5,16`)                                                                                      |
+| `AUTOTASK_TRANSPORT`                | no       | `http` or `stdio`. Defaults to `stdio`, except on Cloud Run / Knative (`K_SERVICE` set) where it defaults to `http`                                                        |
+| `AUTOTASK_HTTP_HOST`                | no       | HTTP bind host (default `127.0.0.1`, or `0.0.0.0` when `K_SERVICE` is set)                                                                                                 |
+| `PORT`                              | no       | HTTP port (default `3000`)                                                                                                                                                 |
+| `AUTOTASK_HTTP_ALLOWED_HOSTS`       | no       | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset trusts the proxy                                                                                        |
+| `AUTOTASK_HTTP_ALLOWED_ORIGINS`     | no       | Comma-separated browser `Origin` allowlist. **Unset denies every browser origin**                                                                                          |
+| `AUTOTASK_RATE_LIMIT`               | no       | Requests per minute per client IP against `/mcp` (default `120`, `0` disables)                                                                                             |
+| `AUTOTASK_MAX_BODY_BYTES`           | no       | Max request body size (default `4194304`, 4 MB)                                                                                                                            |
+| `AUTOTASK_THRESHOLD_STOP_PCT`       | no       | Refuse Autotask calls at this % of the tenant hourly budget (default `90`)                                                                                                 |
+| `AUTOTASK_THRESHOLD_WARN_PCT`       | no       | Warn at this % (default `75`, where Autotask starts adding latency)                                                                                                        |
+| `AUTOTASK_MAX_CONCURRENT`           | no       | Max in-flight calls per Autotask object endpoint (default `3`, Autotask's own thread limit)                                                                                |
+| `AUTOTASK_PERSISTENCE`              | no       | Where OAuth clients and tokens live: `firestore` or `memory`. Defaults to `firestore` on Cloud Run (`K_SERVICE` set), `memory` otherwise. `memory` is refused on Cloud Run |
+| `REFRESH_TOKEN_IDLE_TTL_DAYS`       | no       | Days a refresh token may go unused before it expires. Each refresh resets the clock. A positive whole number, default `90`                                                 |
+| `AUTOTASK_OAUTH_REDIRECT_ALLOWLIST` | no       | Comma-separated non-loopback redirect URIs a client may use. Loopback is always allowed. Defaults to `https://claude.ai/api/mcp/auth_callback`                             |
 
 ### Who can do what
 
@@ -406,7 +405,7 @@ AUTOTASK_READ_ONLY=true node dist/index.js
 ```bash
 # Liveness/readiness: no auth, safe for orchestrators
 curl http://127.0.0.1:3000/health
-# {"ok":true,"mode":"full","uptimeSeconds":41,"sessions":2,"autotaskUsagePct":12.4}
+# {"ok":true,"mode":"full","persistence":"firestore","uptimeSeconds":41,"autotaskUsagePct":12.4}
 
 # MCP endpoint: requires a bearer from the Google sign-in flow
 curl -i -X POST http://127.0.0.1:3000/mcp   # 401 + WWW-Authenticate: Bearer resource_metadata=...
@@ -416,19 +415,17 @@ curl -i -X POST http://127.0.0.1:3000/mcp   # 401 + WWW-Authenticate: Bearer res
 
 Set `AUTOTASK_TRANSPORT=http` to serve MCP Streamable HTTP instead of stdio.
 
-| Route         | Auth   | Purpose                                          |
-| ------------- | ------ | ------------------------------------------------ |
-| `POST /mcp`   | bearer | `initialize` opens a session; all other JSON-RPC |
-| `GET /mcp`    | bearer | SSE stream for an established session            |
-| `DELETE /mcp` | bearer | Terminate a session                              |
-| `GET /health` | none   | Liveness, session count, current Autotask usage  |
+| Route         | Auth   | Purpose                                               |
+| ------------- | ------ | ----------------------------------------------------- |
+| `POST /mcp`   | bearer | MCP JSON-RPC request, served statelessly              |
+| `GET /mcp`    | bearer | Served per request; the server keeps no session       |
+| `DELETE /mcp` | bearer | Served per request; there is no session to end        |
+| `GET /health` | none   | Liveness, persistence backend, current Autotask usage |
 
-**One session per client.** Each `initialize` mints its own MCP server and
-transport, keyed by the `Mcp-Session-Id` the transport assigns. Sessions are
-held in memory, reaped after `AUTOTASK_SESSION_TTL_MS` idle, capped at
-`AUTOTASK_MAX_SESSIONS`, and drained on `SIGTERM`. Because they are in-memory,
-run a single always-warm instance rather than scaling out (see
-[DEPLOY.md](DEPLOY.md)).
+**Stateless.** Each request gets a fresh MCP server and transport, and no session id
+is issued. Nothing about a client is kept in this process between requests. OAuth
+clients, tokens and sign-in state live in Firestore, so the service can scale to zero
+and out (see [DEPLOY.md](DEPLOY.md)).
 
 **Origins are denied by default.** MCP clients that matter here (Claude Code,
 server-side connectors) send no `Origin` header. So an unset
@@ -509,7 +506,8 @@ The probe costs one call per minute and its reading is surfaced on `/health`.
 - **Secret redaction**: credentials and tokens are stripped from error messages before they reach the model or logs.
 - **HTTP auth**: `/mcp` requires a bearer issued by this server's own Google sign-in flow, and returns `401` with a `WWW-Authenticate` challenge pointing at the OAuth metadata otherwise. There is no shared static token. `/health` is intentionally unauthenticated, for container/orchestrator health checks only. Default bind host is `127.0.0.1`; expose beyond localhost (e.g. `0.0.0.0` in Docker) only behind your own network controls.
 - **Browser origins denied by default**: an unset `AUTOTASK_HTTP_ALLOWED_ORIGINS` rejects any request carrying an `Origin` header, so a malicious page cannot drive the server via DNS rebinding. `AUTOTASK_HTTP_ALLOWED_HOSTS` adds `Host` pinning on top.
-- **Abuse limits**: per-IP rate limiting on `/mcp` (`AUTOTASK_RATE_LIMIT`), a request body cap (`AUTOTASK_MAX_BODY_BYTES`), a session cap (`AUTOTASK_MAX_SESSIONS`) and idle session reaping (`AUTOTASK_SESSION_TTL_MS`).
+- **Abuse limits**: per-IP rate limiting on `/mcp` (`AUTOTASK_RATE_LIMIT`) and a request body cap (`AUTOTASK_MAX_BODY_BYTES`).
+- **Sign-in state is sealed and shared**: the pending sign-in lives in a browser cookie, authorization codes are sealed with AES-256-GCM under a key derived from `AUTOTASK_SECRET`, and each code redeems once across every instance. A refresh token expires after 90 days unused (`REFRESH_TOKEN_IDLE_TTL_DAYS`), and every refresh re-checks the person against Autotask.
 - **Tenant blast-radius guard**: the budget governor stops calls before the shared Autotask hourly budget is exhausted, which would otherwise suspend API access for every integration on the database, not just this one.
 - **Attributed writes**: every session carries the signed-in person's Autotask resource id, sent as `ImpersonationResourceId` on creates, so records are attributed to them rather than to the shared API user.
 

@@ -7,13 +7,21 @@ vi.hoisted(() => {
   process.env.AUTOTASK_API_URL = 'https://webservices2.autotask.net/atservicesrest/';
 });
 
-import { GoogleAuthProvider, decodeIdToken, isEmailAllowed } from '../src/auth/google-provider.js';
+import {
+  GoogleAuthProvider,
+  PENDING_COOKIE,
+  decodeIdToken,
+  isEmailAllowed,
+} from '../src/auth/google-provider.js';
 import { REFRESH_RETRY_WINDOW_MS, MemoryClientsStore, TokenStore } from '../src/auth/stores.js';
 import { resetResourceCache } from '../src/auth/resource-lookup.js';
 import { isImpersonatableWrite } from '../src/autotask-api.js';
 import { governor } from '../src/governor.js';
 
 const CLIENT_ID = 'google-client-id.apps.googleusercontent.com';
+
+/** Stands in for AUTOTASK_SECRET: long enough to pass the startup check, and not a real secret. */
+const SEALING_SECRET = 'sealing-secret-for-tests-only-0123456789';
 
 function idToken(claims: Record<string, unknown>): string {
   const b64 = (o: unknown) =>
@@ -39,16 +47,19 @@ function makeProvider(overrides: Record<string, unknown> = {}) {
     allowedDomains: ['phoneware.us'],
     clientsStore: new MemoryClientsStore(),
     tokenStore: new TokenStore(),
+    sealingSecret: SEALING_SECRET,
     ...overrides,
   } as never);
 }
 
-/** Minimal express Response double: redirect / status / send. */
+/** Minimal express Response double: redirect, status, send and cookies. */
 function mockRes() {
   const res = {
     redirectedTo: '' as string,
     statusCode: 200,
     body: '' as string,
+    cookies: {} as Record<string, string>,
+    cleared: [] as string[],
     redirect(url: string) {
       this.redirectedTo = url;
     },
@@ -58,6 +69,14 @@ function mockRes() {
     },
     send(body: string) {
       this.body = body;
+      return this;
+    },
+    cookie(name: string, value: string) {
+      this.cookies[name] = value;
+      return this;
+    },
+    clearCookie(name: string) {
+      this.cleared.push(name);
       return this;
     },
   };
@@ -210,7 +229,13 @@ function stubUpstream(
   );
 }
 
-async function startAuth(provider: GoogleAuthProvider, scopes?: string[]) {
+/** What the browser holds after /authorize: the Google state it was sent with, and the cookie it returns. */
+interface SignInStart {
+  state: string;
+  cookie: string;
+}
+
+async function startAuth(provider: GoogleAuthProvider, scopes?: string[]): Promise<SignInStart> {
   const res = mockRes();
   await provider.authorize(
     CLIENT,
@@ -222,17 +247,25 @@ async function startAuth(provider: GoogleAuthProvider, scopes?: string[]) {
     },
     res as never,
   );
-  return new URL(res.redirectedTo).searchParams.get('state')!;
+  return {
+    state: new URL(res.redirectedTo).searchParams.get('state')!,
+    cookie: `${PENDING_COOKIE}=${res.cookies[PENDING_COOKIE]}`,
+  };
+}
+
+/** The callback a browser makes after Google, carrying the sign-in's cookie. */
+function callbackRequest(session: SignInStart, code = 'g-code', state = session.state) {
+  return { query: { code, state }, headers: { cookie: session.cookie } } as never;
 }
 
 describe('callback', () => {
   it('rejects an email outside the allowlist', async () => {
     stubUpstream(baseClaims({ email: 'attacker@gmail.com' }));
     const provider = makeProvider();
-    const state = await startAuth(provider);
+    const session = await startAuth(provider);
     const res = mockRes();
 
-    await provider.handleCallback({ query: { code: 'g-code', state } } as never, res as never);
+    await provider.handleCallback(callbackRequest(session), res as never);
 
     expect(res.statusCode).toBe(403);
     expect(res.redirectedTo).toBe('');
@@ -243,10 +276,10 @@ describe('callback', () => {
     // domain allowlist.
     stubUpstream(baseClaims({ email_verified: false }));
     const provider = makeProvider();
-    const state = await startAuth(provider);
+    const session = await startAuth(provider);
     const res = mockRes();
 
-    await provider.handleCallback({ query: { code: 'g-code', state } } as never, res as never);
+    await provider.handleCallback(callbackRequest(session), res as never);
 
     expect(res.statusCode).toBe(403);
   });
@@ -254,48 +287,82 @@ describe('callback', () => {
   it('rejects an id_token minted for a different audience', async () => {
     stubUpstream(baseClaims({ aud: 'someone-elses-client-id' }));
     const provider = makeProvider();
-    const state = await startAuth(provider);
+    const session = await startAuth(provider);
     const res = mockRes();
 
-    await provider.handleCallback({ query: { code: 'g-code', state } } as never, res as never);
+    await provider.handleCallback(callbackRequest(session), res as never);
 
     expect(res.statusCode).toBe(502);
   });
 
-  it('rejects an unknown or replayed state', async () => {
+  it('rejects an unknown state', async () => {
     stubUpstream(baseClaims());
     const provider = makeProvider();
     const res = mockRes();
 
     await provider.handleCallback(
-      { query: { code: 'g-code', state: 'never-issued' } } as never,
+      { query: { code: 'g-code', state: 'never-issued' }, headers: {} } as never,
       res as never,
     );
 
     expect(res.statusCode).toBe(400);
   });
 
+  it('rejects a state that does not match the sign-in cookie', async () => {
+    // Google echoing another flow's nonce must not complete this browser's sign-in.
+    stubUpstream(baseClaims());
+    const provider = makeProvider();
+    const session = await startAuth(provider);
+    const res = mockRes();
+
+    await provider.handleCallback(
+      callbackRequest(session, 'g-code', 'not-the-nonce'),
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.redirectedTo).toBe('');
+  });
+
+  it('rejects a callback from a browser without the sign-in cookie', async () => {
+    // The sign-in belongs to the browser that started it, so a bare state is not enough.
+    stubUpstream(baseClaims());
+    const provider = makeProvider();
+    const session = await startAuth(provider);
+    const res = mockRes();
+
+    await provider.handleCallback(
+      { query: { code: 'g-code', state: session.state }, headers: {} } as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.redirectedTo).toBe('');
+  });
+
   it('redirects back to the MCP client with a code and the original state', async () => {
     stubUpstream(baseClaims());
     const provider = makeProvider();
-    const state = await startAuth(provider);
+    const session = await startAuth(provider);
     const res = mockRes();
 
-    await provider.handleCallback({ query: { code: 'g-code', state } } as never, res as never);
+    await provider.handleCallback(callbackRequest(session), res as never);
 
     const redirect = new URL(res.redirectedTo);
     expect(redirect.origin + redirect.pathname).toBe('https://claude.ai/cb');
     expect(redirect.searchParams.get('code')).toBeTruthy();
     expect(redirect.searchParams.get('state')).toBe('client-state');
+    // The sign-in cookie is spent once the redirect is issued.
+    expect(res.cleared).toContain(PENDING_COOKIE);
   });
 });
 
 // --- token exchange and verification ----------------------------------------
 
 async function signIn(provider: GoogleAuthProvider, scopes?: string[]): Promise<string> {
-  const state = await startAuth(provider, scopes);
+  const session = await startAuth(provider, scopes);
   const res = mockRes();
-  await provider.handleCallback({ query: { code: 'g-code', state } } as never, res as never);
+  await provider.handleCallback(callbackRequest(session), res as never);
   return new URL(res.redirectedTo).searchParams.get('code')!;
 }
 
@@ -333,9 +400,9 @@ describe('token exchange', () => {
     // the whole thing this layer exists to stop.
     stubUpstream(baseClaims(), []);
     const provider = makeProvider();
-    const state = await startAuth(provider);
+    const session = await startAuth(provider);
     const res = mockRes();
-    await provider.handleCallback({ query: { code: 'g-code', state } } as never, res as never);
+    await provider.handleCallback(callbackRequest(session), res as never);
 
     expect(res.statusCode).toBe(403);
     expect(res.body).toMatch(/No active Autotask resource/i);
@@ -408,7 +475,7 @@ describe('token exchange', () => {
     expect((auth.extra as { capabilities?: string[] }).capabilities).toEqual(['read', 'create']);
   });
 
-  it('revokes definitive identity failures but preserves transient failures', async () => {
+  it('refuses a deactivated person without spending their refresh token', async () => {
     stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
     const tokenStore = new TokenStore();
     const provider = makeProvider({ tokenStore });
@@ -420,24 +487,35 @@ describe('token exchange', () => {
     await expect(provider.exchangeRefreshToken(CLIENT, first.refresh_token!)).rejects.toThrow(
       /deactivated/,
     );
+    // Nothing else checks identity between refreshes, so the access token in use is revoked.
     await expect(provider.verifyAccessToken(first.access_token)).rejects.toThrow(/invalid_token/);
-    await expect(provider.exchangeRefreshToken(CLIENT, first.refresh_token!)).rejects.toThrow(
-      /unknown refresh token/,
-    );
+    // A refusal is not a replay, and it does not spend the refresh token.
+    expect(await tokenStore.getByRefreshToken(first.refresh_token!)).toBeDefined();
 
+    // Reactivated: the same refresh token works again.
     resetResourceCache();
     stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
-    const code2 = await signIn(provider);
-    const second = await provider.exchangeAuthorizationCode(CLIENT, code2);
+    const second = await provider.exchangeRefreshToken(CLIENT, first.refresh_token!);
+    const auth = await provider.verifyAccessToken(second.access_token);
+    expect(auth.extra).toMatchObject({ email: 'dave@phoneware.us' });
+  });
+
+  it('keeps the refresh token through a transient Autotask outage', async () => {
+    stubUpstream(baseClaims(), [{ id: 77, isActive: true, userType: 14 }]);
+    const tokenStore = new TokenStore();
+    const provider = makeProvider({ tokenStore });
+    const code = await signIn(provider);
+    const issued = await provider.exchangeAuthorizationCode(CLIENT, code);
+
     resetResourceCache();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('down', { status: 500 })),
     );
-    await expect(provider.exchangeRefreshToken(CLIENT, second.refresh_token!)).rejects.toThrow(
+    await expect(provider.exchangeRefreshToken(CLIENT, issued.refresh_token!)).rejects.toThrow(
       /Could not reach Autotask/,
     );
-    expect(await tokenStore.getByRefreshToken(second.refresh_token!)).toBeDefined();
+    expect(await tokenStore.getByRefreshToken(issued.refresh_token!)).toBeDefined();
   });
 
   it('allows refresh scope narrowing and rejects expansion', async () => {

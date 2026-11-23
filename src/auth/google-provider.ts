@@ -11,19 +11,23 @@
  * a real person instead of the shared API user.
  *
  * Flow:
- *   1. MCP client → /authorize → authorize() stores the pending request and
- *      redirects the browser to Google.
- *   2. Google → /callback → handleCallback() exchanges the code for an
- *      id_token, verifies it, enforces the domain allowlist, resolves the
- *      Autotask resource, mints our own authorization code, and redirects back.
- *   3. MCP client → /token → exchangeAuthorizationCode() issues our access and
- *      refresh tokens carrying the email and resource id.
+ *   1. MCP client → /authorize → authorize() seals the pending request into a
+ *      cookie bound to this browser and redirects the browser to Google, with a
+ *      random nonce as the state.
+ *   2. Google → /callback → handleCallback() checks the nonce against the sealed
+ *      cookie, exchanges the code for an id_token, verifies it, enforces the
+ *      domain allowlist, resolves the Autotask resource, seals an authorization
+ *      code, and redirects back.
+ *   3. MCP client → /token → exchangeAuthorizationCode() opens the sealed code,
+ *      claims its jti in the token store so it can be redeemed once, and issues
+ *      our access and refresh tokens carrying the email and resource id.
  *   4. /mcp → verifyAccessToken() returns them as AuthInfo.extra.
  *
- * Only Google ever sees a password; none passes through this server.
+ * Nothing about a sign-in in flight is held in this process, so any instance can
+ * take any step. Only Google ever sees a password; none passes through this server.
  */
 
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
 import type {
   OAuthServerProvider,
@@ -37,40 +41,66 @@ import type {
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import {
   InvalidGrantError,
+  InvalidRequestError,
   InvalidScopeError,
   TemporarilyUnavailableError,
 } from '@modelcontextprotocol/sdk/server/auth/errors.js';
+import { z } from 'zod';
 import type { StoredToken, TokenStoreLike } from './stores.js';
 import { resolveResourceForEmail, isResolved } from './resource-lookup.js';
 import type { Capability } from './capabilities.js';
+import { SEAL_PURPOSES, Sealer } from './sealed.js';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
 const PENDING_TTL_MS = 10 * 60_000;
 const CODE_TTL_MS = 5 * 60_000;
 const DEFAULT_TOKEN_TTL_SECONDS = 12 * 60 * 60;
 
-interface PendingAuth {
-  mcpClientId: string;
-  codeChallenge: string;
-  mcpRedirectUri: string;
-  mcpState?: string;
-  scopes?: string[];
-  createdAt: number;
-}
+/** Days a refresh token may go unused before it expires. Each refresh resets the clock. */
+export const DEFAULT_REFRESH_IDLE_TTL_DAYS = 90;
 
-interface AuthCodeEntry {
-  mcpClientId: string;
-  codeChallenge: string;
-  mcpRedirectUri: string;
-  scopes?: string[];
-  email: string;
-  resourceId: number;
-  userType?: number;
-  capabilities: readonly Capability[];
-  createdAt: number;
-}
+/** Cookie that carries the sealed pending sign-in from /authorize to /callback. */
+export const PENDING_COOKIE = 'autotask_mcp_oauth_pending';
+const CALLBACK_PATH = '/callback';
+
+/**
+ * Longest sealed value a sign-in can carry. Browsers drop cookies past about
+ * 4 KB, and a dropped cookie fails the sign-in with no visible cause, so an
+ * oversized request is refused up front.
+ */
+const MAX_SEALED_LENGTH = 3500;
+
+/** A sign-in in flight, sealed into PENDING_COOKIE. */
+const PendingPayloadSchema = z.object({
+  mcpClientId: z.string(),
+  codeChallenge: z.string(),
+  mcpRedirectUri: z.string(),
+  mcpState: z.string().optional(),
+  scopes: z.array(z.string()).optional(),
+  /** Sent to Google as `state`. The callback must echo it back. */
+  nonce: z.string(),
+  expiresAt: z.number(),
+});
+type PendingPayload = z.infer<typeof PendingPayloadSchema>;
+
+/** An authorization code, sealed and handed to the MCP client. */
+const AuthorizationCodePayloadSchema = z.object({
+  /** Identifies the code for single use. */
+  jti: z.string(),
+  mcpClientId: z.string(),
+  codeChallenge: z.string(),
+  mcpRedirectUri: z.string(),
+  scopes: z.array(z.string()).optional(),
+  email: z.string(),
+  resourceId: z.number(),
+  userType: z.number().optional(),
+  capabilities: z.array(z.enum(['read', 'create', 'update', 'delete'])),
+  expiresAt: z.number(),
+});
+type AuthorizationCodePayload = z.infer<typeof AuthorizationCodePayloadSchema>;
 
 export interface GoogleAuthProviderOptions {
   clientId: string;
@@ -87,6 +117,14 @@ export interface GoogleAuthProviderOptions {
   clientsStore: OAuthRegisteredClientsStore;
   tokenStore: TokenStoreLike;
   tokenTtlSeconds?: number;
+  /**
+   * Key material for sealing sign-in state, normally AUTOTASK_SECRET. It is
+   * checked by assertSealingSecret, so a short or placeholder value refuses to
+   * start.
+   */
+  sealingSecret: string;
+  /** How long a refresh token may go unused before it expires. Defaults to 90 days. */
+  refreshIdleTtlMs?: number;
 }
 
 /** Minimal shape of Google's token response. */
@@ -143,6 +181,23 @@ export function isEmailAllowed(
   return allowedDomains.some((d) => d.trim().toLowerCase() === domain);
 }
 
+/**
+ * REFRESH_TOKEN_IDLE_TTL_DAYS in milliseconds. Unset or empty means the default.
+ * Anything other than a positive whole number of days is an error, so a typo
+ * cannot silently change how long a sign-in lasts.
+ */
+export function refreshIdleTtlMsFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.REFRESH_TOKEN_IDLE_TTL_DAYS?.trim();
+  if (raw === undefined || raw === '') return DEFAULT_REFRESH_IDLE_TTL_DAYS * DAY_MS;
+  const days = /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(days) || days < 1) {
+    throw new Error(
+      `REFRESH_TOKEN_IDLE_TTL_DAYS must be a positive whole number of days, got "${raw}"`,
+    );
+  }
+  return days * DAY_MS;
+}
+
 function escapeHtml(value: string): string {
   return value.replace(
     /[&<>"']/g,
@@ -150,10 +205,40 @@ function escapeHtml(value: string): string {
   );
 }
 
+/** The value of one cookie from a Cookie request header. */
+function readCookie(header: string | undefined, name: string): string | undefined {
+  if (!header) return undefined;
+  for (const pair of header.split(';')) {
+    const eq = pair.indexOf('=');
+    if (eq !== -1 && pair.slice(0, eq).trim() === name) return pair.slice(eq + 1).trim();
+  }
+  return undefined;
+}
+
+/** Compare two strings in constant time, so a wrong nonce leaks nothing about how close it was. */
+function sameValue(a: string, b: string): boolean {
+  const left = Buffer.from(a, 'utf8');
+  const right = Buffer.from(b, 'utf8');
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+/** Errors the token endpoint returns as they are. Anything else becomes a retryable error. */
+function asTokenEndpointError(err: unknown): Error {
+  if (
+    err instanceof InvalidGrantError ||
+    err instanceof InvalidScopeError ||
+    err instanceof TemporarilyUnavailableError
+  ) {
+    return err;
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return new TemporarilyUnavailableError(message);
+}
+
 export class GoogleAuthProvider implements OAuthServerProvider {
-  private readonly pending = new Map<string, PendingAuth>();
-  private readonly authCodes = new Map<string, AuthCodeEntry>();
+  private readonly sealer: Sealer;
   private readonly tokenTtlMs: number;
+  private readonly refreshIdleTtlMs: number;
 
   constructor(private readonly opts: GoogleAuthProviderOptions) {
     if (opts.allowedDomains.length === 0 && (opts.allowedEmails ?? []).length === 0) {
@@ -162,52 +247,49 @@ export class GoogleAuthProvider implements OAuthServerProvider {
           'Refusing to start an authorization server that any Google account could pass.',
       );
     }
+    this.sealer = new Sealer(opts.sealingSecret);
     this.tokenTtlMs = (opts.tokenTtlSeconds ?? DEFAULT_TOKEN_TTL_SECONDS) * 1000;
+    this.refreshIdleTtlMs = opts.refreshIdleTtlMs ?? DEFAULT_REFRESH_IDLE_TTL_DAYS * DAY_MS;
+    if (!(this.refreshIdleTtlMs > 0)) {
+      throw new Error('refreshIdleTtlMs must be a positive number of milliseconds');
+    }
   }
 
   get clientsStore(): OAuthRegisteredClientsStore {
     return this.opts.clientsStore;
   }
 
-  /**
-   * Expire the short-lived in-process state. Issued tokens are swept on the
-   * reaper interval instead: with a persistent store that is a query, and
-   * running one on every /authorize would be a needless round trip on the
-   * latency-sensitive path.
-   */
-  private sweep(now = Date.now()): void {
-    for (const [key, entry] of this.pending) {
-      if (now - entry.createdAt > PENDING_TTL_MS) this.pending.delete(key);
-    }
-    for (const [key, entry] of this.authCodes) {
-      if (now - entry.createdAt > CODE_TTL_MS) this.authCodes.delete(key);
-    }
-  }
-
-  // --- 1. Authorization: send the browser to Google --------------------------
+  // --- 1. Authorization: seal the request, send the browser to Google --------
 
   async authorize(
     client: OAuthClientInformationFull,
     params: AuthorizationParams,
     res: Response,
   ): Promise<void> {
-    this.sweep();
-    const state = randomUUID();
-    this.pending.set(state, {
+    const nonce = randomBytes(16).toString('hex');
+    const pending: PendingPayload = {
       mcpClientId: client.client_id,
       codeChallenge: params.codeChallenge,
       mcpRedirectUri: params.redirectUri,
       mcpState: params.state,
       scopes: params.scopes,
-      createdAt: Date.now(),
-    });
+      nonce,
+      expiresAt: Date.now() + PENDING_TTL_MS,
+    };
+    const sealed = this.sealer.seal(SEAL_PURPOSES.pendingAuthorization, pending);
+    if (sealed.length > MAX_SEALED_LENGTH) {
+      throw new InvalidRequestError(
+        'The authorization request is too large to carry through sign-in.',
+      );
+    }
+    res.cookie(PENDING_COOKIE, sealed, { ...this.cookieAttributes(), maxAge: PENDING_TTL_MS });
 
     const url = new URL(GOOGLE_AUTH_URL);
     url.searchParams.set('response_type', 'code');
     url.searchParams.set('client_id', this.opts.clientId);
     url.searchParams.set('redirect_uri', this.opts.callbackUrl);
     url.searchParams.set('scope', 'openid email');
-    url.searchParams.set('state', state);
+    url.searchParams.set('state', nonce);
     // Nudge Google's account chooser toward the right workspace.
     if (this.opts.allowedDomains.length === 1) {
       url.searchParams.set('hd', this.opts.allowedDomains[0]);
@@ -229,20 +311,25 @@ export class GoogleAuthProvider implements OAuthServerProvider {
     const state = typeof req.query.state === 'string' ? req.query.state : undefined;
     const error = typeof req.query.error === 'string' ? req.query.error : undefined;
 
+    // Only the browser that started the sign-in can finish it, and only by
+    // echoing the nonce it was given. Any instance can check both, because the
+    // cookie is sealed rather than kept in memory.
+    const pending = this.pendingFrom(req);
+    if (!pending || state === undefined || !sameValue(state, pending.nonce)) {
+      res.status(400).send('Unknown or expired sign-in state. Start the connection again.');
+      return;
+    }
+    // Spent. This browser cannot replay the same sign-in with the same cookie.
+    res.clearCookie(PENDING_COOKIE, this.cookieAttributes());
+
     if (error) {
       res.status(400).send(`Sign-in failed: ${escapeHtml(error)}`);
       return;
     }
-    if (!code || !state) {
+    if (!code) {
       res.status(400).send('Missing code or state');
       return;
     }
-    const pending = this.pending.get(state);
-    if (!pending) {
-      res.status(400).send('Unknown or expired sign-in state. Start the connection again.');
-      return;
-    }
-    this.pending.delete(state);
 
     let claims: IdTokenClaims | null;
     try {
@@ -282,8 +369,8 @@ export class GoogleAuthProvider implements OAuthServerProvider {
       return;
     }
 
-    const ourCode = randomUUID();
-    this.authCodes.set(ourCode, {
+    const ourCode = this.sealer.seal(SEAL_PURPOSES.authorizationCode, {
+      jti: randomUUID(),
       mcpClientId: pending.mcpClientId,
       codeChallenge: pending.codeChallenge,
       mcpRedirectUri: pending.mcpRedirectUri,
@@ -291,9 +378,9 @@ export class GoogleAuthProvider implements OAuthServerProvider {
       email,
       resourceId: resolution.resourceId,
       userType: resolution.userType,
-      capabilities: resolution.capabilities,
-      createdAt: Date.now(),
-    });
+      capabilities: [...resolution.capabilities],
+      expiresAt: Date.now() + CODE_TTL_MS,
+    } satisfies AuthorizationCodePayload);
 
     const redirect = new URL(pending.mcpRedirectUri);
     redirect.searchParams.set('code', ourCode);
@@ -375,19 +462,41 @@ account, start the connection again and pick the right one.</p>
     _client: OAuthClientInformationFull,
     authorizationCode: string,
   ): Promise<string> {
-    return this.authCodes.get(authorizationCode)?.codeChallenge ?? '';
+    return this.openAuthorizationCode(authorizationCode)?.codeChallenge ?? '';
   }
 
   async exchangeAuthorizationCode(
     client: OAuthClientInformationFull,
     authorizationCode: string,
+    _codeVerifier?: string,
+    redirectUri?: string,
   ): Promise<OAuthTokens> {
-    const entry = this.authCodes.get(authorizationCode);
+    try {
+      return await this.redeemAuthorizationCode(client, authorizationCode, redirectUri);
+    } catch (err) {
+      throw asTokenEndpointError(err);
+    }
+  }
+
+  private async redeemAuthorizationCode(
+    client: OAuthClientInformationFull,
+    authorizationCode: string,
+    redirectUri: string | undefined,
+  ): Promise<OAuthTokens> {
+    const entry = this.openAuthorizationCode(authorizationCode);
     if (!entry || entry.mcpClientId !== client.client_id) {
       throw new InvalidGrantError('unknown authorization code');
     }
-    // Single use, whatever happens next.
-    this.authCodes.delete(authorizationCode);
+    // RFC 6749 section 4.1.3: the redirect_uri must be the one the code was issued for.
+    if (redirectUri !== undefined && redirectUri !== entry.mcpRedirectUri) {
+      throw new InvalidGrantError('redirect_uri does not match the authorization request');
+    }
+    // Claimed before any token is issued, in the store every instance shares. A
+    // second redemption fails whichever instance receives it.
+    const claimed = await this.opts.tokenStore.claimAuthorizationCode(entry.jti, entry.expiresAt);
+    if (!claimed) {
+      throw new InvalidGrantError('authorization code already used');
+    }
 
     return this.issueTokens(
       client.client_id,
@@ -407,15 +516,7 @@ account, start the connection again and pick the right one.</p>
     try {
       return await this.performExchangeRefreshToken(client, refreshToken, scopes);
     } catch (err) {
-      if (
-        err instanceof InvalidGrantError ||
-        err instanceof InvalidScopeError ||
-        err instanceof TemporarilyUnavailableError
-      ) {
-        throw err;
-      }
-      const message = err instanceof Error ? err.message : String(err);
-      throw new TemporarilyUnavailableError(message);
+      throw asTokenEndpointError(err);
     }
   }
 
@@ -440,6 +541,17 @@ account, start the connection again and pick the right one.</p>
       throw new InvalidGrantError('unknown refresh token');
     }
 
+    const now = Date.now();
+    // A token written before the idle window existed has no last-used stamp. It is
+    // grandfathered: accepted now, and stamped by the rotation below, so its 90 days
+    // run from this first use. Lacking the stamp is never a reason to refuse it.
+    const lastUsedAt = stored.refreshLastUsedAt ?? now;
+    if (now - lastUsedAt > this.refreshIdleTtlMs) {
+      // Expired by disuse. Nothing in this family is worth keeping.
+      await this.opts.tokenStore.deleteByRefreshToken(refreshToken);
+      throw new InvalidGrantError('refresh token unused for too long; sign in again');
+    }
+
     if (scopes) {
       const granted = new Set(stored.scopes ?? []);
       const unauthorized = scopes.find((scope) => !granted.has(scope));
@@ -448,15 +560,19 @@ account, start the connection again and pick the right one.</p>
       }
     }
 
-    // Re-resolve before consuming the refresh token, and bypass the positive
-    // cache used for interactive sign-in. A refresh is the checkpoint where a
-    // disabled Autotask user must lose access immediately.
+    // Identity is checked on every refresh. That is the only point where a
+    // deactivated person loses access, so it cannot be skipped. A refusal is not
+    // a replay and does not spend the refresh token, so the same token works once
+    // the person is active again. The access token in use is revoked, because
+    // nothing else checks identity between refreshes.
     const resolution = await resolveResourceForEmail(stored.email, { cache: false });
     if (!isResolved(resolution)) {
       if (resolution.reason.startsWith('Could not reach Autotask')) {
         throw new TemporarilyUnavailableError(resolution.reason);
       }
-      await this.opts.tokenStore.deleteByRefreshToken(refreshToken);
+      if (stored.refreshFamilyId) {
+        await this.opts.tokenStore.revokeFamilyAccess(stored.refreshFamilyId);
+      }
       throw new InvalidGrantError(resolution.reason);
     }
 
@@ -468,11 +584,13 @@ account, start the connection again and pick the right one.</p>
       resolution.capabilities,
       scopes ?? stored.scopes,
       stored.refreshFamilyId,
+      now,
     );
     const rotation = await this.opts.tokenStore.rotateRefreshToken(
       refreshToken,
       issued.stored,
       client.client_id,
+      now,
     );
     if (rotation.status !== 'claimed' && rotation.status !== 'retry') {
       throw new InvalidGrantError('unknown refresh token');
@@ -519,6 +637,7 @@ account, start the connection again and pick the right one.</p>
     capabilities: readonly Capability[],
     scopes?: string[],
     refreshFamilyId?: string,
+    now: number = Date.now(),
   ): { stored: StoredToken; tokens: OAuthTokens } {
     const accessToken = randomBytes(32).toString('hex');
     const refreshToken = randomBytes(32).toString('hex');
@@ -528,7 +647,8 @@ account, start the connection again and pick the right one.</p>
       refreshToken,
       clientId,
       refreshFamilyId,
-      expiresAt: Date.now() + this.tokenTtlMs,
+      expiresAt: now + this.tokenTtlMs,
+      refreshLastUsedAt: now,
       scopes,
       email,
       resourceId,
@@ -599,5 +719,36 @@ account, start the connection again and pick the right one.</p>
       return;
     }
     await this.opts.tokenStore.deleteByRefreshToken(request.token);
+  }
+
+  // --- helpers ---------------------------------------------------------------
+
+  /** The sealed pending sign-in from this browser's cookie, if it is still valid. */
+  private pendingFrom(req: Request): PendingPayload | undefined {
+    const sealed = readCookie(req.headers.cookie, PENDING_COOKIE);
+    if (sealed === undefined) return undefined;
+    const parsed = PendingPayloadSchema.safeParse(
+      this.sealer.unseal(SEAL_PURPOSES.pendingAuthorization, sealed),
+    );
+    return parsed.success && parsed.data.expiresAt > Date.now() ? parsed.data : undefined;
+  }
+
+  /** The sealed authorization code, if it is genuine and not yet expired. */
+  private openAuthorizationCode(authorizationCode: string): AuthorizationCodePayload | undefined {
+    const parsed = AuthorizationCodePayloadSchema.safeParse(
+      this.sealer.unseal(SEAL_PURPOSES.authorizationCode, authorizationCode),
+    );
+    return parsed.success && parsed.data.expiresAt > Date.now() ? parsed.data : undefined;
+  }
+
+  /** Attributes shared by setting and clearing the pending cookie. */
+  private cookieAttributes() {
+    return {
+      httpOnly: true,
+      // Google returns the browser with a top-level GET, which SameSite=Lax still accompanies.
+      sameSite: 'lax' as const,
+      secure: new URL(this.opts.callbackUrl).protocol === 'https:',
+      path: CALLBACK_PATH,
+    };
   }
 }

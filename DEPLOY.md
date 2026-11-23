@@ -4,9 +4,9 @@
 > `infra/terraform/autotask-mcp.tf`, the build in `services/autotask-mcp`, and the deploy in that
 > repository's Deploy workflow. This repository holds the code only; its `deploy.yml` and
 > `cloudbuild.yaml` are removed and nothing here deploys. The deployment steps below describe the
-> former pipeline and are kept for the security notes. Two things changed with the move: the live
-> service runs as its own service account, and it runs with no minimum instance, so MCP sessions
-> held in instance memory end when the instance idles and a client reconnects.
+> former pipeline and are kept for the security notes. The live service runs as its own service
+> account and keeps no state in instance memory: it can scale to zero or out, and an instance can
+> be replaced without a client noticing.
 
 Phoneware's fork of [`veeemlab/autotask-mcp`](https://github.com/veeemlab/autotask-mcp),
 run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
@@ -14,10 +14,11 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
 
 ## Architecture / security
 
-- **Transport.** MCP Streamable HTTP at `POST/GET/DELETE /mcp`, one MCP session
-  per client. Sessions live in instance memory, so the service runs
-  `--min-instances=1 --max-instances=1 --session-affinity`. Do not scale it out
-  or to zero: a session stranded on another instance is a dead session.
+- **Transport.** MCP Streamable HTTP at `POST/GET/DELETE /mcp`, served statelessly:
+  every request gets a fresh MCP server and transport, with no session id and no
+  state kept between requests. The service may scale to zero and out, and an
+  instance may be replaced at any time. Scaling is set by the deployment in
+  `phoneware/monorepo`, not here.
 - **Auth: Google sign-in.** OAuth 2.1 in front of `/mcp`, with Google as the
   upstream identity provider and a domain allowlist. Autotask has **no OAuth,
   no SSO and no per-user credentials**, so Google is not standing in for
@@ -56,17 +57,32 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   door, and its writes would land as the API user, which is the audit hole
   sign-in exists to close. A future headless caller should present a Google
   service-account ID token, not a shared secret.
-- **Token and client durability.** Issued tokens and DCR client registrations
-  live in Firestore (the `(default)` database in `phoneware-edge`, collections
-  `autotask_mcp_oauth_clients` and `autotask_mcp_oauth_tokens`), so a deploy
-  neither logs anyone out nor breaks an existing connection. This is not a
-  nicety: an MCP client registers once, caches the `client_id` it was issued,
-  and presents it forever after. When those registrations lived in instance
-  memory, every deploy invalidated every already-connected client, which then
-  got `{"error":"invalid_client"}` from `/authorize` with no way to know it
-  should register again. Firestore is chosen automatically wherever Cloud Run
-  is detected (`K_SERVICE`); `AUTOTASK_PERSISTENCE` overrides it, and `/health`
-  reports which backend is live. Do not set it to `memory` on Cloud Run.
+- **Durable state.** Nothing about a sign-in is held in instance memory, so any
+  instance can take any step of it. The pending sign-in is sealed into a cookie
+  that only the browser which started it holds, and the authorization code is
+  sealed with AES-256-GCM. Issued tokens, refresh families, DCR client
+  registrations and the record of redeemed authorization codes live in Firestore
+  (the `(default)` database in `phoneware-edge`, collections
+  `autotask_mcp_oauth_clients`, `autotask_mcp_oauth_tokens` and
+  `autotask_mcp_oauth_used_codes`), so a deploy neither logs anyone out nor breaks
+  an existing connection. An MCP client registers once, caches the `client_id` it
+  was issued, and presents it forever after, so a registration held in memory would
+  invalidate every connected client on each deploy.
+- **Sealing key.** Sealing is keyed from `AUTOTASK_SECRET`, which must be at least
+  32 bytes and not a placeholder. When Google sign-in is configured, startup refuses
+  otherwise. Sealed values open only under the secret and purpose they were sealed
+  with.
+- **Refresh tokens expire when unused.** A refresh token expires 90 days after it
+  was last used (`REFRESH_TOKEN_IDLE_TTL_DAYS` sets the window, as a positive whole
+  number of days). Each refresh resets the clock, and identity is checked on every
+  refresh. A refusal, such as a deactivated person, revokes the access token in use
+  but keeps the refresh token, so the same connection works again once the person is
+  reactivated. A refresh token written before this window existed is accepted on its
+  first use, and its 90 days start then.
+- **Persistence.** Firestore is chosen wherever Cloud Run is detected (`K_SERVICE`),
+  and `AUTOTASK_PERSISTENCE` may choose it anywhere. `memory` is refused on Cloud
+  Run, because every client and token would die with the instance. `/health` reports
+  which backend is live.
 - **The Autotask credential is root.** The API User (API-only) security level
   grants full system administrator access to Autotask data over REST, and it
   never expires. Give this service its **own dedicated API user** on a custom
@@ -135,12 +151,18 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    URI: `https://mcp.autotask.phoneware.cloud/callback`, which must equal
    `AUTOTASK_BASE_URL` + `/callback` exactly. Record the client id and secret.
 4. **Secrets** in Secret Manager (`phoneware-edge`):
+
    ```bash
    printf %s '<autotask-secret>' | gcloud secrets create autotask-mcp-secret \
      --data-file=- --project=phoneware-edge
    printf %s '<google-oauth-client-secret>' | gcloud secrets create autotask-mcp-google-secret \
      --data-file=- --project=phoneware-edge
    ```
+
+   `autotask-mcp-secret` also keys the sealing of sign-in state, so it must be at least
+   32 bytes and not a placeholder. The service refuses to start without a usable value once
+   Google sign-in is configured. `openssl rand -base64 48` produces one; never print it.
+
 5. Grant the Cloud Run runtime service account read access on both
    secrets. The service currently runs as the project's default compute SA:
 
@@ -153,9 +175,8 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    done
    ```
 
-6. **Configure the service.** These persist across deploys, and
-   `cloudbuild.yaml` deliberately never passes `--set-env-vars`, which would
-   wipe them:
+6. **Configure the service.** These persist across deploys. `--update-env-vars` changes
+   only the names it lists, where `--set-env-vars` would replace the whole set:
 
    ```bash
    gcloud run services update autotask-mcp --region=us-central1 \
@@ -222,15 +243,17 @@ attributed to a person.
 
 ## Verify
 
-- `GET /health` returns `{"ok":true,...}` with `mode`, `sessions` and
+- `GET /health` returns `{"ok":true,...}` with `mode`, `persistence` and
   `autotaskUsagePct`.
 - `POST /mcp` with no bearer returns 401 with a `WWW-Authenticate` header
   carrying `resource_metadata=...`.
-- Two clients connected at once each get their own `Mcp-Session-Id` and both
-  work (covered by `tests/http.test.ts`).
+- A sign-in started on one instance completes on another, and an authorization code
+  redeems once on any instance (covered by `tests/oauth-durability.test.ts`).
 - `get-threshold-information` reports the tenant's current API usage.
 
 ## Local smoke test
+
+The sealing key comes from `AUTOTASK_SECRET`, so use a value of at least 32 bytes.
 
 ```bash
 npm ci && npm run build

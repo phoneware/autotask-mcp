@@ -44,11 +44,16 @@ describe('resolvePersistence', () => {
     expect(resolvePersistence({} as never)).toBe('memory');
   });
 
-  it('honours an explicit override in both directions', () => {
-    expect(resolvePersistence({ AUTOTASK_PERSISTENCE: 'memory', K_SERVICE: 'x' } as never)).toBe(
-      'memory',
-    );
+  it('honours an explicit override, except memory on Cloud Run', () => {
+    expect(resolvePersistence({ AUTOTASK_PERSISTENCE: 'memory' } as never)).toBe('memory');
     expect(resolvePersistence({ AUTOTASK_PERSISTENCE: 'firestore' } as never)).toBe('firestore');
+  });
+
+  it('refuses in-memory persistence on Cloud Run', () => {
+    // Every OAuth client and token would die with the instance.
+    expect(() =>
+      resolvePersistence({ AUTOTASK_PERSISTENCE: 'memory', K_SERVICE: 'x' } as never),
+    ).toThrow(/refused on Cloud Run/);
   });
 
   it('accepts surrounding whitespace and any casing', () => {
@@ -111,6 +116,7 @@ function options(): AppOptions {
     allowedDomains: ['phoneware.us'],
     clientsStore,
     tokenStore: new TokenStore(),
+    sealingSecret: 'sealing-secret-for-tests-only-0123456789',
   });
   return {
     googleProvider: provider,
