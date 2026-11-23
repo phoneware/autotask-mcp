@@ -1,7 +1,6 @@
 # Autotask MCP Server
 
 [![CI](https://github.com/phoneware/autotask-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/phoneware/autotask-mcp/actions/workflows/ci.yml)
-[![Deploy](https://github.com/phoneware/autotask-mcp/actions/workflows/deploy.yml/badge.svg)](https://github.com/phoneware/autotask-mcp/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > Phoneware's fork of [`veeemlab/autotask-mcp`](https://github.com/veeemlab/autotask-mcp),
