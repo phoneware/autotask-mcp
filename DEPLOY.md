@@ -1,5 +1,13 @@
 # Deploying the Phoneware-hosted Autotask MCP
 
+> **The deployment moved.** `phoneware/monorepo` now owns the Cloud Run service: Terraform in
+> `infra/terraform/autotask-mcp.tf`, the build in `services/autotask-mcp`, and the deploy in that
+> repository's Deploy workflow. This repository holds the code only; its `deploy.yml` and
+> `cloudbuild.yaml` are removed and nothing here deploys. The deployment steps below describe the
+> former pipeline and are kept for the security notes. Two things changed with the move: the live
+> service runs as its own service account, and it runs with no minimum instance, so MCP sessions
+> held in instance memory end when the instance idles and a client reconnects.
+
 Phoneware's fork of [`veeemlab/autotask-mcp`](https://github.com/veeemlab/autotask-mcp),
 run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
 `phoneware/bandwidth-mcp` and `phoneware/peplink-mcp`.
