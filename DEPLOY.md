@@ -4,9 +4,9 @@
 > `infra/terraform/autotask-mcp.tf`, the build in `services/autotask-mcp`, and the deploy in that
 > repository's Deploy workflow. This repository holds the code only; its `deploy.yml` and
 > `cloudbuild.yaml` are removed and nothing here deploys. The deployment steps below describe the
-> former pipeline and are kept for the security notes. The live service runs as its own service
-> account and keeps no state in instance memory: it can scale to zero or out, and an instance can
-> be replaced without a client noticing.
+> former pipeline and are kept for the security notes. The service runs as its own service
+> account and keeps no state in instance memory, so an instance can be replaced without a
+> client noticing. Its scaling is set by that deployment, not by this code.
 
 Phoneware's fork of [`veeemlab/autotask-mcp`](https://github.com/veeemlab/autotask-mcp),
 run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
@@ -16,9 +16,8 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
 
 - **Transport.** MCP Streamable HTTP at `POST/GET/DELETE /mcp`, served statelessly:
   every request gets a fresh MCP server and transport, with no session id and no
-  state kept between requests. The service may scale to zero and out, and an
-  instance may be replaced at any time. Scaling is set by the deployment in
-  `phoneware/monorepo`, not here.
+  state kept between requests, so any instance can serve any request. Scaling is set by the
+  deployment in `phoneware/monorepo`, not here.
 - **Auth: Google sign-in.** OAuth 2.1 in front of `/mcp`, with Google as the
   upstream identity provider and a domain allowlist. Autotask has **no OAuth,
   no SSO and no per-user credentials**, so Google is not standing in for
@@ -68,10 +67,10 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
   an existing connection. An MCP client registers once, caches the `client_id` it
   was issued, and presents it forever after, so a registration held in memory would
   invalidate every connected client on each deploy.
-- **Sealing key.** Sealing is keyed from `AUTOTASK_SECRET`, which must be at least
-  32 bytes and not a placeholder. When Google sign-in is configured, startup refuses
-  otherwise. Sealed values open only under the secret and purpose they were sealed
-  with.
+- **Sealing key.** Sealing is keyed with HKDF-SHA256 from `AUTOTASK_SECRET`, which must be
+  at least 16 bytes, have at least 12 distinct byte values, and not be a placeholder. When
+  Google sign-in is configured, startup refuses otherwise. Sealed values open only under the
+  secret and purpose they were sealed with.
 - **Refresh tokens expire when unused.** A refresh token expires 90 days after it
   was last used (`REFRESH_TOKEN_IDLE_TTL_DAYS` sets the window, as a positive whole
   number of days). Each refresh resets the clock, and identity is checked on every
@@ -160,8 +159,9 @@ run as a hosted MCP on Cloud Run in `phoneware-edge`, mirroring
    ```
 
    `autotask-mcp-secret` also keys the sealing of sign-in state, so it must be at least
-   32 bytes and not a placeholder. The service refuses to start without a usable value once
-   Google sign-in is configured. `openssl rand -base64 48` produces one; never print it.
+   16 bytes, have at least 12 distinct byte values, and not be a placeholder. The service
+   refuses to start without a usable value once Google sign-in is configured.
+   `openssl rand -base64 48` produces one; never print it.
 
 5. Grant the Cloud Run runtime service account read access on both
    secrets. The service currently runs as the project's default compute SA:
@@ -253,7 +253,8 @@ attributed to a person.
 
 ## Local smoke test
 
-The sealing key comes from `AUTOTASK_SECRET`, so use a value of at least 32 bytes.
+The sealing key comes from `AUTOTASK_SECRET`, so use a value of at least 16 bytes with at
+least 12 distinct byte values.
 
 ```bash
 npm ci && npm run build
