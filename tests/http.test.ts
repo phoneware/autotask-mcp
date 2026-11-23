@@ -44,6 +44,7 @@ function authedProvider(): GoogleAuthProvider {
     allowedDomains: ['phoneware.us'],
     clientsStore: new MemoryClientsStore(),
     tokenStore,
+    sealingSecret: 'sealing-secret-for-tests-only-0123456789',
   });
   tokenStore.set({
     accessToken: TOKEN,
@@ -498,6 +499,7 @@ describe('a limited person over real MCP', () => {
       allowedDomains: ['phoneware.us'],
       clientsStore: new MemoryClientsStore(),
       tokenStore,
+      sealingSecret: 'sealing-secret-for-tests-only-0123456789',
     });
     // The real Service Desk User contractor in the tenant: read and create.
     tokenStore.set({

@@ -38,6 +38,13 @@ const { FakeFirestore, fakeDb } = vi.hoisted(() => {
       bucket(this.collectionName).set(this.id, strip(doc));
       return Promise.resolve();
     }
+    create(doc: Record<string, unknown>): Promise<void> {
+      if (bucket(this.collectionName).has(this.id)) {
+        return Promise.reject(Object.assign(new Error(`${this.id} already exists`), { code: 6 }));
+      }
+      bucket(this.collectionName).set(this.id, strip(doc));
+      return Promise.resolve();
+    }
     delete(): Promise<void> {
       bucket(this.collectionName).delete(this.id);
       return Promise.resolve();
@@ -140,6 +147,7 @@ const {
   FirestoreTokenStore,
   DEFAULT_CLIENTS_COLLECTION,
   DEFAULT_TOKENS_COLLECTION,
+  DEFAULT_USED_CODES_COLLECTION,
 } = await import('../src/auth/firestore-stores.js');
 const { GoogleAuthProvider } = await import('../src/auth/google-provider.js');
 
@@ -382,6 +390,7 @@ describe('GoogleAuthProvider against an async store', () => {
       allowedDomains: ['phoneware.us'],
       clientsStore: new FirestoreClientsStore(),
       tokenStore,
+      sealingSecret: 'sealing-secret-for-tests-only-0123456789',
     });
     await tokenStore.set(token());
 
@@ -402,6 +411,7 @@ describe('GoogleAuthProvider against an async store', () => {
       allowedDomains: ['phoneware.us'],
       clientsStore: new FirestoreClientsStore(),
       tokenStore,
+      sealingSecret: 'sealing-secret-for-tests-only-0123456789',
     });
     await tokenStore.set(token({ expiresAt: Date.now() - 1 }));
 
@@ -419,11 +429,47 @@ describe('GoogleAuthProvider against an async store', () => {
       allowedDomains: ['phoneware.us'],
       clientsStore: new FirestoreClientsStore(),
       tokenStore,
+      sealingSecret: 'sealing-secret-for-tests-only-0123456789',
     });
     await tokenStore.set(token());
 
     await provider.revokeToken({ client_id: 'mcp-client-1' } as never, { token: 'refresh-bbb' });
     expect(await tokenStore.get('access-aaa')).toBeUndefined();
     expect(await tokenStore.getByRefreshToken('refresh-bbb')).toBeUndefined();
+  });
+});
+
+// --- redeemed codes and refused refreshes -----------------------------------
+
+describe('FirestoreTokenStore redeemed codes and family access', () => {
+  it('lets exactly one caller claim an authorization code, across store instances', async () => {
+    const expiresAt = Date.now() + 60_000;
+    expect(await new FirestoreTokenStore().claimAuthorizationCode('code-1', expiresAt)).toBe(true);
+    expect(await new FirestoreTokenStore().claimAuthorizationCode('code-1', expiresAt)).toBe(false);
+    expect(fakeDb.docs(DEFAULT_USED_CODES_COLLECTION).has('code-1')).toBe(true);
+  });
+
+  it('forgets redeemed codes once they expire, and keeps the rest', async () => {
+    const store = new FirestoreTokenStore();
+    const now = Date.now();
+    await store.claimAuthorizationCode('early', now + 1_000);
+    await store.claimAuthorizationCode('late', now + 60_000);
+
+    await store.sweep(now + 2_000);
+
+    expect(fakeDb.docs(DEFAULT_USED_CODES_COLLECTION).has('early')).toBe(false);
+    expect(fakeDb.docs(DEFAULT_USED_CODES_COLLECTION).has('late')).toBe(true);
+  });
+
+  it('revokes live access to a family and keeps its refresh credential', async () => {
+    const store = new FirestoreTokenStore();
+    await store.set(token());
+    const familyId = (await store.getByRefreshToken('refresh-bbb'))?.refreshFamilyId;
+    expect(familyId).toBeDefined();
+
+    await store.revokeFamilyAccess(familyId!);
+
+    expect(await store.get('access-aaa')).toBeUndefined();
+    expect((await store.getByRefreshToken('refresh-bbb'))?.email).toBe('dave@phoneware.us');
   });
 });

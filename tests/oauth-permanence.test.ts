@@ -118,6 +118,7 @@ describe('Autotask MCP OAuth Permanence Contract', () => {
           clientsStore: backing.clientsStore,
           tokenStore: backing.tokenStore,
           tokenTtlSeconds: 3600,
+          sealingSecret: 'sealing-secret-for-tests-only-0123456789',
         });
 
         let serverUrl = '';
@@ -169,6 +170,11 @@ describe('Autotask MCP OAuth Permanence Contract', () => {
         )}&response_type=code&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256`;
 
         const authRes = await realFetch(authUrl, { redirect: 'manual' });
+        const setCookie = authRes.headers.get('set-cookie') ?? '';
+        expect(setCookie, 'authorize must set the sign-in cookie').toContain(
+          'autotask_mcp_oauth_pending=',
+        );
+        const cookie = setCookie.split(';')[0];
         const location = authRes.headers.get('location');
         const googleAuthUrl = new URL(location!, instanceUrl);
         const state = googleAuthUrl.searchParams.get('state');
@@ -178,7 +184,10 @@ describe('Autotask MCP OAuth Permanence Contract', () => {
         const callbackUrl = `${instanceUrl}/callback?code=fake_google_code&state=${encodeURIComponent(
           state!,
         )}`;
-        const callbackRes = await realFetch(callbackUrl, { redirect: 'manual' });
+        const callbackRes = await realFetch(callbackUrl, {
+          redirect: 'manual',
+          headers: { cookie },
+        });
         if (callbackRes.status !== 302) {
           const body = await callbackRes.text();
           const reason = body.match(/<strong>(.*?)<\/strong>/)?.[1] ?? body;

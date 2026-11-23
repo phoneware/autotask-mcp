@@ -25,6 +25,12 @@ export interface StoredToken {
   resourceId?: number;
   userType?: number;
   capabilities?: Capability[];
+  /**
+   * When this refresh token was last used: stamped on issue and reset by every
+   * rotation. The idle window is measured from it. Tokens written before the
+   * window existed have no stamp; they are grandfathered by the provider.
+   */
+  refreshLastUsedAt?: number;
 }
 
 export type RefreshRotationResult =
@@ -66,6 +72,10 @@ export interface TokenStoreLike {
     now?: number,
   ): RefreshRotationResult | Promise<RefreshRotationResult>;
   sweep(now?: number): number | Promise<number>;
+  /** Record that an authorization code was redeemed. True the first time only. */
+  claimAuthorizationCode(jti: string, expiresAt: number): boolean | Promise<boolean>;
+  /** Revoke the live access tokens of a refresh family, keeping its refresh credential. */
+  revokeFamilyAccess(familyId: string): void | Promise<void>;
 }
 
 export class TokenStore implements TokenStoreLike {
@@ -73,6 +83,7 @@ export class TokenStore implements TokenStoreLike {
   private readonly byRefresh = new Map<string, RefreshRecord>();
   private readonly families = new Map<string, RefreshFamily>();
   private readonly retiredFamilies = new Map<string, string>();
+  private readonly redeemedCodes = new Map<string, number>();
 
   get size(): number {
     return this.byAccess.size;
@@ -210,6 +221,26 @@ export class TokenStore implements TokenStoreLike {
     this.families.delete(familyId);
   }
 
+  claimAuthorizationCode(jti: string, expiresAt: number): boolean {
+    this.pruneRedeemedCodes();
+    if (this.redeemedCodes.has(jti)) return false;
+    this.redeemedCodes.set(jti, expiresAt);
+    return true;
+  }
+
+  revokeFamilyAccess(familyId: string): void {
+    const family = this.families.get(familyId);
+    if (!family) return;
+    this.byAccess.delete(family.currentAccessToken);
+    if (family.previousAccessToken) this.byAccess.delete(family.previousAccessToken);
+  }
+
+  private pruneRedeemedCodes(now: number = Date.now()): void {
+    for (const [jti, expiresAt] of this.redeemedCodes) {
+      if (expiresAt <= now) this.redeemedCodes.delete(jti);
+    }
+  }
+
   sweep(now: number = Date.now()): number {
     let removed = 0;
     for (const token of [...this.byAccess.values()]) {
@@ -218,6 +249,7 @@ export class TokenStore implements TokenStoreLike {
         removed++;
       }
     }
+    this.pruneRedeemedCodes(now);
     return removed;
   }
 }

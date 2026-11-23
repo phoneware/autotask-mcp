@@ -15,6 +15,7 @@
  *   {tokenCollection}                 - issued access tokens, keyed by access token
  *   {tokenCollection}_refresh         - refresh credentials, keyed by refresh token
  *   {tokenCollection}_refresh_families - bounded current/previous refresh family state
+ *   autotask_mcp_oauth_used_codes     - redeemed authorization codes, keyed by jti
  *
  * Registered DCR clients use a read-through cache because they are immutable
  * after registration. Tokens are always read from Firestore at the point of use.
@@ -45,6 +46,7 @@ export function wrapStoreError(err: unknown): never {
 
 export const DEFAULT_CLIENTS_COLLECTION = 'autotask_mcp_oauth_clients';
 export const DEFAULT_TOKENS_COLLECTION = 'autotask_mcp_oauth_tokens';
+export const DEFAULT_USED_CODES_COLLECTION = 'autotask_mcp_oauth_used_codes';
 
 /** How many expired tokens one sweep pass will delete. */
 const SWEEP_BATCH = 400;
@@ -59,6 +61,16 @@ function docId(raw: string): string {
   return /^[A-Za-z0-9._~-]+$/.test(raw) && raw !== '.' && raw !== '..'
     ? raw
     : encodeURIComponent(raw).replace(/\./g, '%2E');
+}
+
+/** Firestore's ALREADY_EXISTS (gRPC code 6): a create-if-absent that lost its race. */
+function isAlreadyExists(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err.code === 6 || err.code === 'already-exists')
+  );
 }
 
 function connect(projectId?: string): Firestore {
@@ -144,6 +156,7 @@ export class FirestoreTokenStore implements TokenStoreLike {
   private readonly collection: string;
   private readonly refreshCollection: string;
   private readonly familyCollection: string;
+  private readonly usedCodesCollection: string;
 
   private async runTransaction<T>(
     updateFunction: (transaction: Transaction) => Promise<T>,
@@ -155,10 +168,17 @@ export class FirestoreTokenStore implements TokenStoreLike {
     await batch.commit().catch(wrapStoreError);
   }
 
-  constructor(opts: { collection?: string; projectId?: string } = {}) {
+  constructor(
+    opts: {
+      collection?: string;
+      projectId?: string;
+      usedCodesCollection?: string;
+    } = {},
+  ) {
     this.collection = opts.collection ?? DEFAULT_TOKENS_COLLECTION;
     this.refreshCollection = `${this.collection}_refresh`;
     this.familyCollection = `${this.collection}_refresh_families`;
+    this.usedCodesCollection = opts.usedCodesCollection ?? DEFAULT_USED_CODES_COLLECTION;
     this.db = connect(opts.projectId);
   }
 
@@ -440,6 +460,62 @@ export class FirestoreTokenStore implements TokenStoreLike {
   }
 
   /**
+   * Record that an authorization code was redeemed. The create is the claim: it
+   * succeeds for the first caller on any instance and fails for every later one.
+   */
+  async claimAuthorizationCode(jti: string, expiresAt: number): Promise<boolean> {
+    try {
+      await this.db
+        .collection(this.usedCodesCollection)
+        .doc(docId(jti))
+        .create({ expiresAt, redeemedAt: Date.now() });
+      return true;
+    } catch (err) {
+      if (isAlreadyExists(err)) return false;
+      return wrapStoreError(err);
+    }
+  }
+
+  /**
+   * Revoke the live access tokens of a refresh family and keep its refresh
+   * credential and family record, so a refused refresh still works once the
+   * person is active again.
+   */
+  async revokeFamilyAccess(familyId: string): Promise<void> {
+    const familyRef = this.db.collection(this.familyCollection).doc(docId(familyId));
+    await this.runTransaction(async (transaction: Transaction) => {
+      const familySnap = await transaction.get(familyRef);
+      if (!familySnap.exists) return;
+      const family = familySnap.data() as StoredRefreshFamily;
+      if (family.currentAccessToken) {
+        transaction.delete(
+          this.db.collection(this.collection).doc(docId(family.currentAccessToken)),
+        );
+      }
+      if (family.previousAccessToken) {
+        transaction.delete(
+          this.db.collection(this.collection).doc(docId(family.previousAccessToken)),
+        );
+      }
+    });
+  }
+
+  /** Forget redemptions whose codes have expired. An expired code cannot be redeemed anyway. */
+  private async sweepRedeemedCodes(now: number): Promise<void> {
+    const spent = await this.db
+      .collection(this.usedCodesCollection)
+      .where('expiresAt', '<=', now)
+      .limit(SWEEP_BATCH)
+      .get();
+    if (spent.empty) return;
+    const batch = this.db.batch();
+    for (const doc of spent.docs) {
+      batch.delete(doc.ref);
+    }
+    await batch.commit();
+  }
+
+  /**
    * Delete expired access tokens without deleting their refresh family. Legacy
    * access-token pointers are migrated first, so an upgrade cannot reproduce the
    * original bug by sweeping the only copy of the refresh credential's identity.
@@ -462,6 +538,7 @@ export class FirestoreTokenStore implements TokenStoreLike {
       }
       await batch.commit();
     }
+    await this.sweepRedeemedCodes(now);
     return expired.size;
   }
 }

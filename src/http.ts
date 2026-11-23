@@ -32,7 +32,8 @@ import { isReadonly } from './security.js';
 import { missingCredentials } from './autotask-api.js';
 import { getPromotedToolNames } from './tools/promotion/index.js';
 import { governor } from './governor.js';
-import { GoogleAuthProvider } from './auth/google-provider.js';
+import { GoogleAuthProvider, refreshIdleTtlMsFromEnv } from './auth/google-provider.js';
+import { assertSealingSecret } from './auth/sealed.js';
 import { MemoryClientsStore, TokenStore, type TokenStoreLike } from './auth/stores.js';
 import { FirestoreClientsStore, FirestoreTokenStore } from './auth/firestore-stores.js';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
@@ -725,15 +726,21 @@ export type Persistence = 'firestore' | 'memory';
 /**
  * Decide where OAuth clients and tokens live.
  *
- * Firestore is the default anywhere Cloud Run is detected (K_SERVICE), because
- * in-memory registration there is a known-broken configuration: the instance is
- * replaced on every deploy, and each replacement silently invalidates every
- * client that had already registered. Local runs and tests stay in memory,
- * where a restart is expected and Firestore credentials are usually absent.
- * AUTOTASK_PERSISTENCE overrides the choice in either direction.
+ * Firestore is the default anywhere Cloud Run is detected (K_SERVICE). In-memory
+ * storage is refused there outright: the instance is replaced on every deploy,
+ * and each replacement silently invalidates every client that had already
+ * registered and every token already issued. Local runs and tests stay in
+ * memory, where a restart is expected and Firestore credentials are usually
+ * absent. AUTOTASK_PERSISTENCE may choose firestore anywhere, but not memory on
+ * Cloud Run.
  */
 export function resolvePersistence(env: NodeJS.ProcessEnv = process.env): Persistence {
   const requested = env.AUTOTASK_PERSISTENCE?.trim().toLowerCase();
+  if (requested === 'memory' && env.K_SERVICE) {
+    throw new Error(
+      'AUTOTASK_PERSISTENCE=memory is refused on Cloud Run (K_SERVICE is set): every OAuth client and token would die with the instance. Use firestore.',
+    );
+  }
   if (requested === 'firestore' || requested === 'memory') return requested;
   if (requested) {
     console.error(
@@ -764,6 +771,7 @@ export function googleProviderFromEnv(
   baseUrl: URL | undefined,
   tokenStore: TokenStoreLike,
   clientsStore: OAuthRegisteredClientsStore,
+  refreshIdleTtlMs: number,
 ): GoogleAuthProvider | null {
   const clientId = process.env.AUTOTASK_OAUTH_CLIENT_ID;
   const clientSecret = process.env.AUTOTASK_OAUTH_CLIENT_SECRET;
@@ -786,18 +794,39 @@ export function googleProviderFromEnv(
     clientsStore,
     tokenStore,
     tokenTtlSeconds: envInt('AUTOTASK_OAUTH_TOKEN_TTL_SECONDS', 12 * 60 * 60),
+    sealingSecret: process.env.AUTOTASK_SECRET ?? '',
+    refreshIdleTtlMs,
   });
+}
+
+/**
+ * Checks that must pass before the server listens. Each one throws, so a
+ * deployment that would sign people in with a weak sealing key, or with a
+ * mistyped idle window, stops instead of serving. Without Google sign-in
+ * configured the server still starts, and /health reports what is missing.
+ */
+export function validateStartup(env: NodeJS.ProcessEnv = process.env): {
+  refreshIdleTtlMs: number;
+} {
+  const refreshIdleTtlMs = refreshIdleTtlMsFromEnv(env);
+  if (env.AUTOTASK_OAUTH_CLIENT_ID && env.AUTOTASK_OAUTH_CLIENT_SECRET) {
+    assertSealingSecret(env.AUTOTASK_SECRET);
+  }
+  return { refreshIdleTtlMs };
 }
 
 export async function runHttp(): Promise<RunningServer> {
   const rawBase = process.env.AUTOTASK_BASE_URL;
   const baseUrl = rawBase ? new URL(rawBase) : undefined;
+  // Startup refusals come first. Each one throws, so a bad configuration stops the
+  // process before it serves anything.
   const persistence = resolvePersistence();
+  const { refreshIdleTtlMs } = validateStartup();
   const { tokenStore, clientsStore } = buildStores(persistence);
 
   let googleProvider: GoogleAuthProvider | null = null;
   try {
-    googleProvider = googleProviderFromEnv(baseUrl, tokenStore, clientsStore);
+    googleProvider = googleProviderFromEnv(baseUrl, tokenStore, clientsStore, refreshIdleTtlMs);
   } catch (err) {
     // A misconfigured allowlist must not silently downgrade to "any Google
     // account can sign in": refuse to enable Google auth and say why.

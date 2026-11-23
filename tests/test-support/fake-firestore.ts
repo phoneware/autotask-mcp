@@ -120,6 +120,8 @@ export class FakeQuery {
           if (val !== filter.value) matchesAll = false;
         } else if (filter.op === 'array-contains') {
           if (!Array.isArray(val) || !val.includes(filter.value)) matchesAll = false;
+        } else if (filter.op === '<=') {
+          if (typeof val !== 'number' || val > (filter.value as number)) matchesAll = false;
         }
       }
       if (matchesAll) {
