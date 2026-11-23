@@ -32,6 +32,10 @@ import { resetResourceCache } from '../src/auth/resource-lookup.js';
 import { governor } from '../src/governor.js';
 
 const SEALING_SECRET = 'sealing-secret-for-tests-only-0123456789';
+
+/** A secret of the shape production was measured at: 25 bytes, 24 distinct byte values. */
+const PRODUCTION_SHAPED_SECRET = 'aB3dE5fG7hJ9kL2mN4pQ6rS8a';
+
 const GOOGLE_CLIENT_ID = 'google-client-id.apps.googleusercontent.com';
 const PUBLIC_BASE = 'https://mcp.example.test';
 const PUBLIC_CALLBACK = `${PUBLIC_BASE}/callback`;
@@ -95,7 +99,7 @@ function storesOver(database: FakeFirestore): {
 }
 
 /** One instance: its own provider and stores, serving on its own loopback port. */
-async function startInstance(): Promise<Instance> {
+async function startInstance(sealingSecret: string = SEALING_SECRET): Promise<Instance> {
   const { tokens, clients } = storesOver(db);
   const provider = new GoogleAuthProvider({
     clientId: GOOGLE_CLIENT_ID,
@@ -105,7 +109,7 @@ async function startInstance(): Promise<Instance> {
     clientsStore: clients,
     tokenStore: tokens,
     tokenTtlSeconds: 3600,
-    sealingSecret: SEALING_SECRET,
+    sealingSecret,
   });
   const app = createApp({
     googleProvider: provider,
@@ -284,6 +288,18 @@ describe('a sign-in that changes instance', () => {
     await expect(
       first.provider.verifyAccessToken(String(issued.body.access_token)),
     ).resolves.toMatchObject({ extra: { email: 'dave@phoneware.us', resourceId: 77 } });
+  });
+
+  it('completes a sign-in across instances with a production-shaped secret', async () => {
+    const first = await startInstance(PRODUCTION_SHAPED_SECRET);
+    const second = await startInstance(PRODUCTION_SHAPED_SECRET);
+    stubUpstream();
+
+    const code = await signInCode(first, second);
+    const issued = await redeem(second, code);
+
+    expect(issued.status).toBe(200);
+    expect(issued.body.access_token).toEqual(expect.any(String));
   });
 
   it('sets the sign-in cookie for the callback only, and HttpOnly', async () => {
@@ -501,16 +517,19 @@ describe('startup refusals', () => {
 
   it('refuses Google sign-in without a usable sealing secret', () => {
     expect(() => validateStartup({ ...googleEnv })).toThrow(/AUTOTASK_SECRET is not set/);
-    expect(() => validateStartup({ ...googleEnv, AUTOTASK_SECRET: 'x'.repeat(31) })).toThrow(
-      /at least 32 bytes/,
+    expect(() => validateStartup({ ...googleEnv, AUTOTASK_SECRET: 'abcdefghijklmno' })).toThrow(
+      /at least 16 bytes/,
     );
-    expect(() => validateStartup({ ...googleEnv, AUTOTASK_SECRET: 'changeme' })).toThrow(
+    expect(() => validateStartup({ ...googleEnv, AUTOTASK_SECRET: 'super-secret-value' })).toThrow(
       /placeholder/,
+    );
+    expect(() => validateStartup({ ...googleEnv, AUTOTASK_SECRET: 'ab'.repeat(16) })).toThrow(
+      /distinct byte values/,
     );
   });
 
-  it('starts with a usable secret, and needs no secret without Google sign-in', () => {
-    expect(validateStartup({ ...googleEnv, AUTOTASK_SECRET: 'x'.repeat(32) })).toEqual({
+  it('starts with a production-shaped secret, and needs no secret without Google sign-in', () => {
+    expect(validateStartup({ ...googleEnv, AUTOTASK_SECRET: PRODUCTION_SHAPED_SECRET })).toEqual({
       refreshIdleTtlMs: 90 * DAY,
     });
     expect(validateStartup({})).toEqual({ refreshIdleTtlMs: 90 * DAY });
@@ -518,13 +537,37 @@ describe('startup refusals', () => {
 });
 
 describe('the sealing secret', () => {
-  it('counts bytes, so a multi-byte secret of 32 bytes is accepted', () => {
-    expect(() => assertSealingSecret('é'.repeat(16))).not.toThrow();
+  it('accepts the production-shaped secret: 25 bytes, 24 distinct byte values', () => {
+    // The live AUTOTASK_SECRET was measured at this shape. The floor must stay below it.
+    expect(Buffer.byteLength(PRODUCTION_SHAPED_SECRET)).toBe(25);
+    expect(new Set(Buffer.from(PRODUCTION_SHAPED_SECRET)).size).toBe(24);
+    expect(() => assertSealingSecret(PRODUCTION_SHAPED_SECRET)).not.toThrow();
   });
 
-  it('refuses a secret shorter than 32 bytes', () => {
-    expect(() => assertSealingSecret('short-secret-value')).toThrow(/at least 32 bytes/);
-    expect(() => new Sealer('short-secret-value')).toThrow(/at least 32 bytes/);
+  it('accepts the floor itself: 16 bytes with 12 distinct byte values', () => {
+    expect(() => assertSealingSecret('abcdefghijkl' + 'aaaa')).not.toThrow();
+  });
+
+  it('refuses 16 bytes with only 11 distinct byte values', () => {
+    expect(() => assertSealingSecret('abcdefghijk' + 'aaaaa')).toThrow(/11 distinct byte values/);
+  });
+
+  it('refuses a secret shorter than 16 bytes', () => {
+    expect(() => assertSealingSecret('abcdefghijklmno')).toThrow(/at least 16 bytes/);
+    expect(() => new Sealer('abcdefghijklmno')).toThrow(/at least 16 bytes/);
+  });
+
+  it('refuses a placeholder, whatever its length', () => {
+    expect(() => assertSealingSecret('super-secret-value')).toThrow(/placeholder/);
+  });
+
+  it('refuses a secret with few distinct byte values, whatever its length', () => {
+    expect(() => assertSealingSecret('ab'.repeat(16))).toThrow(/2 distinct byte values/);
+  });
+
+  it('measures length in bytes, not characters', () => {
+    // Eleven accented letters: 11 characters, 22 bytes, 12 distinct byte values.
+    expect(() => assertSealingSecret('àáâãäåæçèéê')).not.toThrow();
   });
 });
 
@@ -555,5 +598,15 @@ describe('sealed state', () => {
     ).toBeUndefined();
     expect(sealer.unseal(SEAL_PURPOSES.authorizationCode, sealed.slice(0, 20))).toBeUndefined();
     expect(sealer.unseal(SEAL_PURPOSES.authorizationCode, 'not-a-sealed-value')).toBeUndefined();
+  });
+
+  it('seals and opens with a production-shaped secret, and not with any other', () => {
+    const production = new Sealer(PRODUCTION_SHAPED_SECRET);
+    const sealed = production.seal(SEAL_PURPOSES.pendingAuthorization, { nonce: 'n-1' });
+
+    expect(production.unseal(SEAL_PURPOSES.pendingAuthorization, sealed)).toEqual({
+      nonce: 'n-1',
+    });
+    expect(sealer.unseal(SEAL_PURPOSES.pendingAuthorization, sealed)).toBeUndefined();
   });
 });
